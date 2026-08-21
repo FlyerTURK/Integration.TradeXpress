@@ -7,8 +7,8 @@ using Volo.Abp.Users;
 namespace Integration.TradeXpress.Blazor.Client.Services.Working;
 
 /// <summary>
-/// <see cref="IVaultContextProvider"/> köprüsü — circuit'teki çalışma KASASINI sunucu-ambient
-/// <see cref="ICurrentVault"/>'a taşır (<c>WorkingCompanyContextProvider</c> deseninin aynası).
+/// <see cref="IVaultContextProvider"/> uygulaması — circuit'teki çalışma KASASINI sunucu-ambient
+/// <see cref="ICurrentVault"/>'a taşır (<c>WorkingCompanyContextProvider</c> deseniyle BİREBİR aynı).
 /// Default <c>NullVaultContextProvider</c>'ı değiştirir.
 ///
 /// <para><b>MAYIN — kaynak singleton store'dur:</b> scoped <c>IWorkingContextService</c>'ten OKUNMAZ (ABP UoW

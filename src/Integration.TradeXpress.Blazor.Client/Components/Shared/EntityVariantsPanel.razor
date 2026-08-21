@@ -9,11 +9,16 @@
 
 @* JENERİK varyant paneli — nitelik×değer kartezyeninden ÜRETİLEN varyantlar. "Varyantları Oluştur" butonu (nitelik
    varsa) sahibin OnGenerate'ini çağırır (sunucu üretir → Variants). Drill ekleme/silmeye KAPALI (synchronizer üretir);
-   yalnız çekirdek alanlar (Barkod/Stok/Açıklama/Aktif) düzenlenir. Entity-özel alanlar ExtraFields slot'unda. *@
+   yalnız panelin kendi alanları (Barkod/Stok/Açıklama/Aktif) düzenlenir. Entity-özel alanlar ExtraFields slot'unda. *@
 
 @* Varyantlar nitelik/değer değişiminde OTOMATİK senkronlanır (buton yok) — sahip layout EntityAttributesPanel.OnAttributesChanged'i host regen'ine bağlar. *@
 @* Aşağıdaki DrillList'te sayfalama YOK (DrillList varsayılanı) ve SANAL KAYDIRMA açık: kartezyen varyant
    listesi (nitelik×değer) uzayabildiğinden DOM şişmeden tek akışta gösterilir. *@
+@* VARYANT KAPSAMI BANDI — bu panelin araç çubuğunun ÜSTÜNDE (2026-08-20 kuralı: issue hangi kapsamdaysa bandı
+   da orada durur). "variants" kapsamı fiyatsız varyant · reçetesiz varyant · sıfır miktarlı emtia satırı gibi
+   issue'ları kapsar. Endeks yoksa (Good/Jewelry/Metal formları — satışa hazırlık paneli yok) hiç çizilmez. *@
+<ReadinessNotice Scope="@SaleReadinessScope.Variants" />
+
 @if (Attributes.Any(a => !a.IsDeleted))
 {
     <div style="padding:0.5rem 0.5rem 0; color:#6c757d; font-size:0.85rem;">
@@ -37,6 +42,25 @@
            FilterPredicate="@(v => !v.IsDeleted)"
            OnChanged="@(() => EditChanged?.Invoke())">
     <GridColumns>
+        @* SATIŞA-HAZIRLIK İŞARETİ — satırın kendi kapsamındaki (variants/{id} ve altı) en yüksek ağırlık.
+           Kullanıcı hangi varyantın engelli olduğunu formu tek tek açmadan görür.
+           Kolon @if ile SARILMAZ, Visible ile gizlenir: "nested settings" öğeleri toplayıcıya kayıt sırasında
+           girer; sonradan eklenen kolon listenin sonuna düşer ve kolon sırası bozulur (ui-blazor kuralı).
+           Endeks cascade EDİLMEMİŞSE (Good/Jewelry/Metal formlarında satışa hazırlık paneli yok) kolon hiç görünmez. *@
+        @* VisibleIndex VERİLMEZ: Kod kolonu açıkça 1'i tutuyor, indeks veren/vermeyen kolonları karıştırmak
+           sırayı öngörülemez kılıyor. Kolon markup'ta ilk sırada durur, bu yeterlidir. *@
+        <DxGridDataColumn Caption="" Width="44px" Visible="@ShowReadinessColumn"
+                          TextAlignment="GridTextAlignment.Center">
+            <CellDisplayTemplate Context="readinessCell">
+                @{
+                    var readinessVariant = (TVariant)readinessCell.DataItem;
+                }
+                @* İŞARETİ ORTAK BİLEŞEN ÇİZER (ReadinessMark): renk · ikon · ipucu · "Info çizmez" kuralı tek
+                   yerdedir. Aynı üç satırı burada elle yazmak, kanal grid'iyle bu grid'in aynı ağırlığı farklı
+                   ikonla göstermesine yol açmıştı. *@
+                <ReadinessMark Index="@ReadinessIndex" Scope="@ReadinessScopeOf(readinessVariant)" />
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
         @if (ShowImages)
         {
             <DxGridDataColumn Caption="@L["Preview"]" Width="70px" TextAlignment="GridTextAlignment.Center">

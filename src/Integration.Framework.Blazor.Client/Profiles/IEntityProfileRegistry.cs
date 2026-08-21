@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Integration.Framework.Blazor.Client.Profiles;
 
 /// <summary>
-/// Tip→profil ve key→profil araması. DI'da kayıtlı tüm <see cref="EntityProfile"/>'leri toplar; her yüzey
+/// Tip→profil ve key→profil araması. DI'da kayıtlı tüm <see cref="EntityProfile"/>'leri toplar; her bağlam
 /// (list page / edit host / menü) entity'nin kimliğini buradan çözer (tek kaynak).
 /// </summary>
 public interface IEntityProfileRegistry

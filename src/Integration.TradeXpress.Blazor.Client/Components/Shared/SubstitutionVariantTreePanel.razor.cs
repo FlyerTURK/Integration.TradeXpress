@@ -59,7 +59,7 @@ public partial class SubstitutionVariantTreePanel : CrudComponentBase
     /// kaldırdığında sonraki render aynı kümeyi geri yazar ve kaldırma imkânsız hâle gelir.</summary>
     private bool _scopeImported;
 
-    /// <summary>OVERRIDE modunda mı — ürün yüzeyi düz listeyi düzenler, grup kalemleri referans kalır.</summary>
+    /// <summary>OVERRIDE modunda mı — ürün formu düz listeyi düzenler, grup kalemleri referans kalır.</summary>
     private bool IsOverrideMode
     {
         get { return OverrideVariantIds is not null; }

@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.SpecialCodes;
 
-/// <summary>Özel Kod edit host — ince sarmal (coordinator + aynı-bağlam parent seçenekleri). Popup-only; bağlam
+/// <summary>Özel Kod edit host — ince host (coordinator + aynı-bağlam parent seçenekleri). Popup-only; bağlam
 /// picker'dan extraParams ile gelir.</summary>
 public partial class SpecialCodeEditHost
 {

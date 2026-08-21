@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Borç/Alacak Dekontu paneli (legacy BORC=999): tek bacak, Miktar YOK (0 gider), peşin muafiyeti YOK
+/// Borç/Alacak Dekontu paneli (legacy BORC=999): tek leg, Miktar YOK (0 gider), peşin muafiyeti YOK
 /// (DebitNoteBalancePoster daima bakiyeye yazar). Yön etiketi ALACAK/BORÇ — DB'de Inbound/Outbound saklanır
 /// (legacy quirk paritesi). Kategori bu fazda serbest metin → CommodityCode (legacy 'DEVİR' gibi).
 /// </summary>
@@ -36,7 +36,7 @@ public partial class DebitNoteProcessPanel : IVoucherLineEditPanel
     [Parameter] public Guid? CounterpartyVaultId { get; set; }
 
     /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz"): doluysa yeni teklif açılmaz, bu Teyit'e
-    /// alıcının KENDİ satırı yazılır (sunucu ayna doğrular).</summary>
+    /// alıcının KENDİ satırı yazılır (sunucu mirror doğrular).</summary>
     [Parameter] public Guid? DeclareConfirmationId { get; set; }
 
     /// <summary>Teyit yoluna gidildiğinde (teklif/beyan) tetiklenir — fiş OLUŞMADIĞI için <see cref="OnSaved"/>
@@ -90,7 +90,7 @@ public partial class DebitNoteProcessPanel : IVoucherLineEditPanel
 
     private void OnAmountChanged(decimal value)
     {
-        // Tutar = karşılık bacağı (PayTotal); CashBalancePoster ailesiyle aynı alan.
+        // Tutar = karşılık leg'i (PayTotal); CashBalancePoster ailesiyle aynı alan.
         _model.PayFactor = value;
         _model.PayTotal  = value;
     }
@@ -142,7 +142,7 @@ public partial class DebitNoteProcessPanel : IVoucherLineEditPanel
         _model.VoucherDescription = VoucherDescription;
         _model.Type               = ProcessType.DebitNote;
         _model.PaymentType        = null;                 // dekontta ödeme tipi yok
-        // Ana bacak boş: Miktar alanı YOK (legacy 0 gider), parasal etki pay-leg'de.
+        // Ana leg boş: Miktar alanı YOK (legacy 0 gider), parasal etki pay-leg'de.
         _model.MainUnitId = Guid.Empty;
         _model.Quantity   = 0m;
         _model.Amount     = 0m;

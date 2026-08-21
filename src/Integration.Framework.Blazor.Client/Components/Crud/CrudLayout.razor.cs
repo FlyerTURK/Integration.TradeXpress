@@ -65,7 +65,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         ///
         /// <para><b>Neden ayrı bir bileşen değil (2026-07-28 Hakan):</b> "bir listeleme formu ister sekmede
         /// ister popup'ta açılabilir" kararı — aynı form, aynı toolbar, aynı kolonlar. Seçici için ikinci bir
-        /// grid yazmak bakımı ikiye katlar ve iki yüzey zamanla ayrışır.</para>
+        /// grid yazmak bakımı ikiye katlar ve iki grid zamanla ayrışır.</para>
         ///
         /// <para>Boşsa liste bugünkü gibi davranır (tıklama → düzenle); mevcut sayfalar etkilenmez.</para>
         /// </summary>
@@ -239,7 +239,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             _loadTicket = CurrentMdiTab?.Load.Begin();
 
             StateService.OnReloadRequested += ReloadGrid;
-            // Köprü: grid'i StateService'e doğrudan bağla (SplitHost'tan bağımsız, her zaman). Popup/liste
+            // RegisterGrid: grid'i StateService'e doğrudan bağla (SplitHost'tan bağımsız, her zaman). Popup/liste
             // sayfa-aşırı gezinme bu kayıttan grid'i sürer (GoNext/PreviousGlobalAsync → EnsurePage/FocusDataItem).
             StateService.RegisterGrid(this);
             SplitHost?.RegisterGrid(this);   // birleşik toolbar arama/filtre/export'u buradan alır

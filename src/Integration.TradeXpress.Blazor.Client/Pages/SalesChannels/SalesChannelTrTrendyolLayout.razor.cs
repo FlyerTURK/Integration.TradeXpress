@@ -13,7 +13,7 @@ public partial class SalesChannelTrTrendyolLayout
     [Parameter] public bool IsNew { get; set; }
 
     /// <summary>Kanal bu oturumda YENİ oluşturuldu (create-success). <b>Layout artık bu bilgiyi KULLANMIYOR</b>
-    /// (2026-08-10): create-anı otomatik içe aktarımı yürüten <c>TrendyolMarketplaceImportPanel</c> bu yüzeyden
+    /// (2026-08-10): create-anı otomatik içe aktarımı yürüten <c>TrendyolMarketplaceImportPanel</c> bu layout'tan
     /// kaldırıldı. Parametre, edit host'un bağını KIRMAMAK için duruyor — akış yeniden tasarlandığında ya
     /// tüketilecek ya host'la birlikte sökülecek.</summary>
     [Parameter] public bool AutoImportProducts { get; set; }
@@ -54,5 +54,5 @@ public partial class SalesChannelTrTrendyolLayout
     // TEHLİKELİYDİ: ayarı hiç yapılandırılmamış (null) kanalda boş bir DTO üretip kayda {"Items":[]} yazdırıyordu
     // ve o değer "kullanıcı komisyon satırını sildi" anlamına geldiği için komisyon fiyata HİÇ girmiyordu —
     // hatasız, logsuz, yalnız ~%23 ucuz fiyat. Ayar artık null kalıyor; komisyonu kategori oranından örtük olarak
-    // SideCostPlan.From üretiyor (SideCostRecipeComposerTests'teki iki test bunu çiviliyor).
+    // SideCostPlan.From üretiyor (SideCostRecipeComposerTests'teki iki test bunu sabitliyor).
 }

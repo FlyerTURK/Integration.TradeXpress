@@ -186,7 +186,7 @@ public partial class SalesChannelEtsyProductEditFields : CrudComponentBase
     private string ChannelName =>
         Channels.FirstOrDefault(c => c.Id == Model.SalesChannelId)?.Code ?? Model.SalesChannelId.ToString();
 
-    /// <summary>DxHtmlEditor için null-güvenli açıklama override köprüsü (Markup non-null string bekler; DTO alanı nullable).</summary>
+    /// <summary>DxHtmlEditor için null-güvenli <c>Model.DescriptionOverride</c> property'si (Markup non-null string bekler; DTO alanı nullable).</summary>
     private string DescriptionMarkup
     {
         get => Model.DescriptionOverride ?? string.Empty;

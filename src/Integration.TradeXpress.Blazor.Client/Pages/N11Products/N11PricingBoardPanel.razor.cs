@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 
 /// <summary>
-/// N11 ÇALIŞMA TAHTASI kod-arkası — Trendyol tahtasının ikizi.
+/// N11 ÇALIŞMA TAHTASI kod-arkası — Trendyol board'unın ikizi.
 ///
 /// <para><b>PAZARYERİNE SIFIR YAZMA:</b> panel N11'e hiçbir istek göndermez. Yerel yazma tek noktadadır
 /// (<see cref="RemoveFromChannelAsync"/>) ve o da yalnız bizim kaydımızı kaldırır.</para>

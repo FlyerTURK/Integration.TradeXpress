@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 <!DOCTYPE html>
-@* Tema/boyut/dil İLK BOYAMADA doğru: ayna cookie'lerinden çözülür (bkz. App.razor.cs) — login
+@* Tema/boyut/dil İLK BOYAMADA doğru: tx.last_* cookie'lerinden çözülür (bkz. App.razor.cs) — login
    son kullanıcının temasında flaşsız açılır. Cookie yok/bozuk → Blazing Berry Light varsayılanı. *@
 <html lang="@_lang" data-bs-theme="@_colorMode" data-erp-size="@_sizeAttr" style="--tx-theme-primary:@_primaryHex">
 

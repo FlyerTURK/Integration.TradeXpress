@@ -59,15 +59,22 @@
                               NullText="@L["Optional"].Value"
                               ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
+        @* DURUM, TRENDYOL'DAKİ ARŞİV DURUMUNU YANSITIR (2026-08-17 Hakan kararı): pasif → kanalda arşive (satıştan
+           çekilir, silinmez), aktif → yeniden satışa; kaydedince kanala gider, red → değişmez. Bu bileşen ürün
+           formunun içine gömülüyken (ChannelStatusEditable=false) SALT-OKUNUR: oradaki graf kaydı bu bayrağı
+           yazmaz (bayat graf kanalı sessizce satışa açardı) — değiştirmek için kanal ürününün kendi formu. *@
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
-            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
-                @(Model.IsActive ? L["Active"] : L["Passive"])
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch" Enabled="@ChannelStatusEditable">
+                @(Model.IsActive ? L["TrendyolProduct:StatusActiveOnSale"] : L["TrendyolProduct:StatusPassiveArchived"])
             </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="6" Visible="@(!ChannelStatusEditable)">
+            <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:StatusEditedInChannelForm"]</span>
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
     @* Push emniyeti (emniyet payı + fiyat bandı) — N11 formuyla AYNI bileşen; alanlar D5'te row-builder portuyla
-       tüketilir, giriş yüzeyi bugünden açıktır (kullanıcı bandını önden kurabilsin). *@
+       tüketilir, giriş alanları bugünden açıktır (kullanıcı bandını önden kurabilsin). *@
     <ChannelPushGuardFields @bind-SafetyStock="@Model.SafetyStock"
                             @bind-MinPrice="@Model.MinPrice"
                             @bind-MaxPrice="@Model.MaxPrice" />
@@ -226,7 +233,21 @@
        karşılığı olmayan (IsErpBacked=false) satırlar "Trendyol-özel" rozetiyle ayırt edilir — bunlarda OverridePrice/
        OverrideStock ZORUNLU (server fail-fast; burada yalnız hint). Türetilmiş fiyat = NetCost×(1+Marj/100)
        SALT-OKUNUR. Sekme HER ZAMAN görünür (b9e5066 dersi); boşsa içeride hint. *@
+    @* Sekme başlığı kendi kapsamının EN YÜKSEK ağırlığıyla renklenir + karar gerektiren issue sayacını taşır
+       ("kanal ürünü var ama varyantlara temel emtia eklenmemiş" buradan görünür). İşaretli başlığın TEK bileşeni
+       SaleReadinessCaption'dır — ürün formu sekmeleriyle aynı çizim (elle açılan ikinci kopya kalınlığı
+       kaybetmişti). TreatNullScopeAsRoot=false: kanal ürünü henüz kaydedilmemişse kapsam yoktur ve o hâl "kök"
+       sayılıp sekme ürünün TÜM issue'larıyla boyanmamalıdır. Text ÖZNİTELİĞİ korunur: şablon çizilmeyen yerlerde
+       (adaptif menü) DevExpress ona düşer. Adlandırılmış şablon kullanıldığı için sekme içeriği ChildContent
+       şablonuna alındı. *@
     <DxTabPage Text="@L["TrendyolProduct:StockItems"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        <TextTemplate>
+            <SaleReadinessCaption Text="@L["TrendyolProduct:StockItems"].Value"
+                                  Index="@Readiness"
+                                  Scope="@ChannelVariantsScope"
+                                  TreatNullScopeAsRoot="false" />
+        </TextTemplate>
+        <ChildContent>
         @* Özellik/değer düzenlendikten sonra TÜM ürünü kaydetmeden yalnız bu Trendyol kaydının kombinasyon setini
            yeniler (RegenerateStockItemsAsync — Full Update ile AYNI reconcile mekanizması). *@
         <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:RegenerateStockItemsHint"]</span>
@@ -264,6 +285,22 @@
                     <GridLinkColumn Caption="@L["Code"]" Width="160px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                                     TextSelector="@(item => StockItemCodeOrLabel((SalesChannelTrTrendyolProductStockItemGraphDto)item))"
                                     OnClick="@(item => _stockItemDrill?.EditItem((SalesChannelTrTrendyolProductStockItemGraphDto)item))" />
+                    @* Satır issue işareti — kapsam ChannelVariant(kanal ürünü, core varyant). Trendyol-özel
+                       (ERP karşılığı olmayan) satırın core varyantı, yani ProductVariantId'si yoktur →
+                       işaret ÇİZİLMEZ. *@
+                    @* Başlık, satışa hazırlık panelinin issue kolonuyla AYNI anahtardan gelir: yeni anahtar açmak lokalizasyon
+                       dosyalarına dokunmayı gerektirirdi ve eksik anahtar ekranda HAM ANAHTAR olarak görünürdü
+                       (ABP PassThrough); tr/en'in ikisinde birden eksik olduğu için parite testi de yakalamaz. *@
+                    <DxGridDataColumn Caption="@L["Product:SaleReadinessIssueCount"]" Width="56px" AllowSort="false"
+                                      Visible="@(Readiness is not null)"
+                                      TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate Context="markCell">
+                            @{
+                                var markRow = (SalesChannelTrTrendyolProductStockItemGraphDto)markCell.DataItem;
+                            }
+                            <ReadinessMark Index="@Readiness" Scope="@ChannelVariantScopeOf(markRow.ProductVariantId)" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
                     <DxGridDataColumn FieldName="VariantName" Caption="@L["Name"]" />
                     <DxGridDataColumn Caption="@L["TrendyolProduct:Source"]" Width="120px">
                         <CellDisplayTemplate Context="cell">
@@ -346,12 +383,27 @@
                         </DxFormLayoutItem>
                         @* Kanal-özel reçete — ERP reçetesinden klonlanır, sonra bağımsız (ERP paneli AYNEN yeniden kullanılır).
                            OnChanged ŞART: bağlanmazsa satır ekleme/silme canlı NetCost'u tazelemez ve formu dirty
-                           yapmaz (çekirdekte aynı hata yaşandı — ProductLayout'taki not; kanalda da aynı düzeltme).
+                           yapmaz (core tarafta aynı hata yaşandı — ProductLayout'taki not; kanalda da aynı düzeltme).
                            "Üründen" akışı AÇIK (2026-08-14): yayılım adımı kuruldu — CreateCommodityFromProductAsync
-                           emtiayı ÇEKİRDEK varyanta yazar (otorite orada), panel dönen kimlikle draft açar. *@
-                        <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                           emtiayı CORE varyanta yazar (otorite orada), panel dönen kimlikle draft açar. *@
+                        @* Bölüm başlığı da kendi kapsamıyla renklenir (issue bulunduğu HER seviyede görünür).
+                           CaptionTemplate kullanıldığında grup içeriği Items şablonuna taşınır — DevExpress'in
+                           sözleşmesi budur; ChildContent ile aynı içerik, yalnız adlandırılmış hâli. *@
+                        <DxFormLayoutGroup ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                            <CaptionTemplate Context="__recipeGroup">
+                                <SaleReadinessCaption Text="@L["Recipe"].Value"
+                                                      Index="@Readiness"
+                                                      Scope="@ChannelVariantRecipeScopeOf(v.ProductVariantId)"
+                                                      TreatNullScopeAsRoot="false" />
+                            </CaptionTemplate>
+                            <Items>
+                            @* "Üründen" anahtarı KAYITSIZ üründe gizlenir (2026-08-20): ERP tarafındaki ürün formu o hâlde
+                               taslak seed ile çalışabiliyor, kanal formu ÇALIŞAMAZ — buradaki CreateCommodityFromProductAsync
+                               kayıtlı ürün ister (ProvisionCommoditiesAsync kimlik üzerinden yürür) ve Model.ProductId boşken
+                               null döner. AllowCreateFromProduct koşulu olmasaydı düğme ÇİZİLİR ama hiçbir şey açmazdı:
+                               çökme yok, uyarı yok, ölü düğme. *@
                             <ProductRecipePanel Lines="v.RecipeLines"
-                                                ProductId="@Model.ProductId" AllowCreateFromProduct="true"
+                                                ProductId="@Model.ProductId" AllowCreateFromProduct="@(Model.ProductId != Guid.Empty)"
                                                 AllVariants="@_coreVariants"
                                                 OnCreateCommodityFromProduct="@CreateCommodityFromProductAsync"
                                                 OnCatalogReloadRequested="@ReloadRecipeCatalogsAsync"
@@ -360,11 +412,13 @@
                                                 GoodVariants="_goodVariants" JewelryVariants="_jewelryVariants"
                                                 OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))"
                                                 NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
+                            </Items>
                         </DxFormLayoutGroup>
                     </DxFormLayout>
                 </EditContent>
             </DrillList>
         }
+        </ChildContent>
     </DxTabPage>
 
     @* Varyant SKU'ları (read-only) — push + reconcile sonrası dolar. *@

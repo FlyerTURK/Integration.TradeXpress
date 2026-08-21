@@ -23,14 +23,14 @@
 *@
 
 @* Sabit header + toolbar (flex-shrink:0), KAYAN body (flex:1 + overflow-y:auto). Yükseklik MOD-DUYARLI (bkz. RootHeightStyle):
-   TAB modunda MDI sekme gövdesini DOLDURUR (height:100% — liste CrudLayout gibi; alt kısım erken kesilmez); POPUP/drill'de
+   TAB modunda MDI sekme body'sini DOLDURUR (height:100% — liste CrudLayout gibi; alt kısım erken kesilmez); POPUP/drill'de
    h-100 çözülmediğinden EXPLICIT viewport bound (calc(90vh - 84px)) → body güvenilir kayar.
    Header = paylaşılan EditHeaderView (Components.Shared import edildi → artık çözülür/görünür). *@
 <div id="@_formId" style="display:flex; flex-direction:column; @RootHeightStyle min-height:0; overflow-x:hidden; max-width:100%;">
     @if (Placement == ToolbarPlacement.Top)
     {
         @* Yapısal başlık ENGINE'den gelir (tek kaynak BuildHeader→TabHeaderData → sekme şeridi + app-header üst-paneli).
-           Gövdede TEKRAR çizilmez — gereksiz kopyaydı. Popup'ta başlık chrome header'ında (ChromeHeader). *@
+           Body'de TEKRAR çizilmez — gereksiz kopyaydı. Popup'ta başlık chrome header'ında (ChromeHeader). *@
         <div style="border-bottom:1px solid #dee2e6; padding:0.5rem 0.75rem; margin-bottom:0.5rem; flex-shrink:0;">
             @* TEK edit toolbar — drill edit popup'ı da AYNI EditToolbar'ı kullanır (ikiz değil, aynısı). *@
             <EditToolbar EditController="@this" OnActionInvoked="StateHasChanged" />
@@ -54,12 +54,18 @@
                     @* Düzenlenen MODEL de cascade edilir (Name="EditModel"): sahibin kimliğine ihtiyaç duyan paylaşılan
                        paneller (ör. EntityVariantsPanel — ana varyantı sahibin koduyla gösterir) her formda ayrı ayrı
                        parametre almak zorunda kalmasın; unutulan form sessizce sapıyordu (2026-08-15 Hakan: "DRY"). *@
+                    @* Kirlilik SORGUSU da cascade edilir (Name="EditIsDirty", Func<bool>): "önce kaydet" demesi gereken
+                       paneller (ürünün satışa hazırlık paneli — Satışa Doğrula kirli formda pasif) formun EFEKTİF kirliliğini buradan
+                       okur; snapshot kıyası tek yerde (burada) kalır, panel kendi kıyasını kurmaz. Sabit delegate →
+                       IsFixed güvenli; sonuç her çağrıda taze hesaplanır (2026-08-19). *@
                     <CascadingValue Value="@EditChangedAction" Name="EditChanged" IsFixed="true">
+                    <CascadingValue Value="@IsDirtyProbe" Name="EditIsDirty" IsFixed="true">
                         <CascadingValue Value="@IsReadOnly" Name="FormIsReadOnly">
                             <CascadingValue Value="@((object?)Model)" Name="EditModel">
                                 <div @onchange="OnFormChange">@ChildContent(Model)</div>
                             </CascadingValue>
                         </CascadingValue>
+                    </CascadingValue>
                     </CascadingValue>
                 </fieldset>
             </EditForm>
@@ -130,7 +136,7 @@
 
     [Parameter] public ToolbarPlacement Placement { get; set; } = ToolbarPlacement.Top;
 
-    // Popup chrome (GlobalPopupHost) → varsa başlığı chrome header'a iteriz, gövdede çizmeyiz. Tab'da null.
+    // Popup chrome (GlobalPopupHost) → varsa başlığı chrome header'a iteriz, body'de çizmeyiz. Tab'da null.
     [CascadingParameter] public IPopupChrome? PopupChrome { get; set; }
     // MDI tab bağlamı (routable host tab'da açılınca) → başlığı tab şeridine sync + kapanış guard'ı tab'a bağla.
     [CascadingParameter(Name = "CurrentMdiTab")] public IMdiTab? CurrentMdiTab { get; set; }
@@ -147,7 +153,7 @@
     private bool _busy;
     private string _formId = "edit_form_" + Guid.NewGuid().ToString("N");
 
-    // Kök yükseklik MOD-DUYARLI: TAB'da (CurrentMdiTab var, popup değil) MDI sekme gövdesini DOLDUR (height:100% — liste
+    // Kök yükseklik MOD-DUYARLI: TAB'da (CurrentMdiTab var, popup değil) MDI sekme body'sini DOLDUR (height:100% — liste
     // CrudLayout gibi) → form altı erken kesilmez. POPUP/drill/standalone'da h-100 çözülmez → viewport bound (body kayar).
     private string RootHeightStyle => CurrentMdiTab != null && PopupChrome == null
         ? "height:100%; max-height:100%;"
@@ -173,6 +179,10 @@
     // Stable ref (cache) → IsFixed cascade güvenli. NotifyIfChanged: re-render + dirty/toolbar/başlık (*) tazele.
     private Action? _editChangedCache;
     private Action EditChangedAction => _editChangedCache ??= NotifyEditChanged;
+
+    // Kirlilik sorgusu cascade'i (Name="EditIsDirty") — sabit referans (IsFixed), sonucu her çağrıda taze.
+    private Func<bool>? _isDirtyProbeCache;
+    private Func<bool> IsDirtyProbe => _isDirtyProbeCache ??= () => EffectiveDirty;
 
     // EntityEditForm, child VaultLayout'un @bind'ı değişince KENDİSİ re-render olmaz (child izole). DevExpress
     // editörleri EditContext.OnFieldChanged'i tetikler → buradan StateHasChanged ile dirty/toolbar tazelenir.
@@ -237,7 +247,7 @@
     }
 
     // Başlığı host chrome'una it. Sig-guard: yalnız başlık/dirty değişince → döngü yok. popup → IPopupChrome
-    // (EditHeaderView fragment, canlı); tab → MDI tab şeridi (UpdateTabHeader + SetTabDirty). Gövde başlığı ayrıca
+    // (EditHeaderView fragment, canlı); tab → MDI tab şeridi (UpdateTabHeader + SetTabDirty). Body başlığı ayrıca
     // (PopupChrome null iken) çizilir → tab içeriğinde de header görünür, üstte tab şeridi de senkron.
     private string? _lastHeaderSig;
     private void PushHeader()

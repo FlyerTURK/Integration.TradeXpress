@@ -1,12 +1,16 @@
 @*
-   Satır içi uyarı kutusu — ENGELLEMEYEN bilgilendirme (hata değil): kullanıcı işine devam edebilir ama
-   eksik bir şey olduğunu görür.
+   Satır içi uyarı kutusu — kullanıcı işine devam edebilir ama eksik/riskli bir şey olduğunu görür.
 
    Neden bileşen: bu kutu markup'ı projede zaten birden çok yerde elle tekrarlanıyordu (EntityVariantsPanel,
    MarginSetDialog, BalanceSheetReportPage). Dördüncü kopyayı eklemek yerine tek yere alındı — kutunun görünümü
-   değişince tek dosya güncellenir. DevExpress karşılığı yok (DxAlert bu sürümde yok) → ince HTML sarmalayıcı.
+   değişince tek dosya güncellenir. DevExpress karşılığı yok (DxAlert bu sürümde yok) → ince bir HTML kutusu.
+
+   İKİ TON (2026-08-19): satışa-hazırlık bandı aynı kutuyu ENGEL (kırmızı) için de kullanıyor. Ayrı bir "hata
+   kutusu" bileşeni açmak yerine ton parametresi eklendi — tek bileşen, iki renk; kutunun ölçüsü/ikon yerleşimi
+   ikiye ayrılmaz ve biri güncellenip diğeri unutulmaz. VARSAYILAN Warning'dir → mevcut kullanımların görünümü
+   AYNEN korunur.
 *@
-<div style="background:#fff3cd; color:#664d03; border:1px solid #ffe69c; border-radius:0.375rem; padding:0.5rem 0.75rem; font-size:0.8rem; display:flex; align-items:flex-start; gap:0.5rem;">
-    <i class="@TradeXpressIcons.Warning" aria-hidden="true" style="margin-top:0.15rem;"></i>
+<div style="@BoxStyle">
+    <i class="@IconCssClass" aria-hidden="true" style="margin-top:0.15rem;"></i>
     <span>@ChildContent</span>
 </div>

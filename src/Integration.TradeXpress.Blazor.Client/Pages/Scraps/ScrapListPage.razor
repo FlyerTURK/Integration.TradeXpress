@@ -18,7 +18,7 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            CustomActions="@_customActions">
+            CustomActions="@BuildCustomActions()">
 
     <GridColumns>
         <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="100px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"

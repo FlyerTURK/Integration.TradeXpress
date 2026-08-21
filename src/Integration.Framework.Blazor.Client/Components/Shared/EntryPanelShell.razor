@@ -19,7 +19,7 @@
                MaxWidth="@Width">
         <ChildContent>
             @* Standart edit-form popup deseni: ÜSTTE sabit toolbar (opsiyonel checkbox + STANDART EditToolbar),
-               altta kayan gövde. Başlık standart (icon+caption); gradyan şerit gövde İÇİNDE. *@
+               altta kayan body. Başlık standart (icon+caption); gradyan şerit body İÇİNDE. *@
             <div style="display:flex; flex-direction:column; max-height:calc(90dvh - 96px); min-height:0; overflow-x:hidden; max-width:100%;">
                 <div style="flex-shrink:0; display:flex; align-items:center; gap:8px; padding-bottom:0.5rem; margin-bottom:0.5rem; border-bottom:1px solid #ddd;">
                     @if (EditController is not null)
@@ -61,7 +61,7 @@ else
             @Title
         </div>
 
-        @* İçerik yatayda taşarsa kabuk DEĞİL bu sarmalayıcı kayar (min-width:0 → flex çocuğu içeriğe göre şişmez). *@
+        @* İçerik yatayda taşarsa kabuk DEĞİL bu div kayar (min-width:0 → flex çocuğu içeriğe göre şişmez). *@
         <div style="min-width:0; max-width:100%; overflow-x:auto;">
             @ChildContent
         </div>

@@ -19,7 +19,7 @@
 *@
 @* ÇİFT TIK ile de picker açılır (VARSAYILAN davranış, 2026-07-28 Hakan): alan salt-okunur olduğundan
    kullanıcının ilk refleksi üzerine tıklamak oluyor; küçük ▼ düğmesini aramak zorunda kalmasın.
-   Sarmalayıcı div ŞART — DxTextBox @@ondblclick'i kendi input'una taşımıyor. *@
+   Dış div ŞART — DxTextBox @@ondblclick'i kendi input'una taşımıyor. *@
 <div @ondblclick="@OnDisplayDoubleClick" style="width:100%;">
 <DxTextBox Text="@DisplayText"
            ReadOnly="true"
@@ -80,7 +80,7 @@
             </DxToolbar>
             @* Grid kendi scroll alanında (flex:1 + min-height:0) — uzasa da footer'ı ekran dışına itmez.
                YATAY taşma da KAPALI (2026-08-15 Hakan tespiti: Trendyol kategori picker'ı ekrandan taşıyordu):
-               tek kolonlu uzun metin (kategori TAM YOLU) grid'i popup'tan geniş çiziyordu — sarmalayıcı
+               tek kolonlu uzun metin (kategori TAM YOLU) grid'i popup'tan geniş çiziyordu — dış div
                genişliği kilitler (max-width + overflow-x:hidden), hücre metni SARAR (TextWrapEnabled) — kırpmak
                "…" ile yolun sonunu (yaprağı) gizlerdi, oysa ayırt edici kısım tam da sondadır. *@
             <div style="flex:1 1 auto; min-height:0; max-width:100%; overflow-y:auto; overflow-x:hidden;">
@@ -166,7 +166,7 @@
     ///
     /// <para>Verilirse ▼/çift tık bu formu popup'ta açar — kendi toolbar'ı, kolonları, arama/filtre/export'u
     /// ve izinleriyle. "Bir listeleme formu ister sekmede ister popup'ta açılabilir" (2026-07-28 Hakan);
-    /// seçici için ikinci bir grid yazmak bakımı ikiye katlar ve iki yüzey zamanla ayrışır.</para>
+    /// seçici için ikinci bir grid yazmak bakımı ikiye katlar ve iki grid zamanla ayrışır.</para>
     ///
     /// <para>Verilmezse bileşenin KENDİ basit grid'i açılır (mevcut davranış) — diğer lookup'lar etkilenmez.</para>
     /// </summary>

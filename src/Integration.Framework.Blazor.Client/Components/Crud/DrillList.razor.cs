@@ -28,7 +28,7 @@ public partial class DrillList<TItem> where TItem : class
     }
 
     // Markup içeren şablonlar — .razor'ın üstündeki kod bloğunda atanır (kullanım BuildListActions +
-    // popup gövdesi). Razor inline template yalnız .razor içinde yazılabilir; alan tanımı burada.
+    // popup body'si). Razor inline template yalnız .razor içinde yazılabilir; alan tanımı burada.
     private RenderFragment<IToolbarItemInfo> SearchBoxTemplate = default!;
     private RenderFragment<IToolbarItemInfo> ActiveFilterTemplate = default!;
     private RenderFragment EditFormBody = default!;
@@ -74,7 +74,7 @@ public partial class DrillList<TItem> where TItem : class
     /// gerekçe ve "gruplanabilmenin şartı FieldName'dir" notu <c>TxGrid.ShowGroupPanel</c>'de.</summary>
     [Parameter] public bool ShowGroupPanel { get; set; }
 
-    /// <summary>Grup satırının gövdesi — enum/bool kolonlarında ham değer yerine okunur metin yazmak için
+    /// <summary>Grup satırının şablonu — enum/bool kolonlarında ham değer yerine okunur metin yazmak için
     /// (bkz. <c>TxGrid.DataColumnGroupRowTemplate</c>). Verilmezse DevExpress varsayılanı çizilir.</summary>
     [Parameter] public RenderFragment<GridDataColumnGroupRowTemplateContext>? DataColumnGroupRowTemplate { get; set; }
 
@@ -219,7 +219,7 @@ public partial class DrillList<TItem> where TItem : class
     // Persistent mod — verilen işlem anında kalıcı yazılır; verilmeyen saf in-memory. HER İŞLEM KENDİ DELEGESİNE
     // BAKAR: eskiden tek bayrak `PersistCreate != null` idi ve ekleme kapalı (AllowAdd=false → PersistCreate yok)
     // ama güncelleme açık bir drill'de PersistUpdate HİÇ çağrılmıyordu — popup "kaydedildi" diye kapanıyor, sunucuya
-    // hiçbir şey gitmiyordu (kanal ürünleri tahtası; 2026-08-15 Hakan tespiti, DB'de LastModificationTime=NULL kanıtı).
+    // hiçbir şey gitmiyordu (kanal ürünleri board'u; 2026-08-15 Hakan tespiti, DB'de LastModificationTime=NULL kanıtı).
     [Parameter] public Func<TItem, Task<TItem>>? PersistCreate { get; set; }
     [Parameter] public Func<TItem, Task<TItem>>? PersistUpdate { get; set; }
     [Parameter] public Func<TItem, Task>? PersistDelete { get; set; }
@@ -344,7 +344,7 @@ public partial class DrillList<TItem> where TItem : class
     /// DIŞ dirty kaynağı — EditContent'in düzenlediği nesne <c>TItem</c>'ın KENDİSİ DEĞİLSE (ör. liste satırı
     /// yalnız kimlik taşır, düzenleme ayrı yüklenen tam DTO üzerinde yapılır) JSON snapshot kıyası hiçbir
     /// değişikliği göremez ve Kaydet hep pasif kalır. Verilirse snapshot kıyasına EK olarak sorulur (biri
-    /// kirli diyorsa kirlidir). <para><b>Neden:</b> kanal-ürün tahtası bu desendedir; kategori attribute
+    /// kirli diyorsa kirlidir). <para><b>Neden:</b> kanal-ürün board'u bu desendedir; kategori attribute
     /// değişimi (ve aslında her alan) Kaydet'i açmıyordu (2026-08-15 Hakan tespiti).</para></summary>
     [Parameter] public Func<TItem, bool>? EditDirtyProvider { get; set; }
 
@@ -464,6 +464,10 @@ public partial class DrillList<TItem> where TItem : class
         StateHasChanged();
     }
 
+    /// <summary>Mevcut öğenin düzenleme popup'ını açar. Satır tıklamasından geldiğinde grid olayı zaten yeniden
+    /// çizdirir; ama DIŞARIDAN (ör. ürünün satışa hazırlık paneli "Düzelt →" → varyant paneli → buraya) çağrıldığında hiçbir olay
+    /// render tetiklemez ve popup görünmezdi — bu yüzden <see cref="StartNewItem"/> ile simetrik olarak render'ı
+    /// kendisi tetikler (grid yolunda fazladan bir render zararsızdır).</summary>
     public void EditItem(TItem item)
     {
         _editOriginal = item;
@@ -472,6 +476,7 @@ public partial class DrillList<TItem> where TItem : class
         SetEditContext(_editItem);
         _popupVisible = true;
         _pendingEditRender = true;
+        StateHasChanged();
     }
 
     // Tek tıkla satırdan düzenleme formu açılır (ayrı "Düzelt" butonu yok).
@@ -497,7 +502,7 @@ public partial class DrillList<TItem> where TItem : class
 
     // Footer EditForm DIŞINDA olduğundan submit'i elle tetikliyoruz: önce doğrula, geçerliyse kaydet.
     /// <summary>
-    /// KAYDETMEDEN (ve doğrulamadan) ÖNCE koşan kanca — EditContent'teki formun BEKLEYEN düzenlemelerini modele
+    /// KAYDETMEDEN (ve doğrulamadan) ÖNCE koşan delege — EditContent'teki formun BEKLEYEN düzenlemelerini modele
     /// commit ettirmek için (ör. DevExpress EditCell grid'inde hücre hâlâ düzenlemedeyken Kaydet'e basılması:
     /// değer edit-model'de kalır, modele hiç düşmez, form "kaydedildi" diye kapanır ve veri KAYBOLUR —
     /// 2026-08-15 Hakan tespiti). Üç kayıt yolu da (Kaydet · Kaydet-ve-Yeni · kapanışta-kaydet) bunu çağırır.

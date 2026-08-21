@@ -11,14 +11,14 @@ namespace Integration.TradeXpress.Blazor.Client.Theming;
 /// <summary>
 /// DevExpress <see cref="IThemeChangeService"/> üzerine ince katman. Seçimin TEK doğruluk kaynağı
 /// SUNUCU per-user ayarıdır (GetThemeAsync/SetThemeAsync — ABP SettingManager); tarayıcıdaki
-/// <c>tx.last_theme</c> cookie'si yalnız "son oturum açan kullanıcı" AYNASIDIR: kimlikli akışta
+/// <c>tx.last_theme</c> cookie'si yalnız "son oturum açan kullanıcı" YANSIMASIDIR: kimlikli akışta
 /// YAZILIR (her uygulama/değişimde), anonim login SSR'ı (App.razor) onu yalnız OKUR — böylece giriş
 /// ekranı son kullanıcının temasıyla flaşsız açılır. Açılışta <see cref="InitializeAsync"/> sunucu
 /// kaydını okuyup uygular.
 /// </summary>
 public sealed class ThemeService : IThemeService
 {
-    /// <summary>Anonim login SSR'ının okuduğu tema aynası cookie'si (encode'lu ThemeSelection JSON).</summary>
+    /// <summary>Anonim login SSR'ının okuduğu tema yansıması cookie'si (encode'lu ThemeSelection JSON).</summary>
     public const string LastThemeCookieName = "tx.last_theme";
     private readonly IJSRuntime _js;
     private readonly IUserUiSettingAppService _uiSettings;
@@ -59,7 +59,7 @@ public sealed class ThemeService : IThemeService
             }
             else
             {
-                // Kayıt yoksa varsayılanın data-bs-theme'i de doğru yazılsın; ayna cookie'si de VARSAYILANA
+                // Kayıt yoksa varsayılanın data-bs-theme'i de doğru yazılsın; yansıma cookie'si de VARSAYILANA
                 // çekilir — bu kullanıcının tema tercihi yokken login'de önceki kullanıcının teması kalmasın.
                 await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);
                 await module.InvokeVoidAsync("setPrimaryColorHex", PrimaryColorHex);
@@ -114,7 +114,7 @@ public sealed class ThemeService : IThemeService
             // Bootstrap 5.3 CSS değişkenleri mod ile senkron olsun diye <html data-bs-theme>.
             await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);
             await module.InvokeVoidAsync("setPrimaryColorHex", PrimaryColorHex);
-            // Ayna cookie'si HER uygulamada tazelenir (persist'ten bağımsız): giriş sonrası Initialize da
+            // Yansıma cookie'si HER uygulamada tazelenir (persist'ten bağımsız): giriş sonrası Initialize da
             // (persist:false) buradan geçer → cookie oturum açan KULLANICININ temasına döner.
             await WriteLastThemeCookieAsync(module, next);
         }
@@ -137,7 +137,7 @@ public sealed class ThemeService : IThemeService
         }
     }
 
-    /// <summary>Anonim login SSR'ının okuyacağı ayna cookie'sini yazar. JSON cookie-illegal karakterler
+    /// <summary>Anonim login SSR'ının okuyacağı yansıma cookie'sini yazar. JSON cookie-illegal karakterler
     /// (çift tırnak, virgül) içerdiğinden ENCODE'lu yazıcı kullanılır (App.razor UrlDecode ile okur).</summary>
     private static async Task WriteLastThemeCookieAsync(IJSObjectReference module, ThemeSelection selection)
     {
@@ -146,7 +146,7 @@ public sealed class ThemeService : IThemeService
             var json = JsonSerializer.Serialize(selection);
             await module.InvokeVoidAsync("writeEncodedCookie", LastThemeCookieName, json, 365);
         }
-        catch { /* ayna cookie'si yazılamazsa yalnız login görünümü etkilenir — akışı bozma */ }
+        catch { /* yansıma cookie'si yazılamazsa yalnız login görünümü etkilenir — akışı bozma */ }
     }
 
     private async Task<IJSObjectReference> GetModuleAsync()

@@ -346,7 +346,7 @@ public partial class BullionProcessPanel : IVoucherLineEditPanel
         _silverLaborUnitId = dto.SilverLaborUnitId ?? UnitIdOf(CurrencyUnitCode.HAS);
         _ptLaborUnitId     = dto.PlatinumLaborUnitId  ?? UnitIdOf(CurrencyUnitCode.HAS);
         _pdLaborUnitId     = dto.PalladiumLaborUnitId ?? UnitIdOf(CurrencyUnitCode.HAS);
-        // Altından Düş'te server HAS damgalar (nakit listesinde yok) → WithCash değilse TRY default; WithCash'te saklı birim.
+        // Altından Düş'te server HAS'ı kendisi yazar (nakit listesinde yok) → WithCash değilse TRY default; WithCash'te saklı birim.
         _payUnitId     = _laborMode == BullionLaborMode.WithCash
             ? (dto.PayUnitId ?? UnitIdOf(CurrencyUnitCode.TRY))
             : UnitIdOf(CurrencyUnitCode.TRY);

@@ -43,8 +43,8 @@ public partial class GoodListPage
     protected Integration.Framework.Blazor.Client.Services.Base.IViewOpener ViewOpener { get; set; } = default!;
 
     /// <summary>
-    /// "ÜRÜN OLUŞTUR" — seçili mamülün ürün aynasını açar (2026-08-10 Hakan: "mamül listeleme formunda
-    /// toolbara"). <c>ProductCommodityClassificationPanel</c>'in TERS yönü; ikisi de aynı tohumlama
+    /// "ÜRÜN OLUŞTUR" — seçili mamülün ürün projeksiyonunu açar (2026-08-10 Hakan: "mamül listeleme formunda
+    /// toolbara"). <c>ProductCommodityClassificationPanel</c>'in TERS yönü; ikisi de aynı seed'leme
     /// mekanizmasını (<c>SeedModel</c>) kullanır.
     ///
     /// <para><b>Seçim gerektirir ama GİZLENMEZ, devre dışı kalır:</b> görünmeyen düğme "böyle bir şey yok"
@@ -72,7 +72,7 @@ public partial class GoodListPage
         };
     }
 
-    /// <summary>Mamülün ürün aynasını ÜRÜN formunda açar. Projeksiyon SUNUCUDA üretilir (yetki kapısı orada)
+    /// <summary>Mamülün ürün projeksiyonunu ÜRÜN formunda açar. Projeksiyon SUNUCUDA üretilir ([Authorize] orada)
     /// ve forma <c>SeedModel</c> olarak verilir — kayıt AÇILMAZ, kullanıcı ürüne özel alanları doldurup
     /// kendisi kaydeder.</summary>
     private async Task OpenProductFromGoodAsync(Guid goodId)

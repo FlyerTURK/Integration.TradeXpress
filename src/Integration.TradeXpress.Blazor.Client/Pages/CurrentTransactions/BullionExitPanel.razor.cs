@@ -188,7 +188,7 @@ public partial class BullionExitPanel : IVoucherLineEditPanel
 
     // ── Net sonuç özeti — sunucuyla TEK kaynak motor (ComputeBullion, Direction=Out; çeşni çıkışta eklenmez).
     //    ERPPRO iFTakozGiris canlı net grid'inin (işçilik toplamı + yan-metal net etki) karşılığı; GİRİŞ paneli
-    //    (BullionProcessPanel) özet deseniyle birebir. Ara milyem/has GÖSTERİLMEZ — yalnız birim-başı net bacaklar.
+    //    (BullionProcessPanel) özet deseniyle birebir. Ara milyem/has GÖSTERİLMEZ — yalnız birim-başı net leg'ler.
     private void Recalc()
     {
         _summaryLegs = new();
@@ -318,7 +318,7 @@ public partial class BullionExitPanel : IVoucherLineEditPanel
             SilverLaborUnitId      = _silverLaborUnitId,
             PlatinumLaborUnitId    = _ptLaborUnitId,
             PalladiumLaborUnitId   = _pdLaborUnitId,
-            // Kur snapshot'ları (kayıt anı) — işçilik bacağı dönüşümü için.
+            // Kur snapshot'ları (kayıt anı) — işçilik leg'i dönüşümü için.
             GoldRate               = BuyOf(UnitIdOf(CurrencyUnitCode.HAS)),
             SilverRate             = BuyOf(UnitIdOf(CurrencyUnitCode.GUM)),
             PlatinumRate           = BuyOf(UnitIdOf(CurrencyUnitCode.PLT)),

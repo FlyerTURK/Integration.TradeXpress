@@ -10,17 +10,17 @@ namespace Integration.TradeXpress.Blazor.Client.Theming;
 /// <summary>
 /// Boyut modunun TEK doğruluk kaynağı SUNUCU per-user ayarıdır (GetSizeModeAsync/SetSizeModeAsync —
 /// ThemeService ile aynı desen); tarayıcıdaki <c>tx.last_size</c> cookie'si yalnız "son oturum açan
-/// kullanıcı" AYNASIDIR: kimlikli akışta YAZILIR, anonim login akışı (App.razor SSR + EmptyLayout init)
-/// onu yalnız OKUR. Eski localStorage kaydı (<c>tx.size</c>) sunucu ayarı boşken TEK SEFERLİK tohum
+/// kullanıcı" YANSIMASIDIR: kimlikli akışta YAZILIR, anonim login akışı (App.razor SSR + EmptyLayout init)
+/// onu yalnız OKUR. Eski localStorage kaydı (<c>tx.size</c>) sunucu ayarı boşken TEK SEFERLİK seed
 /// olarak devralınır (mevcut kullanıcıların boyutu kaybolmasın). Değişimde <c>data-erp-size</c>
 /// attribute'u <c>&lt;html&gt;</c> üzerinde güncellenir.
 /// </summary>
 public sealed class SizeModeService : ISizeModeService
 {
-    /// <summary>Legacy localStorage anahtarı — yalnız tek seferlik tohumlama için okunur.</summary>
+    /// <summary>Legacy localStorage anahtarı — yalnız tek seferlik seed'leme için okunur.</summary>
     public const string StorageKey = "tx.size";
 
-    /// <summary>Anonim login akışının okuduğu boyut aynası cookie'si (enum adı: Small/Medium/Large).</summary>
+    /// <summary>Anonim login akışının okuduğu boyut yansıması cookie'si (enum adı: Small/Medium/Large).</summary>
     public const string LastSizeCookieName = "tx.last_size";
 
     private readonly IJSRuntime _js;
@@ -55,13 +55,13 @@ public sealed class SizeModeService : ISizeModeService
                 mode = await ReadServerSizeModeAsync(module);
                 if (mode is { } m)
                 {
-                    // Ayna cookie'si oturum açan kullanıcının değerine döner (login ekranı bunu okur).
+                    // Yansıma cookie'si oturum açan kullanıcının değerine döner (login ekranı bunu okur).
                     await module.InvokeVoidAsync("writeCookie", LastSizeCookieName, m.ToString(), 365);
                 }
             }
             else
             {
-                // Anonim (login/EmptyLayout): yalnız ayna cookie'si okunur — sunucu ayarına dokunulmaz.
+                // Anonim (login/EmptyLayout): yalnız yansıma cookie'si okunur — sunucu ayarına dokunulmaz.
                 mode = TryParse(await module.InvokeAsync<string?>("getCookie", LastSizeCookieName));
             }
 
@@ -107,19 +107,19 @@ public sealed class SizeModeService : ISizeModeService
     {
         string? stored = null;
         try { stored = await _uiSettings.GetSizeModeAsync(); }
-        catch { /* API hatası → aşağıdaki tohum/varsayılan yolu */ }
+        catch { /* API hatası → aşağıdaki seed/varsayılan yolu */ }
 
         if (TryParse(stored) is { } fromServer)
         {
             return fromServer;
         }
 
-        // Legacy tohum: eski sürüm boyutu yalnız localStorage'da tutuyordu.
+        // Legacy seed: eski sürüm boyutu yalnız localStorage'da tutuyordu.
         var legacy = TryParse(await module.InvokeAsync<string?>("getLocal", StorageKey));
         if (legacy is { } seeded)
         {
             try { await _uiSettings.SetSizeModeAsync(seeded.ToString()); }
-            catch { /* tohum yazılamazsa bir sonraki oturumda tekrar denenir */ }
+            catch { /* seed yazılamazsa bir sonraki oturumda tekrar denenir */ }
             return seeded;
         }
         return null;

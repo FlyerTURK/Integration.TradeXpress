@@ -11,10 +11,10 @@ using Microsoft.Extensions.Localization;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// GetDto-direct fiş satırı panellerinin (Cash/Metal/Scrap/Future/Convert/Service) ortak gövdesi:
-/// ortak parametre seti (Context + OnBack/OnSaved), HandleSave iskeleti (bağlamı modele kopyala →
+/// GetDto-direct fiş satırı panellerinin (Cash/Metal/Scrap/Future/Convert/Service) ortak taban sınıfı:
+/// ortak parametre seti (Context + OnBack/OnSaved), HandleSave akışı (bağlamı modele kopyala →
 /// SaveLineAsync → toast → düzeltmede geri dön, yeni eklemede alan sıfırla) ve LoadForEditAsync deseni.
-/// Markup türeyen .razor'dadır; panel-özel davranış abstract/virtual kancalarla sağlanır.
+/// Markup türeyen .razor'dadır; panel-özel davranış abstract/virtual üyelerle sağlanır.
 /// (CommodityProcessPanelBase'ten farkı: markup içermez — 6 panelin markup'ları birbirinden farklıdır.)
 /// </summary>
 public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPanel
@@ -88,13 +88,13 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
     /// (tutarlar/açıklama; sınıflandırma ve seçimler kalır).</summary>
     protected abstract void ResetVolatileFields();
 
-    /// <summary>Kayıt başarıyla döndükten sonra, OnSaved bildirilmeden ÖNCE çalışan kanca
+    /// <summary>Kayıt başarıyla döndükten sonra, OnSaved bildirilmeden ÖNCE çalışan virtual metot
     /// (ör. Cash/Metal: EditedField sıfırlama).</summary>
     protected virtual void OnAfterSavePersisted()
     {
     }
 
-    /// <summary>Yeni ekleme akışında, alanlar sıfırlandıktan SONRA çalışan async kanca
+    /// <summary>Yeni ekleme akışında, alanlar sıfırlandıktan SONRA çalışan virtual async metot
     /// (ör. Convert: sonraki satır auto-fill'i için bakiyeleri tazeler).</summary>
     protected virtual Task OnAfterResetAsync() => Task.CompletedTask;
 
@@ -120,7 +120,7 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
         VoucherId = Context.VoucherId;
     }
 
-    /// <summary>Ortak kaydetme iskeleti: bağlamı modele kopyala → SaveLineAsync → toast →
+    /// <summary>Ortak kaydetme akışı: bağlamı modele kopyala → SaveLineAsync → toast →
     /// düzeltmede panel kapanır, yeni eklemede uçucu alanlar sıfırlanır.</summary>
     protected async Task HandleSave()
     {
@@ -142,7 +142,7 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
         }
     }
 
-    /// <summary>HandleSave'in asıl gövdesi — <see cref="HandleSave"/> re-entrancy guard'ı ile sarar.</summary>
+    /// <summary>HandleSave'in asıl işi — <see cref="HandleSave"/> re-entrancy guard'ı ile sarar.</summary>
     private async Task HandleSaveCoreAsync()
     {
         // Fiş bağlamı + işlem tipi.

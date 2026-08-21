@@ -9,7 +9,7 @@ public static class ProcessPanelStyles
     /// <summary>Grup etiketi (small başlık) stili.</summary>
     public const string Label = "font-weight:600; text-transform:uppercase; letter-spacing:0.05em;";
 
-    /// <summary>Grup sütunu sarmalayıcısı: masaüstünde sabit genişlik (default 120px) + flex-shrink:0,
+    /// <summary>Grup sütunu div'inin stili: masaüstünde sabit genişlik (default 120px) + flex-shrink:0,
     /// mobilde tam genişlik. Metal gibi paneller alan bazında farklı genişlik (60/240px) geçer.</summary>
     public static string Group(bool isMobile, int width = 120)
         => "display:flex; flex-direction:column; gap:4px; " + (isMobile ? "width:100%;" : $"width:{width}px; flex-shrink:0;");

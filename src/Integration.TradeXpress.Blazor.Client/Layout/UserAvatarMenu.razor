@@ -36,11 +36,11 @@
     <BodyContentTemplate Context="flyout">
         @* HİZALAMA — kritik olan `align-self:stretch` (2026-07-25, DOM + tema CSS ile doğrulandı):
            DevExpress `.dxbl-flyout-body` bir flex sütundur ve `align-items:flex-start` taşır → içindeki
-           gövdemiz İÇERİĞİ KADAR DARALIR. O yüzden `text-align:center` metin genişliğinde bir kutuda
+           `.user-avatar-flyout-body` div'imiz İÇERİĞİ KADAR DARALIR. O yüzden `text-align:center` metin genişliğinde bir kutuda
            ortalama yapıyor (görünür etki yok), `margin:0 auto` ortalayacak boşluk bulamıyor ve buton dar
            kalıyordu. `align-self:stretch` parent'ın flex-start'ını ezip kabuğu tam genişliğe açar; ancak
            ondan SONRA ortalama anlam kazanır.
-           Stiller sınıf yerine INLINE: gövde flyout portalına taşındığından torun seçiciler
+           Stiller sınıf yerine INLINE: bu div flyout portalına taşındığından torun seçiciler
            (`.user-avatar-flyout-body .erp-avatar-lg`) ve utility sınıfları oraya ulaşmıyor.
            Çıkış butonu grid içinde: grid öğesi varsayılan olarak tam genişliğe uzar (w-100 gerekmez). *@
         <div class="user-avatar-flyout-body" style="align-self:stretch; text-align:center;">

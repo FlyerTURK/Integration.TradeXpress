@@ -261,7 +261,21 @@
        OverrideStock ZORUNLU (server fail-fast; burada yalnız hint). Türetilmiş fiyat = NetCost×(1+Marj/100)
        SALT-OKUNUR. Sekme HER ZAMAN görünür (b9e5066 dersi — @if ile tüm sekmeyi gizlemek DxTabs'in async-sonrası
        yeni sekmeyi tanımamasına yol açıp kullanıcının sekmeyi hiç görememesine sebep oluyordu); boşsa içeride hint. *@
+    @* Sekme başlığı kendi kapsamının EN YÜKSEK ağırlığıyla renklenir + karar gerektiren issue sayacını taşır
+       ("kanal ürünü var ama varyantlara temel emtia eklenmemiş" buradan görünür). İşaretli başlığın TEK bileşeni
+       SaleReadinessCaption'dır — ürün formu sekmeleriyle aynı çizim (elle açılan ikinci kopya kalınlığı
+       kaybetmişti). TreatNullScopeAsRoot=false: kanal ürünü henüz kaydedilmemişse kapsam yoktur ve o hâl "kök"
+       sayılıp sekme ürünün TÜM issue'larıyla boyanmamalıdır. Text ÖZNİTELİĞİ korunur: şablon çizilmeyen yerlerde
+       (adaptif menü) DevExpress ona düşer. Adlandırılmış şablon kullanıldığı için sekme içeriği ChildContent
+       şablonuna alındı. *@
     <DxTabPage Text="@L["N11Product:StockItems"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        <TextTemplate>
+            <SaleReadinessCaption Text="@L["N11Product:StockItems"].Value"
+                                  Index="@Readiness"
+                                  Scope="@ChannelVariantsScope"
+                                  TreatNullScopeAsRoot="false" />
+        </TextTemplate>
+        <ChildContent>
         @* Özellik/değer düzenlendikten sonra TÜM ürünü kaydetmeden yalnız bu N11 kaydının kombinasyon setini yeniler
            (RegenerateStockItemsAsync — Full Update ile AYNI reconcile mekanizması, SaveAttributesAndReconcileAsync). *@
         <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:RegenerateStockItemsHint"]</span>
@@ -275,8 +289,8 @@
                   CssClass="mb-2 ms-1"
                   IconCssClass="@TradeXpressIcons.SalesChannel"
                   Click="@ReapplySideCostsAsync" />
-        @* Kayıtlı stok kaleminde karşılığı olmayan CANLI çekirdek varyantları — salt-okunur önizleme.
-           Çekirdekte yapılan (henüz kaydedilmemiş) her değişiklik burada anında görünür; fiyat/stok ezme
+        @* Kayıtlı stok kaleminde karşılığı olmayan CANLI core varyantları — salt-okunur önizleme.
+           Core tarafta yapılan (henüz kaydedilmemiş) her değişiklik burada anında görünür; fiyat/stok ezme
            kayıttan sonra açılır (kimlik çıpaları sunucu üretimi). *@
         @if (PreviewCoreVariants.Count > 0)
         {
@@ -326,6 +340,22 @@
                     <GridLinkColumn Caption="@L["Code"]" Width="160px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                                     TextSelector="@(item => StockItemCodeOrLabel((SalesChannelTrN11ProductStockItemGraphDto)item))"
                                     OnClick="@(item => _stockItemDrill?.EditItem((SalesChannelTrN11ProductStockItemGraphDto)item))" />
+                    @* Satır issue işareti — kapsam ChannelVariant(kanal ürünü, core varyant). N11-özel
+                       (ERP karşılığı olmayan) satırın core varyantı, yani ProductVariantId'si yoktur →
+                       işaret ÇİZİLMEZ. *@
+                    @* Başlık, satışa hazırlık panelinin issue kolonuyla AYNI anahtardan gelir: yeni anahtar açmak lokalizasyon
+                       dosyalarına dokunmayı gerektirirdi ve eksik anahtar ekranda HAM ANAHTAR olarak görünürdü
+                       (ABP PassThrough); tr/en'in ikisinde birden eksik olduğu için parite testi de yakalamaz. *@
+                    <DxGridDataColumn Caption="@L["Product:SaleReadinessIssueCount"]" Width="56px" AllowSort="false"
+                                      Visible="@(Readiness is not null)"
+                                      TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate Context="markCell">
+                            @{
+                                var markRow = (SalesChannelTrN11ProductStockItemGraphDto)markCell.DataItem;
+                            }
+                            <ReadinessMark Index="@Readiness" Scope="@ChannelVariantScopeOf(markRow.ProductVariantId)" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
                     <DxGridDataColumn FieldName="VariantName" Caption="@L["Name"]" />
                     <DxGridDataColumn Caption="@L["N11Product:Source"]" Width="120px">
                         <CellDisplayTemplate Context="cell">
@@ -408,12 +438,27 @@
                         </DxFormLayoutItem>
                         @* Kanal-özel reçete — ERP reçetesinden klonlanır, sonra bağımsız (ERP paneli AYNEN yeniden kullanılır).
                            OnChanged ŞART: bağlanmazsa satır ekleme/silme canlı NetCost'u tazelemez ve formu dirty
-                           yapmaz (çekirdekte aynı hata yaşandı — ProductLayout'taki not; kanalda da aynı düzeltme).
+                           yapmaz (core tarafta aynı hata yaşandı — ProductLayout'taki not; kanalda da aynı düzeltme).
                            "Üründen" akışı AÇIK (2026-08-14): yayılım adımı kuruldu — CreateCommodityFromProductAsync
-                           emtiayı ÇEKİRDEK varyanta yazar (otorite orada), panel dönen kimlikle draft açar. *@
-                        <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                           emtiayı CORE varyanta yazar (otorite orada), panel dönen kimlikle draft açar. *@
+                        @* Bölüm başlığı da kendi kapsamıyla renklenir (issue bulunduğu HER seviyede görünür).
+                           CaptionTemplate kullanıldığında grup içeriği Items şablonuna taşınır — DevExpress'in
+                           sözleşmesi budur; ChildContent ile aynı içerik, yalnız adlandırılmış hâli. *@
+                        <DxFormLayoutGroup ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                            <CaptionTemplate Context="__recipeGroup">
+                                <SaleReadinessCaption Text="@L["Recipe"].Value"
+                                                      Index="@Readiness"
+                                                      Scope="@ChannelVariantRecipeScopeOf(v.ProductVariantId)"
+                                                      TreatNullScopeAsRoot="false" />
+                            </CaptionTemplate>
+                            <Items>
+                            @* "Üründen" anahtarı KAYITSIZ üründe gizlenir (2026-08-20): ERP tarafındaki ürün formu o hâlde
+                               taslak seed ile çalışabiliyor, kanal formu ÇALIŞAMAZ — buradaki CreateCommodityFromProductAsync
+                               kayıtlı ürün ister (ProvisionCommoditiesAsync kimlik üzerinden yürür) ve Model.ProductId boşken
+                               null döner. AllowCreateFromProduct koşulu olmasaydı düğme ÇİZİLİR ama hiçbir şey açmazdı:
+                               çökme yok, uyarı yok, ölü düğme. *@
                             <ProductRecipePanel Lines="v.RecipeLines"
-                                                ProductId="@Model.ProductId" AllowCreateFromProduct="true"
+                                                ProductId="@Model.ProductId" AllowCreateFromProduct="@(Model.ProductId != Guid.Empty)"
                                                 AllVariants="@EffectiveCoreVariants"
                                                 OnCreateCommodityFromProduct="@CreateCommodityFromProductAsync"
                                                 OnCatalogReloadRequested="@ReloadRecipeCatalogsAsync"
@@ -422,11 +467,13 @@
                                                 GoodVariants="_goodVariants" JewelryVariants="_jewelryVariants"
                                                 OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))"
                                                 NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
+                            </Items>
                         </DxFormLayoutGroup>
                     </DxFormLayout>
                 </EditContent>
             </DrillList>
         }
+        </ChildContent>
     </DxTabPage>
 
     @* Ürün özel bilgileri — KOŞULSUZ (her kategoride): serbest key/value satırları. Boş key kabul edilmez. *@

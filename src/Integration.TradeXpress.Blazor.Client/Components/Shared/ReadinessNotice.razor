@@ -1,0 +1,32 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   SATIŞA-HAZIRLIK BANDI — bir bileşenin KENDİ kapsamındaki engelleri/uyarıları, o bileşenin araç çubuğunun ÜSTÜNDE
+   gösterir (2026-08-20 Hakan düzeltmesi: <i>"Kanal ürünleri toolbarının üstünde göster hatayı. Bu hata genel ürün
+   hatası değil satış kanalları ürünü hatasıydı"</i>).
+
+   İlk sürümde tek bir bant formun en üstünde TÜM issue'ların sayısını veriyordu; kanal eksikliği gibi bir issue
+   "ürün hatası" gibi okunuyordu. Doğrusu: issue hangi kapsamdaysa bandı da orada durur — kapsam yolu zaten
+   sunucudan geliyor (SaleReadinessScope), bant yalnız kendi ön-ekini sorar.
+
+   Issue YOKSA hiç çizilmez (yer kaplamaz). Info issue'su bandı AÇMAZ (KDV dersi, 2026-08-19): her bilgi satırı
+   bant açsaydı bant okunmaz hâle gelirdi — bilgi satırları satışa hazırlık panelinin issue listesinde yaşar.
+
+   Metin: kapsamdaki issue mesajları (en fazla MaxMessages tanesi; kalanı "+N daha"). ÖZET DEĞİL gerçek mesaj —
+   bileşen zaten dar bir kapsamda olduğu için kullanıcı burada "ne eksik"i doğrudan okur; Satışa Hazırlık sekmesine gitmek
+   yalnız TÜM ürünün resmini görmek için gerekir.
+*@
+
+@if (Severity is not null && SaleReadinessPalette.IsActionable(Severity))
+{
+    <InlineWarning Tone="@Tone">
+        @Text
+        @if (OnOpenDetails.HasDelegate)
+        {
+            <DxButton Text="@DetailsText"
+                      RenderStyle="ButtonRenderStyle.Link"
+                      CssClass="p-0 ms-2"
+                      Click="@(() => OnOpenDetails.InvokeAsync())" />
+        }
+    </InlineWarning>
+}

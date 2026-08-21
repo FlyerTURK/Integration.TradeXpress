@@ -1,5 +1,6 @@
 @namespace Integration.Framework.Blazor.Client.Components.Crud
 @using System.Linq
+@using System.Threading.Tasks
 @using DevExpress.Blazor
 
 @* Drill gridlerinin STANDART sekme kabuğu — DxTabs'i sarar; İÇİNE DOĞRUDAN <DxTabPage> yazılır.
@@ -9,8 +10,13 @@
 
    İkon/başlık TEK-KAYNAK (EntityProfile) için <DxTabPage> üzerinde profil helper'larını kullan:
        <DxTabPage Text="@Profiles.PluralTitle("Vault", L)" TabIconCssClass="@Profiles.Icon("Vault")">
-   (Profiles = @inject IEntityProfileRegistry; helper'lar EntityProfileRegistryUiExtensions'ta.) *@
-<DxTabs CssClass="@_css">
+   (Profiles = @inject IEntityProfileRegistry; helper'lar EntityProfileRegistryUiExtensions'ta.)
+
+   ActiveTabIndex dışarıdan BAĞLANABİLİR (opsiyonel, 2026-08-19): ürünün satışa hazırlık panelinin "Düzelt →" akışı gibi yerler
+   sekmeyi koddan açar. Sahip bağlamazsa DxTabs varsayılan 0'dan başlar ve kullanıcı tıklamasıyla ilerler —
+   eski davranış aynen korunur (bileşen kendi alanında son indeksi tutar). *@
+<DxTabs CssClass="@_css" RenderMode="@RenderMode" ScrollMode="@ScrollMode"
+        ActiveTabIndex="@ActiveTabIndex" ActiveTabIndexChanged="@OnActiveTabIndexChanged">
     @ChildContent
 </DxTabs>
 
@@ -21,9 +27,49 @@
     [Parameter] public string? CssClass { get; set; }
 
     /// <summary>true → sekme içeriği parent'ın KALAN dikey alanını doldurur (tx-tabs-stretched, main.css).
-    /// YALNIZ bounded-flex parent'ta kullan (üst-düzey sayfa / CrudEditView gövdesi). Popup/scroll bağlamında
+    /// YALNIZ bounded-flex parent'ta kullan (üst-düzey sayfa / CrudEditView body'si). Popup/scroll bağlamında
     /// KULLANMA: flex 0'a kollabe olur → orada DrillList kendi MinHeight tabanına bırakılır.</summary>
     [Parameter] public bool Stretch { get; set; }
+
+    /// <summary>Aktif sekme indeksi (iki-yönlü bağlanabilir: <c>@bind-ActiveTabIndex</c>). Sahip bağlamazsa
+    /// bileşen kendi içinde tutar; kullanıcı tıklaması her iki durumda da buraya yansır.</summary>
+    [Parameter] public int ActiveTabIndex { get; set; }
+
+    [Parameter] public EventCallback<int> ActiveTabIndexChanged { get; set; }
+
+    /// <summary>Sekme içeriğinin DOM'a nasıl yükleneceği (opsiyonel, 2026-08-19). VARSAYILAN DEĞİŞMEDİ
+    /// (<see cref="TabsRenderMode.Default"/>): yalnız aktif sekme çizilir, sekme değişince ÖNCEKİ İÇERİK YIKILIR
+    /// ve durumu korunmaz — bugüne kadarki davranış aynen sürer.
+    ///
+    /// <para><b>Ne zaman <see cref="TabsRenderMode.OnDemand"/> verilir:</b> bir sekmenin içeriği yalnız kendini
+    /// değil BAŞKA sekmeleri de besliyorsa (ör. ürünün satışa hazırlık paneli issue endeksini üretir; sekme
+    /// başlıkları, varyant satırları ve reçete bölümü ondan renklenir). Varsayılan kipte o içerik kullanıcı başka
+    /// sekmeye geçince yıkılır, parametreleri artık koşmaz ve kayıt sonrası endeks BAYAT kalır — düzeltilmiş bir
+    /// issue kırmızı görünmeye devam ederdi. OnDemand ziyaret edilen sekmeyi DOM'da tutar ve durumunu korur;
+    /// bedeli ziyaret edilen sekmelerin bellekte kalmasıdır (ziyaret edilmeyen hiç çizilmez).</para>
+    ///
+    /// <para>Opt-in bırakıldı: tüm drill sekmelerini topluca OnDemand yapmak, bugün ucuz sanılan grid'leri de
+    /// kalıcı hâle getirirdi.</para></summary>
+    [Parameter] public TabsRenderMode RenderMode { get; set; } = TabsRenderMode.Default;
+
+    /// <summary>Sekmeler kabın genişliğine SIĞMAYINCA ne olur. Varsayılan <see cref="TabsScrollMode.NoScroll"/> =
+    /// sığmayanlar ALT SATIRA iner (2026-08-20 Hakan: "tablar ekrana sığmadığında çoklu satırlar halinde
+    /// görünebilir mi?").
+    ///
+    /// <para><b>Neden DevExpress varsayılanı (<see cref="TabsScrollMode.Auto"/>) değil:</b> Auto masaüstünde
+    /// <c>NavButtons</c>'a düşer — sekmeler tek satırda kalır ve fazlası ok tuşlarının ARDINA gizlenir. Ürün
+    /// formunda 8 sekme var ve bir kısmı issue rozeti taşıyor; gizlenen bir sekmedeki kırmızı işaret hiç
+    /// görülmez, yani sığmama sessizce bilgi kaybına dönüşür. Alt satıra inen sekmede işaret görünür kalır.</para>
+    ///
+    /// <para>Parametre olarak açık: dar bir kapta (ör. iç içe drill) çok satırlı başlık yer yerse çağıran
+    /// <c>NavButtons</c>/<c>Swipe</c> seçebilir.</para></summary>
+    [Parameter] public TabsScrollMode ScrollMode { get; set; } = TabsScrollMode.NoScroll;
+
+    private async Task OnActiveTabIndexChanged(int index)
+    {
+        ActiveTabIndex = index;
+        await ActiveTabIndexChanged.InvokeAsync(index);
+    }
 
     private string _css =>
         string.Join(" ", new[] { Stretch ? "tx-tabs-stretched w-100 h-100" : null, CssClass }

@@ -9,7 +9,7 @@
    User DUMB Layout — Kullanıcı alanları + (var olan kullanıcıda) İzin paneli + Rol-Scope editörü (DxTabs). I/O yok.
    İzin paneli Model'e YANSIMAZ → DirtyChanged EditChanged'i tetikler (extra-dirty: Kaydet aktif + "*").
    Panel ref'i host'a iletilir (PanelRefChanged) → host HasExtraChanges + OnAfterCommit'i ona bağlar.
-   ScopedRolesEditor de İZİN paneliyle aynı kanca: inline stage → DirtyChanged extra-dirty, ref host'a → OnAfterCommit'te yazılır.
+   ScopedRolesEditor de İZİN paneliyle aynı desen: inline stage → DirtyChanged extra-dirty, ref host'a → OnAfterCommit'te yazılır.
    Paneller ProviderKey=Id gerektirir → yalnız var olan kullanıcıda (ilk kayıttan SONRA) görünür. Toolbar üstte.
 *@
 <DxFormLayout CssClass="w-100">
@@ -74,7 +74,7 @@
     // İzin paneli ref'ini host'a ilet (HasExtraChanges + OnAfterCommit için). Panel, kullanıcı var olunca var/null olur.
     [Parameter] public EventCallback<PermissionEditorPanel?> PanelRefChanged { get; set; }
 
-    // Scoped rol editörü ref'ini host'a ilet (aynı kanca: extra-dirty + extra-commit).
+    // Scoped rol editörü ref'ini host'a ilet (aynı desen: extra-dirty + extra-commit).
     [Parameter] public EventCallback<ScopedRolesEditor?> ScopedEditorRefChanged { get; set; }
 
     // EntityEditForm cascade'i: panel dirty (Model'e yansımaz) → formu tazele (Kaydet aktif + "*").

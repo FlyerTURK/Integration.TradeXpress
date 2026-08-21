@@ -66,12 +66,12 @@
 @* Giderler — kanal yan-maliyet ayarları (ortak editör; Etsy alanları/N11 import düğmesi bu kanalda gizli). *@
 
 @* İŞLEM DÜĞMELERİ KALDIRILDI (2026-08-10 Hakan kararı): kurulum sihirbazı · kategori senkronu · ürün içe
-   aktarma · fiyatlandırma tahtası. Dördü de DÜZENLEME değil İŞLEM'di; edit formunun işi kanalın alanlarını
+   aktarma · fiyatlandırma board'u. Dördü de DÜZENLEME değil İŞLEM'di; edit formunun işi kanalın alanlarını
    düzenlemektir. Üstelik dördü de başka bir yerden zaten erişilebilir durumda:
      · kategori ağacı kanal oluşturulurken app service hook'uyla ZATEN senkronlanıyor
      · ürün içe aktarımı sihirbazın kendi adımında (RunImportAsync) + create-anı otomatik tetikleme
-     · fiyatlandırma tahtası sihirbazın içe aktarım adımında
-   Aynı iş üç ayrı yerden tetiklenebiliyordu; sadeleşti. Hakan bu yüzeye farklı bir tasarım planlıyor. *@
+     · fiyatlandırma board'u sihirbazın içe aktarım adımında
+   Aynı iş üç ayrı yerden tetiklenebiliyordu; sadeleşti. Hakan bu forma farklı bir tasarım planlıyor. *@
 
 @* KANALA ÖZGÜ SEKMELER — yalnız kaydedilmiş kanalda (persistent drill'ler kanal Id'sine bağlıdır).
    Sekme yapısı BİLEREK tek sekmeyle başlıyor: bu kanala özgü başka tanımlar (kargo firmaları, kanal

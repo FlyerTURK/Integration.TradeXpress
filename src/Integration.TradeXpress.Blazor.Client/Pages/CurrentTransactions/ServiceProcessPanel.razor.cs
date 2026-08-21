@@ -11,8 +11,8 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Hizmet (Service) fiş satırı paneli — ortak iskelet ProcessPanelHostBase'te; burada hizmet lookup'ı
-/// ve tek-değerli tutar (PayFactor=PayTotal) mantığı var. Ana bacak boştur (tutar pay-leg'de).
+/// Hizmet (Service) fiş satırı paneli — ortak taban ProcessPanelHostBase'te; burada hizmet lookup'ı
+/// ve tek-değerli tutar (PayFactor=PayTotal) mantığı var. Ana leg boştur (tutar pay-leg'de).
 /// </summary>
 public partial class ServiceProcessPanel
 {
@@ -138,14 +138,14 @@ public partial class ServiceProcessPanel
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
+    // ── Base override'ları (HandleSave / LoadForEditAsync ortak akışı ProcessPanelHostBase'te) ──
 
     protected override bool CanSave()
         => Model.CommodityId is not null && Model.PayUnitId is not null; // hizmet/birim seçili değilse çık
 
     protected override void PrepareModelForSave()
     {
-        // Ana bacak boş (hizmet = Commodity; tutar pay-leg'de).
+        // Ana leg boş (hizmet = Commodity; tutar pay-leg'de).
         Model.MainUnitId = Guid.Empty;
         Model.Amount     = 0m;
         Model.Factor     = 0m;

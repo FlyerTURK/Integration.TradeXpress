@@ -59,7 +59,7 @@ public partial class SalesChannelTrTrendyolEditHost
     /// <summary>
     /// Kanala özgü İŞLEM düğmeleri MEVCUT araç çubuğuna girer (2026-08-10 Hakan uyarısı: "form altı toolbar
     /// eklemeyi alışkanlık haline getirme, bir toolbarımız varken buna gerek yok"). Önceki hâl formun altında
-    /// ayrı bir düğme şeridiydi: uygulamanın geri kalanında işlemler araç çubuğunda dururken bu yüzey istisna
+    /// ayrı bir düğme şeridiydi: uygulamanın geri kalanında işlemler araç çubuğunda dururken bu form istisna
     /// oluşturuyordu ve dikey yeri de boşa harcıyordu. Uzatma noktası zaten vardı — <c>BuildCustomActions</c>.
     ///
     /// <para>YENİ KAYITTA GÖRÜNMEZ: her ikisi de kaydedilmiş bir kanalın kimliğine bağlıdır.</para>

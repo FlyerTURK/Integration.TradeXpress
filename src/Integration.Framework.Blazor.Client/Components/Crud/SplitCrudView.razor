@@ -98,7 +98,7 @@
     protected override void OnInitialized()
     {
         _session.SelectionChanged += OnSelectionChanged;
-        // Sekme kapatma guard'ı: embedded edit kendi kurmuyor (IsEmbedded), split'in tek geçiş kapısı buradan.
+        // Sekme kapatma guard'ı: embedded edit kendi kurmuyor (IsEmbedded), split'in tek geçiş guard'ı buradan.
         if (CurrentMdiTab != null)
             CurrentMdiTab.CanCloseAsync = GuardLeaveAsync;
     }
@@ -139,7 +139,7 @@
         await SelectCoreAsync(id);
     }
 
-    // Guard'sız geçiş çekirdeği (remount + grid focus). Cross-page'de guard zaten önce yapıldı.
+    // Guard'sız geçiş core'u (remount + grid focus). Cross-page'de guard zaten önce yapıldı.
     private async Task SelectCoreAsync(object? id)
     {
         _editEpoch++;

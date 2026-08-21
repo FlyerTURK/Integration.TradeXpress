@@ -5,16 +5,16 @@
 @* Çok adımlı kurulum kabuğu — KANAL-AGNOSTİK (N11/Trendyol/Etsy aynı kabuğu tüketir; adımların içeriği farklı).
    İÇİNE <WizardStep> yazılır; adımlar kendilerini cascading Shell üzerinden kaydeder.
 
-   NEDEN DxTabs DEĞİL: DrillTabs uyarısı — DxTabPage ÜRETEN sarmalayıcı bileşen kullanılamaz, DevExpress
-   CollectionFiller sarmalayıcının içine inmez ve sekme SESSİZCE görünmez olur. Adım şeridi bu yüzden düz
+   NEDEN DxTabs DEĞİL: DrillTabs uyarısı — DxTabPage ÜRETEN ARA bileşen kullanılamaz, DevExpress
+   CollectionFiller ara bileşenin içine inmez ve sekme SESSİZCE görünmez olur. Adım şeridi bu yüzden düz
    işaretlemedir. Stil INLINE (yeni CSS sınıfı açılmadı — proje kuralı). *@
 
-@* YÜKSEKLİK AKIŞI (2026-08-06 Hakan tespiti — mobilde ayak düğmeleri görünmüyordu):
-   Kabuk ebeveyninin verdiği yüksekliği DOLDURUR ve İÇERİDE kaydırır; ayak (Geri/İleri/Atla) her zaman
+@* YÜKSEKLİK AKIŞI (2026-08-06 Hakan tespiti — mobilde footer düğmeleri görünmüyordu):
+   Kabuk ebeveyninin verdiği yüksekliği DOLDURUR ve İÇERİDE kaydırır; footer (Geri/İleri/Atla) her zaman
    altta sabit kalır. Sabit piksel yüksekliği (önceki yamam) hiçbir viewport'ta doğru olamazdı —
    masaüstünde tutup mobilde tutmamasının sebebi buydu.
    `min-height:0` ZORUNLU: flex öğesinin otomatik asgari boyu İÇERİĞİNDEN gelir; verilmezse çocuk
-   küçülmez, taşar ve ayak ekranın dışına itilir (aynı tuzağa Cari İşlem panelinde de düşmüştük). *@
+   küçülmez, taşar ve footer ekranın dışına itilir (aynı tuzağa Cari İşlem panelinde de düşmüştük). *@
 <div style="display:flex; flex-direction:column; gap:12px; height:100%; min-height:0;">
 
     @* Adım şeridi — tamamlanan / aktif / bekleyen. Tıklanabilirlik yalnız GERİYE (ileri gitmek doğrulamadan geçer). *@
@@ -39,9 +39,9 @@
         }
     </div>
 
-    @* Aktif adımın gövdesi — WizardStep kendi içeriğini yalnız aktifken çizer.
+    @* Aktif adımın içeriği (ChildContent) — WizardStep kendi içeriğini yalnız aktifken çizer.
        KAYDIRMA BURADA: uzun adım (ör. yüzlerce satırlık emtia listesi) kendi alanında kaydırılır,
-       ayak düğmelerini aşağı itmez. *@
+       footer düğmelerini aşağı itmez. *@
     <div style="flex:1; min-height:0; overflow-y:auto;">
         <CascadingValue Value="@this" IsFixed="true">
             @ChildContent
@@ -53,7 +53,7 @@
         <div style="color:#b02a37; font-size:0.9rem;">@_error</div>
     }
 
-    @* Ayak — Geri / İleri / Bitir. Adım geçişi doğrulamadan geçer; geçemezse aynı adımda kalınır. *@
+    @* Footer — Geri / İleri / Bitir. Adım geçişi doğrulamadan geçer; geçemezse aynı adımda kalınır. *@
     <div style="display:flex; gap:8px; align-items:center; border-top:1px solid #dee2e6; padding-top:10px;">
         <DxButton Text="@L["Wizard:Back"]"
                   RenderStyle="ButtonRenderStyle.Secondary"

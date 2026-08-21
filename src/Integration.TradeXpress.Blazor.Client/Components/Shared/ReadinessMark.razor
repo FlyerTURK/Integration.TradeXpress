@@ -1,0 +1,26 @@
+@*
+   SATIŞA-HAZIRLIK İŞARETİ — bir bileşenin (sekme başlığı / grid satırı / bölüm başlığı) kendi KAPSAMINDAKİ
+   issue'larını tek bakışta göstermesi (2026-08-19 Hakan kuralı: issue bulunduğu HER seviyede görünsün; her bölüm
+   o bölümün EN YÜKSEK ağırlığıyla renklensin).
+
+   Neden ortak bileşen: aynı "ağırlık → renk + rozet" mantığı ürün formunda, kanal grid'inde ve kanal ürünü
+   formunun iç sekmelerinde tekrarlanacaktı. Üç kopya demek, kuralın (ör. "Info renklendirmez") biri
+   güncellenip diğerleri unutulduğunda sessizce çatallanması demektir.
+
+   Ham <i>/<span> kullanımı bilinçlidir: DevExpress'te rozet/ikon-renk bileşeni yok; depoda yerleşik desen
+   budur (InlineWarning / TrendyolOnly rozeti). İkon merkezî sabitten gelir (TradeXpressIcons), ad-hoc sembol yok.
+*@
+
+@if (IsVisible)
+{
+    @if (Mode == ReadinessMarkMode.HeadingBadge)
+    {
+        <span style="@BadgeStyle" title="@Tooltip">@ActionableCount</span>
+    }
+    else
+    {
+        @* İkon ağırlıktan TÜRETİLİR (SaleReadinessPalette.IconOf): Error "dur", Warning "ünlem". Sabit tek bir
+           ikon çizmek, panelin issue listesiyle aynı issue'yu farklı işaretle göstermek demekti. *@
+        <i class="@SaleReadinessPalette.IconOf(Severity)" aria-hidden="true" style="@IconStyle" title="@Tooltip"></i>
+    }
+}

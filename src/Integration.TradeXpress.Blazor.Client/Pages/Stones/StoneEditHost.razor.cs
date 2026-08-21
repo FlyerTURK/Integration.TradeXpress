@@ -13,7 +13,7 @@ using Volo.Abp;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Stones;
 
-/// <summary>Taş edit host — ince sarmal (coordinator + para birimi listesi + "Varyantları Oluştur" delegesi).
+/// <summary>Taş edit host — ince host (coordinator + para birimi listesi + "Varyantları Oluştur" delegesi).
 /// DUMB layout servis çağırmaz → lookup + varyant üretimi host'ta (Good deseni).</summary>
 public partial class StoneEditHost
 {
@@ -29,6 +29,13 @@ public partial class StoneEditHost
     [Parameter] public string? SeedCode { get; set; }
 
     [Parameter] public string? SeedName { get; set; }
+
+    /// <summary>ÜRÜNÜN TAŞ PROJEKSİYONU — <c>ProductToCommodityProjector</c> çıktısı (2026-08-20). Taş aile olarak
+    /// VARYANTSIZDIR ("her taşın parmak izi ayrıdır") → seed kimlik + kayıt-geneli medya taşır, nitelik ve
+    /// varyant grafı BİLİNÇLE boştur; bu eksiklik değil tasarımdır.
+    /// <para>Verilirse <see cref="SeedCode"/>/<see cref="SeedName"/>'i EZER.</para></summary>
+    [Parameter] public StoneGetDto? SeedModel { get; set; }
+
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
@@ -49,14 +56,26 @@ public partial class StoneEditHost
         _ready = true;
     }
 
-    // Yeni taş default'ları — working şirket + standart ana varyant (kullanıcı nitelik eklemeden barkod/GTIN girebilsin).
+    // Yeni taş default'ları — yalnız working şirket + kimlik. VARYANT SEED'LENMEZ (gerekçe metodun sonunda).
     private void ApplyNewDefaults(StoneGetDto m)
     {
+
         m.IsActive = true;
         m.PriceTypeChange = true;
         m.CompanyId = Working.CurrentCompanyId;
 
-        // Panel tohumu (U1 — gerekçe MetalEditHost'ta).
+        // ZENGİN SEED önce (gerekçe MetalEditHost'ta). Taşta VARYANT ÜRETİLMEZ — varyantsız aileye varyant
+        // açmak, taşın "parmak izi ayrıdır" tasarımını bozar.
+        if (SeedModel is { } s)
+        {
+            m.Code        = s.Code;
+            m.Name        = s.Name;
+            m.Description = s.Description;
+            m.Media       = s.Media;
+            return;
+        }
+
+        // Panel seed'i (U1 — gerekçe MetalEditHost'ta).
         if (!string.IsNullOrWhiteSpace(SeedCode))
         {
             m.Code = SeedCode!;
@@ -67,15 +86,14 @@ public partial class StoneEditHost
             m.Name = SeedName!;
         }
 
-        // Nitelik×değer üretilince (GenerateVariants) liste değişir; üretilmezse save'de synchronizer bu main'i kalıcılaştırır
-        // (IsMain + boş CombinationKey → server main'e eşlenir).
-        m.Variants.Add(new EntityVariantGraphDto
-        {
-            IsMain = true,
-            Code = EntityVariantConsts.MainVariantCode,
-            Name = EntityVariantConsts.MainVariantName,
-            IsActive = true,
-        });
+        // ⛔ BURAYA ANA VARYANT SEED'İ EKLEME — 2026-08-20'de KALDIRILDI, kardeş host'lardan (Metal/Jewelry)
+        // kopyalanmış ÖLÜ koddu. Taş 2026-08-09'dan beri VARYANTSIZDIR ("her taşın parmak izi ayrıdır",
+        // CLAUDE.md §6): StoneLayout.razor'da varyant sekmesi YOK → üretilen ana varyant kullanıcıya hiç
+        // görünmüyordu; StoneAppService.SaveGraphAsync grafı `variants: null` ile çağırıyor ve StoneAppService
+        // .GetAsync varyant OKUMUYOR → gelen liste sessizce atılıyordu. Yani satır ne görünen ne kaydedilen
+        // bir şey üretiyordu, yalnız "Stone'da varyant var" yanılgısını besliyordu.
+        // Geri eklemek hiçbir davranış kazandırmaz, o yanılgıyı diriltir: taşın doğru modeli varyant değil
+        // SERİ TAKİBİdir (gerekçesi StoneLayout.razor'daki kaldırılan sekme notunda).
     }
 
     // "Varyantları Oluştur" — DUMB layout servis çağırmaz, çağrıyı host yapar. PERSISTSİZ önizleme: sunucu nitelik

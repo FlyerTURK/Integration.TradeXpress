@@ -336,7 +336,7 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
         }
     }
 
-    /// <summary>5. adım: mağaza çekimi. Seçilen KDV oranı YENİ kayıtlara damgalanır. Salt GET; N11'e yazma yok.</summary>
+    /// <summary>5. adım: mağaza çekimi. Seçilen KDV oranı YENİ kayıtlara yazılır. Salt GET; N11'e yazma yok.</summary>
     private async Task RunImportAsync()
     {
         _busy = true;

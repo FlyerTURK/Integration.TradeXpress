@@ -13,7 +13,7 @@ using Volo.Abp;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Metals;
 
-/// <summary>Maden edit host — ince sarmal (coordinator + para birimi listesi + "Varyantları Oluştur" delegesi).
+/// <summary>Maden edit host — ince host (coordinator + para birimi listesi + "Varyantları Oluştur" delegesi).
 /// DUMB layout servis çağırmaz → lookup + varyant üretimi host'ta (Good/Jewelry deseni).</summary>
 public partial class MetalEditHost
 {
@@ -32,6 +32,13 @@ public partial class MetalEditHost
     [Parameter] public string? SeedCode { get; set; }
 
     [Parameter] public string? SeedName { get; set; }
+
+    /// <summary>ÜRÜNÜN MADEN PROJEKSİYONU — <c>ProductToCommodityProjector</c> çıktısı (2026-08-20). Kod/ad/açıklamanın
+    /// yanında NİTELİK + VARYANT grafını ve İKİ BAĞLAM medyayı da taşır; kullanıcı aynı bilgiyi ikinci kez girmez.
+    /// <para>Verilirse <see cref="SeedCode"/>/<see cref="SeedName"/>'i EZER (daha zengin kaynak). Milyem/takip
+    /// birimi gibi TEKNİK alanlar seed'de YOKTUR — onları kullanıcı bu formda verir.</para></summary>
+    [Parameter] public MetalGetDto? SeedModel { get; set; }
+
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
@@ -44,19 +51,44 @@ public partial class MetalEditHost
         _coordinator = new PersistentCoordinator<MetalGetDto, MetalListDto, Guid, MetalListRequestDto, MetalCreateDto, MetalUpdateDto>(
             MetalAppService, Mapper);
 
+        // ApplyNewDefaults working şirketi CompanyId'ye yazar → context YÜKLÜ olmalı (Good/Jewelry/Stone deseni).
+        // Yüklemezsek CurrentCompanyId null döner ve form ilk açılışta şirketsiz görünür.
+        await Working.EnsureLoadedAsync();
+
         var result = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
         _units = result.Items.ToList();
 
         _ready = true;
     }
 
-    // Yeni maden default'ları + standart ana varyant (kullanıcı nitelik eklemeden barkod/GTIN girebilsin).
+    // Yeni maden default'ları — working şirket + standart ana varyant (kullanıcı nitelik eklemeden barkod/GTIN girebilsin).
     private void ApplyNewDefaults(MetalGetDto m)
     {
         m.IsActive = true;
         m.Factor = 0.995m;
 
-        // Panel tohumu: kod/ad üründen türetilip geliyorsa boş form yerine hazır gelir (U1).
+        // Maden ICompanyOwned'dır → yeni kaydın CompanyId'si working şirkete set edilir. Bu bir VERİ düzeltmesi DEĞİL,
+        // ASİMETRİ onarımıdır (2026-08-20): sunucu tarafında CompanyOwnershipGuard.ResolveOwnerCompanyId zaten
+        // set ediyor, ama form alanı boş kaldığı için Maden dört kardeş host'tan (Good/Jewelry/Stone) tek
+        // başına ayrılıyor ve kullanıcıya kaydın hangi şirkete gideceğini göstermiyordu.
+        // Seed bloğundan ÖNCE durur — seed'li yol `return` ile çıkar, sonraya konsa o yolda hiç çalışmazdı.
+        m.CompanyId = Working.CurrentCompanyId;
+
+        // ZENGİN SEED önce: ürünün maden projeksiyonu varsa kimlik + nitelik + varyant grafı + medya olduğu gibi
+        // gelir ve aşağıdaki ana-varyant kurulumunu ATLAR (ürünün varyantları zaten geldi; üstüne bir de
+        // sentinel'li ana varyant eklemek listeyi kirletirdi). Milyem yukarıda kaldı — teknik alan taşınmaz.
+        if (SeedModel is { } s)
+        {
+            m.Code        = s.Code;
+            m.Name        = s.Name;
+            m.Description = s.Description;
+            m.Attributes  = s.Attributes;
+            m.Media       = s.Media;
+            m.Variants.AddRange(s.Variants);
+            return;
+        }
+
+        // Panel seed'i: kod/ad üründen türetilip geliyorsa boş form yerine hazır gelir (U1).
         if (!string.IsNullOrWhiteSpace(SeedCode))
         {
             m.Code = SeedCode!;

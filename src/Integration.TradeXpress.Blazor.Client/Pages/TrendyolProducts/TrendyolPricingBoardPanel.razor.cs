@@ -80,9 +80,9 @@ public partial class TrendyolPricingBoardPanel
 
     /// <summary>Satırın ÜRÜNÜNÜ açar — kanal kaydını değil.
     ///
-    /// <para><b>Neden ürün:</b> tahtanın bıraktığı iş (reçete + doğrulama) ÜRÜNE aittir. Ürün formu zaten
+    /// <para><b>Neden ürün:</b> board'un bıraktığı iş (reçete + doğrulama) ÜRÜNE aittir. Ürün formu zaten
     /// hem ERP reçetesini hem de kanal ürünleri gridini taşıyor; kanal ayrıntısına oradan tek tıkla inilir.
-    /// Doğrudan kanal formunu açsaydık kullanıcı reçeteye ulaşamazdı — ki tahtanın var oluş sebebi tam olarak
+    /// Doğrudan kanal formunu açsaydık kullanıcı reçeteye ulaşamazdı — ki board'un var oluş sebebi tam olarak
     /// o eksiği kapatmak.</para>
     ///
     /// <para>Merkezî yol (<see cref="IViewOpener"/>) kullanılır — ham <c>DxPopup</c> YASAK (liste sayfalarının

@@ -8,6 +8,7 @@ using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.Blazor.Client.Pages.N11Products;
+using Integration.TradeXpress.Blazor.Client.Pages.SalesChannelProducts;
 using Integration.TradeXpress.Blazor.Client.Pages.TrendyolProducts;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.ProductCategories;
@@ -15,13 +16,12 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.TrendyolProducts;
 using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.Logging;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
 
 /// <summary>Birleşik satış-kanalı ürünleri paneli — N11 + Trendyol kanal ürünlerini TEK grid'de listeler; düzenleme
 /// ChannelType'a göre AYRI edit formu açar. IN-MEMORY GRAF: iki kaynak liste (N11Items = Model.SalesChannelProducts,
-/// TrendyolItems = Model.SalesChannelTrendyolProducts) KORUNUR; grid için <see cref="SalesChannelProductRow"/> sarmalayıcı
+/// TrendyolItems = Model.SalesChannelTrendyolProducts) KORUNUR; grid için <see cref="SalesChannelProductRow"/>
 /// satırları KAYNAK DTO'yu referansla tutar → edit doğrudan kaynağı değiştirir (graf senkron). Yeni eklemede
 /// <see cref="OnRowSaved"/> kaynak listeye yansıtır; silmede <see cref="OnRowDeleted"/> + soft-delete işareti. Push/create
 /// mantığı iki eski panelden (SalesChannelProductsPanel / SalesChannelTrendyolProductsPanel) AYNEN taşındı.</summary>
@@ -46,14 +46,14 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     /// <summary>Graf değişti — parent (ProductLayout) EditChanged'i tetikler (Save aktifliği).</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
 
-    [Inject] private ISalesChannelTrN11ProductAppService N11AppService { get; set; } = default!;
-    [Inject] private ISalesChannelTrTrendyolProductAppService TrendyolAppService { get; set; } = default!;
+    /// <summary>Ürün formunun cascade ettiği satışa-hazırlık issue endeksi. Panel ürün formu DIŞINDA da
+    /// çizilebildiği için OPSİYONELDİR: endeks yoksa durum kolonu hiç görünmez (boş kolon çizmek yerine).</summary>
+    [CascadingParameter(Name = "SaleReadinessIndex")] private SaleReadinessIssueIndex? Readiness { get; set; }
+
     [Inject] private ISalesChannelAppService SalesChannelAppService { get; set; } = default!;
     [Inject] private IProductCategoryAppService ProductCategoryAppService { get; set; } = default!;
     [Inject] private IProductAppService ProductAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
-    [Inject] private ILogger<ProductSalesChannelsPanel> Logger { get; set; } = default!;
-    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<SalesChannelProductRow>? _drill;
 
@@ -63,7 +63,7 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     private SalesChannelTrTrendyolProductEditFields? _trendyolEditFields;
 
     /// <summary>Kaydetmeden ÖNCE açık hücre düzenlemelerini (kategori nitelik grid'leri) modele commit eder —
-    /// aksi hâlde seçilen değer edit-model'de kalır ve sessizce kaybolur (drill <c>BeforeSave</c> kancası).</summary>
+    /// aksi hâlde seçilen değer edit-model'de kalır ve sessizce kaybolur (drill <c>BeforeSave</c> geri çağrısı).</summary>
     private async Task CommitPendingCellEditsAsync(SalesChannelProductRow row)
     {
         if (row.IsN11 && _n11EditFields is not null)
@@ -83,6 +83,13 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     private string? ChannelRowSaveGuard(SalesChannelProductRow row)
     {
         return row.IsN11 ? _n11EditFields?.ValidateMandatoryInputs() : null;
+    }
+
+    /// <summary>Satırın issue kapsamı. KAYDEDİLMEMİŞ satırda (Id boş) kapsam YOKTUR: sunucu henüz o kayıt
+    /// hakkında issue üretemez ve boş kapsam "kök" sayılıp ürünün TÜM issue'larını bu satıra yapıştırırdı.</summary>
+    private string? ReadinessScopeOf(SalesChannelProductRow row)
+    {
+        return ChannelReadinessScopes.ChannelOf(row.Id);
     }
 
     // Grid'in görüntülediği birleşik satır listesi — iki kaynak graf listesinden türetilir (kaydron REFERANS tutar).
@@ -142,7 +149,10 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         }
     }
 
-    // ── "Yeni" SPLIT buton: ana tık = N11; ▾ alt menüden tip (N11 / Trendyol). Built-in Yeni kapalı (AllowAdd=false). ──
+    // ── "Yeni" DROPDOWN buton: ana tık MENÜYÜ açar, tip (N11 / Trendyol / Etsy) menüden seçilir. Built-in Yeni
+    //    kapalı (AllowAdd=false). Eskiden split'ti ve ana tık DOĞRUDAN N11 taslağı açıyordu — kanal-agnostik bir
+    //    panelde tek kanalı kayırmak yanılttı (2026-08-19 Hakan: "Yeni buttonu agnostik olmalı, menü öğelerini
+    //    göstermeli"). ──
     private IReadOnlyList<CrudToolbarAction> PanelActions => new[]
     {
         new CrudToolbarAction
@@ -151,44 +161,80 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
             Text = L["New"],
             Tooltip = L["New"],
             IconCssClass = FrameworkIcons.Add,
-            SplitDropDownButton = true,
-            OnClick = StartNewN11Async,
-            Items = new[]
-            {
-                new CrudToolbarAction
-                {
-                    Text = L["SalesChannelTrN11Product"],
-                    IconCssClass = TradeXpressIcons.SalesChannel,
-                    OnClick = StartNewN11Async,
-                },
-                new CrudToolbarAction
-                {
-                    Text = L["SalesChannelTrTrendyolProduct"],
-                    IconCssClass = TradeXpressIcons.SalesChannel,
-                    OnClick = StartNewTrendyolAsync,
-                },
-                new CrudToolbarAction
-                {
-                    Text = L["SalesChannelEtsyProduct"],
-                    IconCssClass = TradeXpressIcons.SalesChannel,
-                    OnClick = StartNewEtsyAsync,
-                },
-            },
+            Items = BuildNewChannelProductItems(),
         },
     };
 
-    // ── Yeni taslak akışları — şirketin TEK kanalını otomatik bul (yoksa dostane uyarı), kanal atanmış taslakla aç. ──
-
-    private async Task StartNewN11Async()
+    /// <summary>"Yeni ▾" menüsü — her satır KANALIN KENDİ KODU (2026-08-20 Hakan: <i>"kanal tipi değil doğrudan
+    /// kanalın kendi kodu yer alsın"</i>). Menü şirkette TANIMLI kanallardan kurulur; tanımlı kanalı olmayan tür
+    /// menüde HİÇ görünmez — "N11 Ürünü" yazan bir satıra basıp "kanal yok" uyarısı almak, olmayan bir seçeneği
+    /// önermekti.
+    ///
+    /// <para><b>Yan kazanç:</b> kanal ARTIK SEÇİLİYOR. Eski menü tür seçtiriyor, kod ise o türün İLK kanalını
+    /// sessizce alıyordu (<c>FirstOrDefault</c>); şirkette iki N11 mağazası varsa kullanıcı hangisine ürün
+    /// açtığını bilmiyordu ve ikinciye ürün açmanın yolu yoktu.</para>
+    ///
+    /// <para>Etiket <c>Kod — Ad</c>: kod kısa ve kullanıcının kendi verdiği kimliktir, ad ise ayırt ediciliği
+    /// tamamlar (iki mağaza benzer kodlanmış olabilir). Ad boşsa yalnız kod yazılır.</para></summary>
+    private IReadOnlyList<CrudToolbarAction> BuildNewChannelProductItems()
     {
-        var channel = _n11Channels.FirstOrDefault();
-        if (channel is null)
+        var items = new List<CrudToolbarAction>();
+
+        foreach (var channel in _n11Channels)
         {
-            UiService.ShowWarningToast(L["N11Product:ChannelMissing"].Value);
-            return;
+            var id = channel.Id;
+            items.Add(NewChannelProductItem(channel, () => StartNewN11Async(id)));
         }
 
-        var draft = BuildNewN11Draft(channel.Id);
+        foreach (var channel in _trendyolChannels)
+        {
+            var id = channel.Id;
+            items.Add(NewChannelProductItem(channel, () => StartNewTrendyolAsync(id)));
+        }
+
+        foreach (var channel in _etsyChannels)
+        {
+            var id = channel.Id;
+            items.Add(NewChannelProductItem(channel, () => StartNewEtsyAsync(id)));
+        }
+
+        // Hiç kanal yoksa menü BOŞ kalmaz: tek pasif satır "önce kanal tanımlayın" der. Boş açılan bir menü
+        // "bozuk" görünür; devre dışı bir açıklama satırı ne yapılması gerektiğini söyler.
+        if (items.Count == 0)
+        {
+            items.Add(new CrudToolbarAction
+            {
+                Text = L["SalesChannelProduct:NoChannelDefined"].Value,
+                IconCssClass = TradeXpressIcons.SalesChannel,
+                Enabled = false,
+            });
+        }
+
+        return items;
+    }
+
+    private CrudToolbarAction NewChannelProductItem(SalesChannelListDto channel, Func<Task> onClick)
+    {
+        var label = string.IsNullOrWhiteSpace(channel.Name)
+            ? channel.Code
+            : $"{channel.Code} — {channel.Name}";
+
+        return new CrudToolbarAction
+        {
+            Text = label,
+            Tooltip = label,
+            IconCssClass = TradeXpressIcons.SalesChannel,
+            OnClick = onClick,
+        };
+    }
+
+    // ── Yeni taslak akışları — şirketin TEK kanalını otomatik bul (yoksa dostane uyarı), kanal atanmış taslakla aç. ──
+
+    private async Task StartNewN11Async(Guid channelId)
+    {
+        // Kanal MENÜDEN seçilir (2026-08-20): "türün İLK kanalı" varsayımı kalktı. Menü yalnız tanımlı
+        // kanallardan kurulduğu için "kanal yok" dalı da konusuzdur.
+        var draft = BuildNewN11Draft(channelId);
         if (await ResolveChannelCategoryAsync(SalesChannelType.TrN11) is { } resolution
             && !string.IsNullOrWhiteSpace(resolution.ChannelCategoryExternalId))
         {
@@ -203,16 +249,9 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         _drill?.StartNewItem(SalesChannelProductRow.ForN11(draft));
     }
 
-    private async Task StartNewTrendyolAsync()
+    private async Task StartNewTrendyolAsync(Guid channelId)
     {
-        var channel = _trendyolChannels.FirstOrDefault();
-        if (channel is null)
-        {
-            UiService.ShowWarningToast(L["TrendyolProduct:ChannelMissing"].Value);
-            return;
-        }
-
-        var draft = BuildNewTrendyolDraft(channel.Id);
+        var draft = BuildNewTrendyolDraft(channelId);
         if (await ResolveChannelCategoryAsync(SalesChannelType.TrTrendyol) is { } resolution
             && !string.IsNullOrWhiteSpace(resolution.ChannelCategoryExternalId))
         {
@@ -223,16 +262,9 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         _drill?.StartNewItem(SalesChannelProductRow.ForTrendyol(draft));
     }
 
-    private async Task StartNewEtsyAsync()
+    private async Task StartNewEtsyAsync(Guid channelId)
     {
-        var channel = _etsyChannels.FirstOrDefault();
-        if (channel is null)
-        {
-            UiService.ShowWarningToast(L["EtsyProduct:ChannelMissing"].Value);
-            return;
-        }
-
-        var draft = BuildNewEtsyDraft(channel.Id);
+        var draft = BuildNewEtsyDraft(channelId);
         // Etsy taksonomi kimliği SAYISAL; eşleştirme metin tuttuğundan ayrıştırılamayan değer sessizce ATLANIR
         // (bozuk bir id yazmak, kullanıcının fark edemeyeceği bir push hatasına dönüşürdü).
         if (await ResolveChannelCategoryAsync(SalesChannelType.Etsy) is { } resolution
@@ -246,7 +278,7 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     }
 
     /// <summary>
-    /// Ürünün çekirdek kategorisinin bu KANALDAKİ karşılığı — yeni kanal ürünü taslağına varsayılan kategori
+    /// Ürünün core kategorisinin bu KANALDAKİ karşılığı — yeni kanal ürünü taslağına varsayılan kategori
     /// olarak yerleşir. Eşleştirme ATA zincirinden devralınabilir (sunucu çözer).
     ///
     /// <para><b>Neden taslakta:</b> kullanıcı kategori eşleştirmesini kategori formunda bir kez yapıyor; kanal
@@ -506,63 +538,28 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         return trendyol.Status ?? string.Empty;
     }
 
-    // ── N11 push / stok-fiyat senkronu (SalesChannelProductsPanel'den AYNEN) ──
+    // ── Kanal aksiyonları — uygulama ChannelProductActions'ta (TEK yer); burada yalnız bağlam + sonuç kopyası ──
 
-    private async Task PushN11Async(SalesChannelTrN11ProductDto channelProduct)
+    /// <summary>Satırın aksiyon bağlamı — tipine göre ilgili <c>From(...)</c> eşleyicisi. Düğme uygunluğu
+    /// (Gönder hep · Stok-Fiyat / Durumu Yenile yalnız kanala ulaşmış kayıtta) eski panelin görünür davranışıyla
+    /// birebir; kural eşleyicide yaşar, burada tekrarlanmaz.</summary>
+    private static ChannelProductActionContext ActionContextOf(SalesChannelProductRow row)
     {
-        if (channelProduct.Id == Guid.Empty)
+        if (row.IsN11)
         {
-            UiService.ShowWarningToast(L["N11Product:SaveProductFirst"].Value);
-            return;
+            return ChannelProductActionContext.From(row.N11!);
         }
 
-        try
+        if (row.IsEtsy)
         {
-            var pushed = await N11AppService.PushToN11Async(channelProduct.Id);
-            CopyN11StatusInto(channelProduct, pushed);
-            UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
-
-            foreach (var warning in pushed.SyncWarnings)
-            {
-                UiService.ShowWarningToast(warning);
-            }
-
-            StateHasChanged();
+            return ChannelProductActionContext.From(row.Etsy!);
         }
-        catch (Exception ex)
-        {
-            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
-        }
+
+        return ChannelProductActionContext.From(row.Trendyol!);
     }
 
-    private async Task SyncN11StockPriceAsync(SalesChannelTrN11ProductDto channelProduct)
-    {
-        if (channelProduct.Id == Guid.Empty)
-        {
-            UiService.ShowWarningToast(L["N11Product:SaveProductFirst"].Value);
-            return;
-        }
-
-        try
-        {
-            var synced = await N11AppService.SyncStockAndPriceAsync(channelProduct.Id);
-            CopyN11StatusInto(channelProduct, synced);
-            UiService.ShowSuccessToast(L["N11Product:SyncStockPriceSuccess"].Value);
-
-            foreach (var warning in synced.SyncWarnings)
-            {
-                UiService.ShowWarningToast(warning);
-            }
-
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
-        }
-    }
-
-    // Push/sync sonrası N11 durumunu (read-only) grafteki satıra yansıt — reload yok (in-memory graf).
+    // Push/sync sonrası N11 durumunu (read-only) grafteki satıra yansıt — reload yok (in-memory graf; kullanıcının
+    // kaydedilmemiş düzenlemeleri korunur). Callback sahibi bu panel olduğundan render kendiliğinden tazelenir.
     private static void CopyN11StatusInto(SalesChannelTrN11ProductDto target, SalesChannelTrN11ProductDto source)
     {
         target.N11ProductId = source.N11ProductId;
@@ -570,67 +567,12 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         target.ApprovalStatus = source.ApprovalStatus;
         target.LastSyncedAt = source.LastSyncedAt;
         target.LastError = source.LastError;
+        target.PendingPushTaskId = source.PendingPushTaskId;
+        target.PendingPushTaskAt = source.PendingPushTaskAt;
         target.Skus = source.Skus;
     }
 
-    // ── Trendyol push / durum yenileme (SalesChannelTrendyolProductsPanel'den AYNEN) ──
-
-    private async Task PushTrendyolAsync(SalesChannelTrTrendyolProductDto channelProduct)
-    {
-        if (channelProduct.Id == Guid.Empty)
-        {
-            UiService.ShowWarningToast(L["TrendyolProduct:SaveProductFirst"].Value);
-            return;
-        }
-
-        // Gerçek gönderim geri-dönüşsüz (pazaryerinde ürün açılır) — düğme kilidi yerine İNSAN ONAYI.
-        var confirmed = await UiService.ConfirmAsync(
-            L["TrendyolProduct:PushConfirm"].Value,
-            title: null, yesText: L["Yes"].Value, noText: L["Cancel"].Value,
-            showCancel: false, defaultYes: false);
-        if (confirmed != ConfirmDialogResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            var pushed = await TrendyolAppService.PushToTrendyolAsync(channelProduct.Id);
-            CopyTrendyolStatusInto(channelProduct, pushed);
-            UiService.ShowSuccessToast(L["TrendyolProduct:PushSuccess"].Value);
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
-        }
-    }
-
-    private async Task RefreshTrendyolStatusAsync(SalesChannelTrTrendyolProductDto channelProduct)
-    {
-        if (channelProduct.Id == Guid.Empty)
-        {
-            UiService.ShowWarningToast(L["TrendyolProduct:SaveProductFirst"].Value);
-            return;
-        }
-
-        try
-        {
-            var refreshed = await TrendyolAppService.RefreshStatusAsync(channelProduct.Id);
-            CopyTrendyolStatusInto(channelProduct, refreshed);
-            UiService.ShowSuccessToast(L["TrendyolProduct:RefreshSuccess"].Value);
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            // Dostane mesajı olmayan istisna toast'ta "Beklenmeyen hata" olur ve sebebi KAYBOLUR — sunucu logu
-            // bunu görmez (UI katmanında yakalandı). Teşhis için burada loglanır (2026-08-16 canlı test).
-            Logger.LogWarning(ex, "Trendyol durum yenileme başarısız (kanal ürünü {ChannelProductId}).", channelProduct.Id);
-            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
-        }
-    }
-
-    // Push/refresh sonrası Trendyol durumunu (read-only) grafteki satıra yansıt — reload yok (in-memory graf).
+    // Push/refresh/sync sonrası Trendyol durumunu (read-only) grafteki satıra yansıt — reload yok (in-memory graf).
     private static void CopyTrendyolStatusInto(SalesChannelTrTrendyolProductDto target, SalesChannelTrTrendyolProductDto source)
     {
         target.BatchRequestId = source.BatchRequestId;

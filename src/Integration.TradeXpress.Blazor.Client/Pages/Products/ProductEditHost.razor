@@ -3,7 +3,7 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
-   Product edit host = İNCE SARMAL: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
+   Product edit host = CrudEditHost üzerinde İNCE bir katman: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
    Agnostic CrudEditHost + dumb ProductLayout. Company-owned (sunucu CompanyId zorlar).
 *@
 
@@ -11,6 +11,7 @@
 {
     <CrudEditHost TGetDto="ProductGetDto" TListDto="ProductListDto" TKey="Guid" TListRequestDto="ProductListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed" OnAfterCommit="@RefreshDerivedGraphAsync"
+                  OnAfterCreate="@ApplyRecipeTemplateOnCreateAsync"
                   FormCaption="@L["Product"].Value" IconCssClass="@TradeXpressIcons.Product"
                   EntityValue="@(m => m.Code)"
                   BuildCustomActions="@BuildProductActions"
@@ -24,7 +25,7 @@
                        AddOnCatalog="AddOns" OnReloadAddOns="@ReloadAddOnsAsync"
                        OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))"
                        OnRecipeChanged="@RecalcVariantCostAsync"
-                       OnCreateCommodityFromProduct="@((ProcessType f) => CreateCommodityFromProductAsync(f, context.Code, context.Name))"
+                       OnCreateCommodityFromProduct="@((ProcessType f) => CreateCommodityFromProductAsync(f, context))"
                        OnReloadRecipeCatalogs="@ReloadRecipeCatalogsAsync"
                        OnVariantModeChangeRequested="@(async (ProductVariantMode m) => await HandleVariantModeChangeAsync(context, m))"
                        ProductCategories="ProductCategories" OnReloadProductCategories="@ReloadProductCategoriesAsync"
@@ -40,6 +41,7 @@
                        SubstitutionGroupItems="SubstitutionGroupItems" OnSubstitutionGroupChanged="@OnSubstitutionGroupChangedAsync"
                        SubstitutionResult="SubstitutionResult" SubstitutionBusy="SubstitutionBusy"
                        OnCalculateSubstitution="@(async () => await CalculateSubstitutionAsync(context))"
-                       OnApplySubstitutionTrial="@(async (SubstitutionTrialDto t) => await ApplySubstitutionTrialAsync(context, t))" />
+                       OnApplySubstitutionTrial="@(async (SubstitutionTrialDto t) => await ApplySubstitutionTrialAsync(context, t))"
+                       OnVerifyForSale="@(() => VerifyForSaleClickedAsync(context))" />
     </CrudEditHost>
 }

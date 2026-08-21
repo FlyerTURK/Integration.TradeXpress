@@ -153,7 +153,7 @@
             </li>
             <li class="nav-item theme-group">
                 @* Kaydedilmiş MDI sekme listesini sıfırlar (bozuk restore/temiz başlangıç) — /reset-tabs
-                   kurtarma kapısının keşfedilebilir eşdeğeri. *@
+                   kurtarma yolunun keşfedilebilir eşdeğeri. *@
                 <DxButton Text="@L["MdiTabsResetButton"].Value"
                           RenderStyle="ButtonRenderStyle.Secondary"
                           IconCssClass="custom-icon-close"
@@ -181,7 +181,7 @@
 
     // Kaydedilmiş MDI sekme listesini sıfırla — HardResetAsync guard'sızdır (pinned sekmeler de gider,
     // kirli veri sorulmaz); bu yüzden panel BURADA tek onayı ister — diğer TÜM kapatma yollarının
-    // (X, toplu kapatma, /reset-tabs kurtarma kapısı hariç) uyguladığı desenle tutarlı.
+    // (X, toplu kapatma, /reset-tabs kurtarma yolu hariç) uyguladığı desenle tutarlı.
     private async Task OnResetTabsAsync()
     {
         if (_resetting) return;

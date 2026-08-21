@@ -15,7 +15,7 @@ public partial class CurrentTransactionForm
     private Dictionary<Guid, decimal> _pivotBuy = new();   // konsolide bakiye için TUTARLI pivot Buy (parite görüntü değil)
     private PeriodicTimer? _rateTimer;
     private CancellationTokenSource? _rateCts;   // dispose'da döngüyü iptal eder (tick↔dispose yarış penceresi)
-    private DateTime _lastRateChangeUtc;         // render kapısı: flash animasyonu penceresi (son değişim anı)
+    private DateTime _lastRateChangeUtc;         // StateHasChanged koşulu: flash animasyonu penceresi (son değişim anı)
 
     private readonly Dictionary<(Guid Id, bool Buy), decimal> _prevEffective = new();
     private readonly Dictionary<(Guid Id, bool Buy), (int Dir, DateTime Until)> _flash = new();
@@ -47,7 +47,7 @@ public partial class CurrentTransactionForm
             while (await _rateTimer.WaitForNextTickAsync(_rateCts.Token))
             {
                 var changed = await RefreshRatesAsync();
-                // Render kapısı: kur değişmediyse (ve flash animasyon penceresi kapandıysa) tüm form
+                // StateHasChanged koşulu: kur değişmediyse (ve flash animasyon penceresi kapandıysa) tüm form
                 // ağacını her saniye yeniden çizme — büyük grid'lerde gereksiz diff yükü.
                 if (changed || DateTime.UtcNow - _lastRateChangeUtc < TimeSpan.FromSeconds(1.5))
                 {
@@ -59,7 +59,7 @@ public partial class CurrentTransactionForm
         catch (ObjectDisposedException) { }   // tick ↔ dispose yarış penceresi (circuit kapanışı) — sessiz çık
     }
 
-    /// <summary>Kurları tazeler; en az bir fiyat DEĞİŞTİYSE true döner (render kapısı için).</summary>
+    /// <summary>Kurları tazeler; en az bir fiyat DEĞİŞTİYSE true döner (StateHasChanged koşulu için).</summary>
     private async Task<bool> RefreshRatesAsync()
     {
         var changed = false;

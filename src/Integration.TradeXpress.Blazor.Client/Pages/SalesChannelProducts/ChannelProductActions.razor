@@ -1,0 +1,60 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   TEK kanal-aksiyon bileşeni — Gönder · Stok-Fiyat · Durumu Yenile · Kuyruk sorgusu.
+
+   Aynı düğme seti üç ekranda çiziliyordu/çizilecek (ürün formu kanal sekmesi · ürün satışa hazırlık paneli · kanal
+   ürünleri listesi). Ortak mantık (servis çağrısı · onay diyaloğu · SyncWarnings toast'ları · hata sunumu) BURADA
+   yaşar; çağıran ekranlar yalnız bağlamı (ChannelProductActionContext) verir ve sonucu OnChanged/On*Updated ile geri alır.
+
+   Düğmeler @if ile koşullanır: DxButton "nested settings" öğesi DEĞİLDİR (toolbar item/kolon gibi toplayıcıya
+   kayıt olmaz), gizlenen düğmenin yeri sonradan kaymaz. İşleyiciler bileşenin KENDİ metotlarıdır — bileşen bir grid
+   hücresi şablonu içinde çizilse bile async iş hücrenin değil bu bileşenin render döngüsündedir.
+*@
+
+@if (Subject is not null)
+{
+    @if (!Subject.IsPersisted)
+    {
+        @* Kaydedilmemiş satır: sunucuda karşılığı yok, hiçbir aksiyon gidemez. *@
+        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SaveToPush"]</span>
+    }
+    else if (Subject.ChannelType == SalesChannelType.Etsy)
+    {
+        @* Etsy push/senkron bu sürümde YOK (CRUD + listeleme yapılandırması); push metotları push dilimiyle gelecek. *@
+        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:PushComingSoon"]</span>
+    }
+    else
+    {
+        <span style="display:inline-flex; flex-wrap:wrap; gap:0.25rem; align-items:center;">
+            @if (Subject.CanPush)
+            {
+                <DxButton Text="@PushText" RenderStyle="ButtonRenderStyle.Primary"
+                          IconCssClass="@TradeXpressIcons.SalesChannel"
+                          Enabled="@(!_busy)"
+                          Click="@PushAsync" />
+            }
+            @if (Subject.CanSyncStockPrice)
+            {
+                <DxButton Text="@SyncStockPriceText" RenderStyle="ButtonRenderStyle.Secondary"
+                          IconCssClass="@TradeXpressIcons.Refresh"
+                          Enabled="@(!_busy)"
+                          Click="@SyncStockPriceAsync" />
+            }
+            @if (Subject.CanRefreshStatus)
+            {
+                <DxButton Text="@L["TrendyolProduct:RefreshStatus"]" RenderStyle="ButtonRenderStyle.Secondary"
+                          IconCssClass="@TradeXpressIcons.Refresh"
+                          Enabled="@(!_busy)"
+                          Click="@RefreshStatusAsync" />
+            }
+            @if (Subject.CanResolveQueue)
+            {
+                <DxButton Text="@L["N11Product:ResolvePendingPush"]" RenderStyle="ButtonRenderStyle.Secondary"
+                          IconCssClass="@TradeXpressIcons.History"
+                          Enabled="@(!_busy)"
+                          Click="@ResolvePendingPushAsync" />
+            }
+        </span>
+    }
+}

@@ -86,7 +86,7 @@
 @code {
     [Parameter] public Guid UserId { get; set; }
 
-    // İzin paneliyle aynı kanca: değişiklikler INLINE stage edilir, kullanıcı formu kaydedince
+    // İzin paneliyle aynı desen: değişiklikler INLINE stage edilir, kullanıcı formu kaydedince
     // (CrudEditHost.OnAfterCommit) CommitChangesAsync ile DB'ye yazılır. Dirty → Kaydet aktif + "*".
     [Parameter] public EventCallback<bool> DirtyChanged { get; set; }
 

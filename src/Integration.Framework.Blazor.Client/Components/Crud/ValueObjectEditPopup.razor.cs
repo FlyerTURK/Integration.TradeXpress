@@ -18,7 +18,7 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
     where TValue : class
 {
     /// <summary>Düzenlenen value-object (owned sub-object). Snapshot / dirty / reset bunun üstünde çalışır;
-    /// gövde (ChildContent) AYNI örneğe canlı-bind eder → geri alım in-place kopyalama ile yapılır.</summary>
+    /// ChildContent AYNI örneğe canlı-bind eder → geri alım in-place kopyalama ile yapılır.</summary>
     [Parameter, EditorRequired] public TValue Model { get; set; } = default!;
 
     [Parameter] public bool Visible { get; set; }
@@ -35,7 +35,7 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
     /// Framework <c>TradeXpressIcons</c>'a erişemez → parametre ile alınır (ad-hoc ikon YOK).</summary>
     [Parameter] public string? IconCssClass { get; set; }
 
-    /// <summary>Düzenleme gövdesi (ör. <c>AddressFields</c>) — <see cref="Model"/>'e canlı-bind eder.</summary>
+    /// <summary>Düzenleme içeriği (ör. <c>AddressFields</c>) — <see cref="Model"/>'e canlı-bind eder.</summary>
     [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
 
     /// <summary>Kaydet'te çalışır — davranış çağrı yerine ait (custom adres = uygula/zaten bind; şube-modu = persist).
@@ -53,7 +53,7 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
     private int _bodyKey;
     private bool _busy;
 
-    // Gövdeye cascade edilen doğrulama bağlamı (nested EditForm YOK — DrillList deseni). Model örneği
+    // ChildContent'e cascade edilen doğrulama bağlamı (nested EditForm YOK — DrillList deseni). Model örneği
     // değişince yeniden kurulur; aksi halde eski nesne doğrulanır.
     private EditContext? _editContext;
     private TValue? _contextModel;
@@ -103,7 +103,7 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
         _lastDirty = IsDirty;
     }
 
-    // Gövdedeki DOM sinyali (@oninput her tuş / @onchange commit) — @bind'lı DevExpress editörleri bu yolla duyulur.
+    // Body'deki DOM sinyali (@oninput her tuş / @onchange commit) — @bind'lı DevExpress editörleri bu yolla duyulur.
     private void OnBodyChanged()
     {
         NotifyToolbarIfDirtyChanged();
@@ -225,8 +225,8 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
         }
     }
 
-    // Açılış snapshot'ını IN-PLACE geri yükle (parent + gövde AYNI örneğe baktığından instance REPLACE edilmez,
-    // alanlar geri kopyalanır). Gövde @key bump'ı ile yeniden kurulur → geri alınan değerler ekranda görünür.
+    // Açılış snapshot'ını IN-PLACE geri yükle (parent + ChildContent AYNI örneğe baktığından instance REPLACE edilmez,
+    // alanlar geri kopyalanır). Body @key bump'ı ile yeniden kurulur → geri alınan değerler ekranda görünür.
     private void RestoreSnapshot()
     {
         if (_snapshot is null)

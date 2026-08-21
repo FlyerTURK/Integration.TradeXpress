@@ -12,7 +12,7 @@
    manuel-bağlı combolar salt UI durumu → ValidationEnabled="false" ([validation-expr]). *@
 
 @{
-    // Combo item'ları TEK yerde — Embedded moduna göre sarmalanır (WRAPPER: kendi grubu vs parent grubu). DRY.
+    // Combo item'ları TEK yerde — Embedded moduna göre kendi DxFormLayout grubuna ya da parent'ın grubuna yerleşir. DRY.
     RenderFragment pickerItems =@<text>
         @* Ülke combo'su yalnız SERBEST modda görünür. Sabit-ülke modunda (FixedCountryId dolu — ör. şube
            company ülkesine kilitli) ülke gizlenir, o ülke otomatik seçilir, cascade İl'den başlar. *@
@@ -80,7 +80,7 @@
         </DxFormLayoutItem>
 
         @* Mahalle — yalnız ülke mahalle seviyesi kullanıyorsa görünür (ör. TR; ABD/diğerlerinde gizli). CANLI N11 çekimi
-           (saklanmaz; her ilçe seçiminde taze). Değer N11 mahalle id'si (string) — kalıcı çekirdek id değil. *@
+           (saklanmaz; her ilçe seçiminde taze). Değer N11 mahalle id'si (string) — kalıcı core id değil. *@
         @if (_usesSubLocalityLevel)
         {
             <DxFormLayoutItem Caption="@NeighborhoodCaption" ColSpanMd="6">

@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Orders;
 
-/// <summary>Sipariş edit host — ince sarmal (coordinator kurar, geri kalan CrudEditHost'ta) + edit toolbar'ının
+/// <summary>Sipariş edit host — ince host (coordinator kurar, geri kalan CrudEditHost'ta) + edit toolbar'ının
 /// "Kabul Et"/"Reddet" özel aksiyonları (Sipariş Fazı O2 — TÜM bekleyen kalemleri TEK N11 isteğiyle işler).</summary>
 public partial class OrderEditHost
 {
@@ -64,7 +64,7 @@ public partial class OrderEditHost
             return;
         }
 
-        // NumericSpinEdit alt sınır uygulamıyor (framework sarmalayıcısında MinValue yok) — N11'e GERÇEK/geri
+        // NumericSpinEdit alt sınır uygulamıyor (framework bileşeninde MinValue yok) — N11'e GERÇEK/geri
         // alınamaz istek gitmeden önce geçersiz (≤0) paket sayısını burada engelle (OrderItemsDrill ile AYNI savunma).
         if (model.ActionInputNumberOfPackages < 1)
         {

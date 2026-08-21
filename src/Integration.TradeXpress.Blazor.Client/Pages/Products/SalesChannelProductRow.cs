@@ -6,7 +6,7 @@ using Integration.TradeXpress.TrendyolProducts;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
 
-/// <summary>Birleşik satış-kanalı ürünleri grid'inin İSTEMCİ-TARAFI satır sarmalayıcısı — TEK grid'de N11 + Trendyol +
+/// <summary>Birleşik satış-kanalı ürünleri grid'inin İSTEMCİ-TARAFI satır tipi — TEK grid'de N11 + Trendyol +
 /// Etsy kanal ürünlerini birlikte listeler (Kanal kolonu). Her satır bir <see cref="ChannelType"/> + kaynak DTO
 /// REFERANSI tutar (<see cref="N11"/> xor <see cref="Trendyol"/> xor <see cref="Etsy"/> dolu). Düzenleme doğrudan
 /// kaynak DTO'yu mutasyona uğratır → ürün grafı (ProductGetDto.SalesChannelProducts / SalesChannelTrendyolProducts /

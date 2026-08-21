@@ -1,6 +1,6 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* Teyit satır grid'i — GELEN/GİDEN sekmelerinin ORTAK gövdesi (aynı kolon seti iki kez yazılmasın).
+@* Teyit satır grid'i — GELEN/GİDEN sekmelerinin ORTAK bileşeni (aynı kolon seti iki kez yazılmasın).
    Aksiyon butonları duruma + TARAFA göre gate'lenir; gerçek yetki aksiyon çağrısında sunucuda TEKRAR enforce edilir.
    İPTAL BUTONU YOKTUR: gönderen teklifi geri çekemez — süreci yalnız alıcı Reddet ile durdurur. *@
 <DxGrid Data="@Rows" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"

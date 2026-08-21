@@ -16,7 +16,7 @@ using Microsoft.Extensions.Localization;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Fiyatlı-emtia fiş satırı panellerinin (Taş/Mücevher) ortak gövdesi — markup + TÜM davranış burada.
+/// Fiyatlı-emtia fiş satırı panellerinin (Taş/Mücevher) ortak taban sınıfı — markup + TÜM davranış burada.
 /// Türeyen sınıf markup'sızdır (BuildRenderTree devralınır); yalnız işlem tipini, panel başlık anahtarını
 /// ve emtia picker servisini sağlar.
 /// </summary>
@@ -54,7 +54,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     [Parameter] public Guid? CounterpartyVaultId { get; set; }
 
     /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz"): doluysa yeni teklif açılmaz, bu Teyit'e
-    /// alıcının KENDİ satırı yazılır (sunucu ayna doğrular).</summary>
+    /// alıcının KENDİ satırı yazılır (sunucu mirror doğrular).</summary>
     [Parameter] public Guid? DeclareConfirmationId { get; set; }
 
     /// <summary>Teyit yoluna gidildiğinde (teklif/beyan) tetiklenir — fiş OLUŞMADIĞI için <see cref="OnSaved"/>
@@ -97,7 +97,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         get { return null; }
     }
 
-    /// <summary>Emtia Ekle(+) izin adı (UI kapısı; server-side policy asıl denetim). null → kısıt yok.</summary>
+    /// <summary>Emtia Ekle(+) izin adı (yalnız UI'da düğmeyi gizler; server-side policy asıl denetim). null → kısıt yok.</summary>
     protected virtual string? CommodityCreatePolicy
     {
         get { return null; }
@@ -300,7 +300,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         StateHasChanged();
     }
 
-    // Varyant lookup'ın tazeleme kancası (TItem farklı olduğundan EntityChange doğrudan tetiklemez; el ile).
+    // Varyant lookup'ının tazelenmesi (TItem farklı olduğundan EntityChange doğrudan tetiklemez; el ile).
     private async Task ReloadVariantsAsync()
     {
         if (SupportsVariants && _model.CommodityId is { } id)

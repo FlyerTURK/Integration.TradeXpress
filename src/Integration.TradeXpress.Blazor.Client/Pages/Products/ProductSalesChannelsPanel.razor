@@ -3,10 +3,16 @@
 @* Birleşik SATIŞ KANALI ÜRÜNLERİ paneli — N11 + Trendyol kanal ürünleri TEK grid'de (Kanal kolonu). IN-MEMORY GRAF
    (ürün 'Kaydet'inde birlikte kaydedilir; ürün önceden kaydedilmese de eklenebilir). "Yeni" SPLIT buton: alt menüden
    tip (N11 / Trendyol) → ilgili taslak (create-copy). Satır düzenleme ChannelType'a göre AYRI edit formu açar. İşlem
-   kolonu tipe göre: N11 → Push + Stok/Fiyat; Trendyol → Push (read-only devre dışı) + Durum Yenile. Push/Sync yalnız
-   KAYDEDİLMİŞ (Id'li) satırda. C# mantığı .razor.cs'te (ui-blazor: @@code yasak). *@
+   kolonu TEK bileşen (ChannelProductActions — push/stok-fiyat/durum yenile/kuyruk sorgusu; 2026-08-19'dan beri uygulama
+   orada, burada ikinci kopya YOK). Push/Sync yalnız KAYDEDİLMİŞ (Id'li) satırda. C# mantığı .razor.cs'te
+   (ui-blazor: @@code yasak). *@
 
 <div class="mt-3">
+    @* KANAL KAPSAMI BANDI — bu panelin araç çubuğunun ÜSTÜNDE (2026-08-20 Hakan: kanal ürünü eksikliği ürün
+       hatası değil, KANAL hatasıdır; uyarısı da burada durur). "channels" kapsamı hem "hiç kanal ürünü yok"
+       issue'sunu hem tek tek kanal ürünlerinin issue'larını (channels/{id}/...) kapsar. Issue yoksa çizilmez. *@
+    <ReadinessNotice Scope="@SaleReadinessScope.Channels" />
+
     <DrillList TItem="SalesChannelProductRow"
                @ref="_drill"
                Title="@L["SalesChannelProducts"]"
@@ -29,6 +35,23 @@
                OnItemDeleted="@OnRowDeleted"
                OnChanged="@(() => OnChanged.InvokeAsync())">
         <GridColumns>
+            @* Satışa-hazırlık işareti — kapsam SaleReadinessScope.Channel(satırın kanal ürünü id'si). Kolon
+               yalnız ürün formunun satışa hazırlık paneli endeksi cascade edildiğinde görünür; kaydedilmemiş satırın kimliği
+               (dolayısıyla kapsamı) yoktur → işaret çizilmez. @if yerine Visible: nested-settings öğesi
+               kayıt sırasında toplayıcıya girsin, sonradan listenin sonuna kaymasın (ui-blazor). *@
+            @* Başlık, satışa hazırlık panelinin issue kolonuyla AYNI anahtardan gelir: yeni anahtar açmak lokalizasyon
+               dosyalarına dokunmayı gerektirirdi ve eksik anahtar ekranda HAM ANAHTAR olarak görünürdü
+               (ABP PassThrough); tr/en'in ikisinde birden eksik olduğu için parite testi de yakalamaz. *@
+            <DxGridDataColumn Caption="@L["Product:SaleReadinessIssueCount"]" Width="56px" AllowSort="false"
+                              Visible="@(Readiness is not null)"
+                              TextAlignment="GridTextAlignment.Center">
+                <CellDisplayTemplate Context="markCell">
+                    @{
+                        var markRow = (SalesChannelProductRow)markCell.DataItem;
+                    }
+                    <ReadinessMark Index="@Readiness" Scope="@ReadinessScopeOf(markRow)" />
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
             <DxGridDataColumn FieldName="ChannelLabel" Caption="@L["SalesChannel"]" Width="120px" />
             <GridLinkColumn Caption="@L["Code"]" Width="160px"
                             TextSelector="@(item => ((SalesChannelProductRow)item).DisplayCode)"
@@ -37,48 +60,18 @@
             <DxGridDataColumn Caption="@L["Status"]" Width="170px">
                 <CellDisplayTemplate>@StatusTextOf((SalesChannelProductRow)context.DataItem)</CellDisplayTemplate>
             </DxGridDataColumn>
-            <DxGridDataColumn Caption="@L["SalesChannelProduct:Actions"]" Width="320px" TextAlignment="GridTextAlignment.Center">
+            <DxGridDataColumn Caption="@L["SalesChannelProduct:Actions"]" Width="360px" TextAlignment="GridTextAlignment.Center">
                 <CellDisplayTemplate>
                     @{
                         var row = (SalesChannelProductRow)context.DataItem;
                     }
-                    @* Push/Sync yalnız KAYDEDİLMİŞ (Id'li) satırda — yeni satır önce ürünle kaydedilir. *@
-                    @if (row.Id == Guid.Empty)
-                    {
-                        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SaveToPush"]</span>
-                    }
-                    else if (row.IsN11)
-                    {
-                        <DxButton Text="@L["N11Product:Push"]" RenderStyle="ButtonRenderStyle.Primary"
-                                  IconCssClass="@TradeXpressIcons.SalesChannel"
-                                  Click="@(() => PushN11Async(row.N11!))" />
-                        @if (row.N11!.N11ProductId.HasValue)
-                        {
-                            <DxButton Text="@L["N11Product:SyncStockPrice"]" RenderStyle="ButtonRenderStyle.Secondary"
-                                      CssClass="ms-1"
-                                      Click="@(() => SyncN11StockPriceAsync(row.N11!))" />
-                        }
-                    }
-                    else if (row.IsEtsy)
-                    {
-                        @* Etsy push/sync bu dilimde YOK (CRUD + listeleme yapılandırması); push metotları push dilimiyle gelecek. *@
-                        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:PushComingSoon"]</span>
-                    }
-                    else
-                    {
-                        @* Gerçek push GERİ-DÖNÜŞSÜZ ürün yaratır (POST /products) — kilit T8'e kadar kapalıydı; T8 kapandı
-                           (2026-08-14/15: doğrulayıcı · geçici-link görsel · Trendyol-only satırlar · defter içeriği).
-                           Kazara yazma önlemi artık ONAY DİYALOĞU (PushTrendyolAsync). *@
-                        <DxButton Text="@L["TrendyolProduct:Push"]" RenderStyle="ButtonRenderStyle.Primary"
-                                  IconCssClass="@TradeXpressIcons.SalesChannel"
-                                  Click="@(() => PushTrendyolAsync(row.Trendyol!))" />
-                        @if (!string.IsNullOrEmpty(row.Trendyol!.BatchRequestId))
-                        {
-                            <DxButton Text="@L["TrendyolProduct:RefreshStatus"]" RenderStyle="ButtonRenderStyle.Secondary"
-                                      CssClass="ms-1"
-                                      Click="@(() => RefreshTrendyolStatusAsync(row.Trendyol!))" />
-                        }
-                    }
+                    @* TEK kanal-aksiyon bileşeni (2026-08-19): push/senkron/yenile/sorgula uygulaması ChannelProductActions'ta
+                       (Trendyol onay diyaloğu dahil). Kaydedilmemiş satır ve Etsy metnini de o bileşen çizer. Sonuç
+                       in-memory grafa tipli callback'le kopyalanır (panel reload YAPMAZ — kullanıcının kaydedilmemiş
+                       düzenlemeleri korunur). *@
+                    <ChannelProductActions Subject="@ActionContextOf(row)"
+                                           OnN11Updated="@((SalesChannelTrN11ProductDto updated) => CopyN11StatusInto(row.N11!, updated))"
+                                           OnTrendyolUpdated="@((SalesChannelTrTrendyolProductDto updated) => CopyTrendyolStatusInto(row.Trendyol!, updated))" />
                 </CellDisplayTemplate>
             </DxGridDataColumn>
         </GridColumns>
@@ -86,7 +79,8 @@
             @* Edit formu ChannelType'a göre AYRI (mevcut formlar AYNEN yeniden kullanılır). *@
             @if (row.IsN11)
             {
-                <SalesChannelTrN11ProductEditFields @ref="_n11EditFields" Model="row.N11!" Channels="_n11Channels" CoreVariants="@(ProductDefaults?.Variants ?? new())" />
+                <SalesChannelTrN11ProductEditFields @ref="_n11EditFields" Model="row.N11!" Channels="_n11Channels" CoreVariants="@(ProductDefaults?.Variants ?? new())"
+                                                   ChannelProductId="@row.Id" />
             }
             else if (row.IsEtsy)
             {
@@ -94,7 +88,9 @@
             }
             else
             {
-                <SalesChannelTrTrendyolProductEditFields @ref="_trendyolEditFields" Model="row.Trendyol!" Channels="_trendyolChannels" />
+                <SalesChannelTrTrendyolProductEditFields @ref="_trendyolEditFields" Model="row.Trendyol!" Channels="_trendyolChannels"
+                                                          ChannelStatusEditable="false"
+                                                          ChannelProductId="@row.Id" />
             }
         </EditContent>
     </DrillList>

@@ -20,7 +20,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.Confirmations;
 ///
 /// <para><b>Zero-trust:</b> "Kendi Girişimi Yaz" (BEYAN) GERÇEK process panelini açar
 /// (<see cref="ConfirmationDeclarePanelHost"/>) — alıcı tam bir satır yazar, gönderenin değerleri
-/// ÖN-DOLDURULMAZ. Sistem aynalamaz; sunucu iki bağımsız satırın ayna olduğunu doğrular. Uyuşmazlıkta
+/// ÖN-DOLDURULMAZ. Sistem mirror üretmez; sunucu iki bağımsız satırın mirror olduğunu doğrular. Uyuşmazlıkta
 /// (<c>TradeXpress:Confirmation:MirrorMismatch</c>) fark panelin hata toast'ında yüzeye çıkar.</para>
 ///
 /// <para>Teyit/Red satır yazımı gerektirmez → sade karar+not popup'ında kalır.</para>
@@ -95,7 +95,7 @@ public partial class ConfirmationInboxPage
         _popupVisible = true;
     }
 
-    /// <summary>Beyan sunucuca kabul edildi (ayna tuttu) → popup kapanır, liste tazelenir. Başarı toast'ını
+    /// <summary>Beyan sunucuca kabul edildi (mirror tuttu) → popup kapanır, liste tazelenir. Başarı toast'ını
     /// <c>VoucherLinePersister</c> zaten verdi (kural nerede, bildirimi orada).</summary>
     private async Task OnDeclaredAsync()
     {

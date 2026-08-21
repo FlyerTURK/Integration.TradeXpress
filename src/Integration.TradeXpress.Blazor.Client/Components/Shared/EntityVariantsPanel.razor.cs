@@ -6,6 +6,8 @@ using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Blazor.Client;
+using Integration.TradeXpress.Blazor.Client.Pages.Products;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -13,10 +15,10 @@ using Microsoft.AspNetCore.Components.Forms;
 namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 
 /// <summary>JENERİK varyant paneli — kartezyenden üretilen varyantlar (ekleme/silme KAPALI; synchronizer üretir).
-/// "Varyantları Oluştur" sahibin <see cref="OnGenerate"/>'ini çağırır (DUMB: servisi sahip host yapar). Çekirdek alanlar
+/// "Varyantları Oluştur" sahibin <see cref="OnGenerate"/>'ini çağırır (DUMB: servisi sahip host yapar). Panelin kendi alanları
 /// (Barkod/Stok/Açıklama/Aktif) düzenlenir; entity-özel alanlar <see cref="ExtraFields"/> slot'unda (TYPED: sahip
 /// türetilmiş DTO'suyla, ör. GoodVariantGraphDto → fiyat/stok).</summary>
-/// <typeparam name="TVariant">Sahip varyant DTO'su — çekirdek <see cref="EntityVariantGraphDto"/> ya da türevi.</typeparam>
+/// <typeparam name="TVariant">Sahip varyant DTO'su — temel <see cref="EntityVariantGraphDto"/> ya da türevi.</typeparam>
 public partial class EntityVariantsPanel<TVariant> : IDisposable where TVariant : EntityVariantGraphDto, new()
 {
     [Parameter, EditorRequired] public List<TVariant> Variants { get; set; } = default!;
@@ -80,9 +82,9 @@ public partial class EntityVariantsPanel<TVariant> : IDisposable where TVariant 
     /// <summary>Grid'de ana varyantın kodu yerine gösterilecek metin — VERİLMEZSE sahibin kodu formun cascade
     /// ettiği modelden (<c>EditModel</c>, <see cref="IHasCode"/>) okunur; yani her varyantlı emtia formu bunu
     /// KENDİLİĞİNDEN alır (2026-08-15 Hakan: "diğer varyant barındıran tüm emtialarda DRY"). Açık parametre
-    /// yalnız sahibin kodu modelin Code'u olmayan istisnai bir yüzey içindir. "ANAVARYANT" iç bir sabittir ve
+    /// yalnız sahibin kodu modelin Code'u olmayan istisnai bir form içindir. "ANAVARYANT" iç bir sabittir ve
     /// kullanıcı için anlam taşımıyor; sunucu da kayıtta ana varyantı sahibin koduna eşitler
-    /// (EntityVariantSynchronizer.ApplyOwnerIdentity) — burası o kuralın kayıt-öncesi aynasıdır.</summary>
+    /// (EntityVariantSynchronizer.ApplyOwnerIdentity) — burası o kuralın kayıt-öncesi karşılığıdır.</summary>
     [Parameter] public string? MainVariantCodeDisplay { get; set; }
 
     /// <summary>Formun düzenlediği model — sahibin kodu buradan (EntityEditForm cascade'i).</summary>
@@ -97,7 +99,7 @@ public partial class EntityVariantsPanel<TVariant> : IDisposable where TVariant 
     /// seed'ler (kod o an henüz yazılmamıştır); host başına kopyalamak yerine panel, model kodu her değiştiğinde
     /// ana varyantın kodunu ona eşitler. Kullanıcı ana varyanta ELLE başka bir kod yazdıysa (ne sentinel ne
     /// eski sahip kodu) DOKUNULMAZ — o meşru bir düzenlemedir. Sunucu kayıtta zaten aynı eşitlemeyi yapar
-    /// (<c>EntityVariantSynchronizer.ApplyOwnerIdentity</c>); burası kayıt-öncesi aynasıdır.
+    /// (<c>EntityVariantSynchronizer.ApplyOwnerIdentity</c>); burası kayıt-öncesi karşılığıdır.
     /// </summary>
     /// <summary>Formun EditContext'i — sahibin KOD ALANI değişince haberdar olmak için. Cascade edilen model
     /// nesnesi aynı referans kaldığından (içi değişir) <c>OnParametersSet</c> tetiklenmez; DevExpress editörleri
@@ -198,6 +200,65 @@ public partial class EntityVariantsPanel<TVariant> : IDisposable where TVariant 
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 
     private DrillList<TVariant>? _variantDrill;
+
+    /// <summary>Bir varyantı ID'siyle düzenlemeye açar (ürünün satışa hazırlık panelinin "Düzelt →" akışı — issue hangi varyanttaysa
+    /// o satırın formu açılır). Varyant listede yoksa ya da drill henüz çizilmediyse <c>false</c> döner; çağıran
+    /// sekmeye düşmekle yetinir. Sahip, sekme geçişinden SONRA (panel render edilince) çağırmalıdır — DxTabs
+    /// varsayılan kipte yalnız aktif sekmenin içeriğini çizer.</summary>
+    public bool EditVariant(Guid variantId)
+    {
+        if (_variantDrill is null)
+        {
+            return false;
+        }
+
+        var variant = Variants.FirstOrDefault(v => v.Id == variantId);
+        if (variant is null)
+        {
+            return false;
+        }
+
+        _variantDrill.EditItem(variant);
+        return true;
+    }
+
+    // ── Satışa-hazırlık işareti (yalnız endeks cascade edilen formlarda) ────────────────────────────
+
+    /// <summary>Ürün formunun cascade ettiği issue endeksi. <c>null</c> = bu form satışa hazırlık panelisiz (Good/Jewelry/Metal)
+    /// → durum kolonu HİÇ çizilmez. Panel jenerik olduğu için bağ zorunlu değil, opsiyoneldir.</summary>
+    [CascadingParameter(Name = "SaleReadinessIndex")] private SaleReadinessIssueIndex? ReadinessIndex { get; set; }
+
+    /// <summary>Durum kolonu görünür mü: endeks var VE varyant kapsamında karar gerektiren en az bir issue var.
+    /// Issue'su olmayan formda 44 piksellik boş bir kolon bırakmak, "işaret yok" bilgisini gürültüyle söylemek olurdu —
+    /// kolon yalnız söyleyecek sözü olduğunda belirir.</summary>
+    private bool ShowReadinessColumn
+    {
+        get
+        {
+            if (ReadinessIndex is null)
+            {
+                return false;
+            }
+
+            return SaleReadinessPalette.IsActionable(ReadinessIndex.MaxSeverity(SaleReadinessScope.Variants));
+        }
+    }
+
+    /// <summary>Satırın issue kapsamı — işareti <c>ReadinessMark</c> bu yola bakarak çizer. HENÜZ KAYDEDİLMEMİŞ
+    /// varyantta (Id boş) kapsam YOKTUR: sunucu o satır hakkında issue üretemez ve boş kapsam kök sayılıp ürünün
+    /// TÜM issue'larını satıra yapıştırırdı (kanal ürünü satırındaki kuralın aynısı).
+    ///
+    /// <para>Renk/ikon/ipucu kararı BURADA YOK — o kural ortak işaret bileşenindedir; panel yalnız "hangi kapsam"
+    /// sorusunu cevaplar.</para></summary>
+    private static string? ReadinessScopeOf(TVariant variant)
+    {
+        if (variant.Id == Guid.Empty)
+        {
+            return null;
+        }
+
+        return SaleReadinessScope.Variant(variant.Id);
+    }
 
     // Varyant grid thumbnail'i — varyantın VARSAYILAN medyasının poster önizlemesi (yoksa ilki; hiç yoksa null). Yalnız ShowImages kolonu.
     private static string? VariantPreviewSrc(TVariant v)

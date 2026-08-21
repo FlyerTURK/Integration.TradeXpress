@@ -11,7 +11,7 @@ using Microsoft.JSInterop;
 namespace Integration.TradeXpress.Blazor.Client.Pages.Media;
 
 /// <summary>Şirket-kapsamlı medya kütüphanesi (DAM) yönetim sayfası — code-behind. Sol klasör ağacı (Tümü/Klasörsüz/hiyerarşi)
-/// + sağ medya gridi. Yükle/URL-import (seçili klasöre, self-contained blob), poster galeri, video→istemci-kare-yakalama→kapak,
+/// + sağ medya gridi. Yükle/URL-import (seçili klasöre, self-contained blob), poster galeri, video→istemci-kare-yakalama→poster,
 /// klasöre taşı, klasör CRUD (silme medyayı SİLMEZ, üste taşır), sil. Servis: IMediaAppService.</summary>
 public partial class MediaLibraryPage
 {
@@ -291,7 +291,7 @@ public partial class MediaLibraryPage
         }
     }
 
-    // ── Video kapak (istemci-yakalama) ──
+    // ── Video poster (istemci-yakalama) ──
 
     private void OpenCapture(MediaDto media)
     {

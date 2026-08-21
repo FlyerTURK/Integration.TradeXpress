@@ -60,14 +60,18 @@ public partial class ProductRecipePanel
     /// <summary>Bir varyantın reçetesi değişince (tüm-varyant işleminde her varyant için) host'un maliyet recalc'ı + dirty.</summary>
     [Parameter] public Func<ProductVariantGraphDto, Task>? OnVariantRecipeChanged { get; set; }
 
-    /// <summary>Reçetenin ait olduğu ÜRÜN — "üründen emtia yarat" akışı bunun üzerinden tohumlanır.
-    /// Panel yine dilsizdir: yalnız kimliği taşır, hiçbir I/O yapmaz.</summary>
+    /// <summary>Reçetenin ait olduğu ÜRÜN — "üründen emtia yarat" akışı bunun üzerinden seed'lenir.
+    /// Panel yine dilsizdir: yalnız kimliği taşır, hiçbir I/O yapmaz.
+    /// <para><b>Artık görünürlük koşulunun parçası DEĞİL</b> (2026-08-20): akış kaydedilmemiş üründe de çalıştığından
+    /// <c>Guid.Empty</c> anahtarı gizlemez (gerekçe <see cref="ShowCreateFromProduct"/>'ta). Kimliği hangi
+    /// ürünün reçetesine bakıldığının beyanı olarak taşımaya devam ediyoruz — panelin kendisi okumaz, akışı
+    /// uygulayan host kendi kimliğini zaten bilir.</para></summary>
     [Parameter] public Guid ProductId { get; set; }
 
-    /// <summary>"Üründen" anahtarı GÖRÜNSÜN mü. VARSAYILAN KAPALI (opt-in): panel birden çok yüzeyde
-    /// barındırılıyor ve barındıran, yaratılan emtiayı ÇEKİRDEK varyanta yazan bir
+    /// <summary>"Üründen" anahtarı GÖRÜNSÜN mü. VARSAYILAN KAPALI (opt-in): panel birden çok formda
+    /// barındırılıyor ve barındıran, yaratılan emtiayı CORE varyanta yazan bir
     /// <see cref="OnCreateCommodityFromProduct"/> sağlamalıdır (otorite orada — stok zinciri ve rezervasyon
-    /// yalnız çekirdek reçeteyi okur). Bugün açık olduğu yüzeyler: çekirdek ürün formu + N11 + Trendyol kanal
+    /// yalnız core reçeteyi okur). Bugün açık olduğu formlar: core ürün formu + N11 + Trendyol kanal
     /// formları (yayılım adımı 2026-08-14'te <c>ProvisionCommoditiesAsync</c> ile kuruldu). Etsy kapalı — kanal
     /// bilinçli dondurmada (ACIK-ISLER).</summary>
     [Parameter] public bool AllowCreateFromProduct { get; set; }
@@ -78,7 +82,7 @@ public partial class ProductRecipePanel
     /// katalog lookup'ının hiçbiri bağlı değildi; ProductLayout'taki diğer beş lookup bağlıydı, panel atlanmıştı).</summary>
     [Parameter] public EventCallback OnCatalogReloadRequested { get; set; }
 
-    /// <summary>"Üründen" akışının GÖVDESİ — host uygular (katalogların sahibi o). Yeni emtianın kimliğini
+    /// <summary>"Üründen" akışını UYGULAYAN delege — host uygular (katalogların sahibi o). Yeni emtianın kimliğini
     /// döner; kullanıcı vazgeçtiyse <c>null</c>. Panel dilsiz kalsın diye I/O buraya delege edilir.</summary>
     [Parameter] public Func<ProcessType, Task<Guid?>>? OnCreateCommodityFromProduct { get; set; }
 
@@ -89,7 +93,7 @@ public partial class ProductRecipePanel
 
     private bool _isMobile;
 
-    /// <summary>"Üründen" anahtarı — işaretliyken "Yeni ▾" mevcut kataloğu SEÇMEZ, üründen tohumlanmış YENİ
+    /// <summary>"Üründen" anahtarı — işaretliyken "Yeni ▾" mevcut kataloğu SEÇMEZ, üründen seed'lenmiş YENİ
     /// bir emtia formu açar. Süzgeç değil, "Yeni"nin KAYNAĞINI değiştiren bir anahtar; konumu bu yüzden
     /// onun hemen solunda.</summary>
     private bool _createFromProduct;
@@ -99,25 +103,36 @@ public partial class ProductRecipePanel
     ///
     /// <para><b>Yan maliyetler sayıma girmez</b> (paketleme · kargo · komisyon): onlar bileşim değil kanal
     /// gideridir. Sayılsalardı yan maliyeti olan her varyant "emtiası var" sayılır ve anahtar hiç görünmezdi.
-    /// Ayrım <c>SideCostKind</c> üzerinden yapılır — çekirdek İŞÇİLİK satırı <c>ComponentType = Service</c>
+    /// Ayrım <c>SideCostKind</c> üzerinden yapılır — core İŞÇİLİK satırı <c>ComponentType = Service</c>
     /// taşır ama yan maliyet DEĞİLDİR; aynı ayrım <c>ChannelRecipeInheritance</c>'ta da geçerli.</para>
     ///
     /// <para>Emtia bir kez kurulunca anahtar kaybolur: "üründen yarat" ikinci kez anlamlı değil.</para>
     ///
     /// <para><b>YALNIZ TEK VARYANTLI ÜRÜNDE</b> (2026-08-11 Hakan): "üründen emtia" ancak ürün ile emtia
     /// 1:1 örtüştüğünde anlamlıdır. Çok varyantlı üründe her varyantın bileşimi ayrıdır ve hepsini ürünün
-    /// TEK kimliğinden (kod/ad) tohumlamak, aynı koddan türeyen çakışan emtialar üretirdi — hangi varyantın
+    /// TEK kimliğinden (kod/ad) seed'lemek, aynı koddan türeyen çakışan emtialar üretirdi — hangi varyantın
     /// emtiası olduğu da belirsiz kalırdı. Orada doğru yol mevcut kataloğu seçmek ya da her varyant için
     /// emtiayı elle kurmaktır.</para>
     ///
     /// <para><b>Varyant listesi verilmemişse KAPALI</b> (fail-closed): sayamadığımız bir şeyi "tek" varsaymak,
     /// çok varyantlı bir üründe sessizce yanlış emtia üretmek demekti.</para>
+    ///
+    /// <para><b>KAYDEDİLMEMİŞ ÜRÜN DE KAPSAMDA</b> (2026-08-20): eskiden <c>ProductId == Guid.Empty</c> anahtarı
+    /// gizliyordu — çünkü seed YALNIZ kayıtlı ürünün kimliğinden okunabiliyordu ve kayıtsız üründe anahtar
+    /// bomboş bir emtia formu açardı. Taslak seed ucu (<c>IProductAppService.ProjectDraftTo{Aile}Async</c> +
+    /// <c>ProductCommoditySeed.BuildDraft</c>) geldiğinden o gerekçe düştü: host, kaydedilmemiş formun grafını
+    /// (nitelik · varyant · medya) da emtiaya taşıyor. Reçete satırı zaten panel draft'ıdır ve ürünün kendi
+    /// Kaydet'iyle yazılır — <c>ProductId</c>'ye bağlı bir adımı yoktur.</para>
+    ///
+    /// <para><b>Yerine geçen koşul <see cref="OnCreateCommodityFromProduct"/>'IN BAĞLI OLMASI</b>: akışı host uygular;
+    /// bağlanmamışsa anahtar işaretlense de hiçbir şey açamaz (<c>OpenCatalogDraftAsync</c> düz katalog yoluna
+    /// düşer) — görünmeyen anahtar, görünüp çalışmayandan dürüsttür.</para>
     /// </summary>
     private bool ShowCreateFromProduct
     {
         get
         {
-            if (!AllowCreateFromProduct || ProductId == Guid.Empty)
+            if (!AllowCreateFromProduct || OnCreateCommodityFromProduct is null)
             {
                 return false;
             }
@@ -272,7 +287,7 @@ public partial class ProductRecipePanel
 
     // ── Panel açma (toolbar) ────────────────────────────────────────────────────────────────────────
     /// <summary>
-    /// "Yeni ▾" tıklaması. <b>Anahtar işaretliyse</b> mevcut kataloğu seçmez: host'a üründen tohumlanmış
+    /// "Yeni ▾" tıklaması. <b>Anahtar işaretliyse</b> mevcut kataloğu seçmez: host'a üründen seed'lenmiş
     /// emtia yaratmasını söyler, dönen kimliği draft'a seçili getirir.
     ///
     /// <para><b>Kullanıcı vazgeçerse (kimlik <c>null</c>) draft AÇILMAZ</b> — boş bir satır bırakmak,
@@ -864,9 +879,9 @@ public partial class ProductRecipePanel
         }
     }
 
-    // ── Combo "+" → ÜRÜNDEN TOHUMLU yeni emtia (2026-08-15 Hakan: "reçeteden yeni mamul eklersem ürün kodu/adıyla
-    // karşımda görmeliyim") — jenerik boş form yerine host'un tohumlu akışı (OnCreateCommodityFromProduct: kod/ad
-    // üründen, popup, katalog tazeleme, çekirdek yayılımı). Callback yoksa (Etsy — dondurulmuş) null döner ve
+    // ── Combo "+" → ÜRÜNDEN SEED'Lİ yeni emtia (2026-08-15 Hakan: "reçeteden yeni mamul eklersem ürün kodu/adıyla
+    // karşımda görmeliyim") — jenerik boş form yerine host'un seed'li akışı (OnCreateCommodityFromProduct: kod/ad
+    // üründen, popup, katalog tazeleme, core yayılımı). Callback yoksa (Etsy — dondurulmuş) null döner ve
     // LookupComboBox jenerik yola düşer. Varyant-anahtarlı combo'larda dönen SAHİP kimliği ana varyanta çevrilir
     // (combo değeri varyant id'sidir; sahibin id'sini yazmak seçimi bozardı).
     private async Task<Guid?> AddCommodityFromProductAsync(ProcessType family)
@@ -1231,13 +1246,13 @@ public partial class ProductRecipePanel
         return l.PayFactor.ToString("N5");
     }
 
-    /// <summary>Ana bacak toplamı (doğal birimde) = Amount × Factor.</summary>
+    /// <summary><c>Total</c> (doğal birimde) = Amount × Factor.</summary>
     private static decimal TotalOf(ProductRecipeLineGraphDto l)
     {
         return l.Amount * l.Factor;
     }
 
-    /// <summary>Karşı bacak toplamı — Normal: işçilik = PayFactor × (adet|miktar); Bedelli: Total × PayFactor.</summary>
+    /// <summary><c>PayTotal</c> — Normal: işçilik = PayFactor × (adet|miktar); Bedelli: Total × PayFactor.</summary>
     private decimal PayTotalOf(ProductRecipeLineGraphDto l)
     {
         if (l.PaymentType == ProcessPaymentType.WithCurrency)
@@ -1308,7 +1323,7 @@ public partial class ProductRecipePanel
         return live ?? l.MainUnitCode;
     }
 
-    /// <summary>Karşı bacak biriminin kodu — Units lookup'tan canlı; yoksa projeksiyondan.</summary>
+    /// <summary><c>PayUnit</c> kodu — Units lookup'tan canlı; yoksa projeksiyondan.</summary>
     private string PayUnitCodeOf(ProductRecipeLineGraphDto l)
     {
         return UnitCodeOf(l.PayUnitId, l.PayUnitCode);

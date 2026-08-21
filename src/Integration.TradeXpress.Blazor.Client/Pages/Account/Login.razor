@@ -318,7 +318,7 @@
                 }
                 catch { /* best-effort */ }
 
-                // Oturum açan KULLANICININ tercihleri ayna cookie'lerine yansıtılır — forceLoad sonrası
+                // Oturum açan KULLANICININ tercihleri yansıma cookie'lerine yazılır — forceLoad sonrası
                 // App.razor SSR'ı doğrudan bu kullanıcının temasında/dilinde boyar (ara flaş yok).
                 // Boş tema/boyut → cookie SİLİNİR (önceki kullanıcının görünümü tercihi olmayan yeni
                 // kullanıcıya sızmasın); boş kültür → dokunulmaz (mevcut ekran dili sürer).
@@ -365,7 +365,7 @@
             ? "/"
             : url;
 
-    /// <summary>Girişte dönen kullanıcı tercihlerini ayna cookie'lerine yazar (best-effort — hata girişi bozmaz).
+    /// <summary>Girişte dönen kullanıcı tercihlerini yansıma cookie'lerine yazar (best-effort — hata girişi bozmaz).
     /// Tema JSON'u ENCODE'lu (erpUx.writeCookie), kültür RAW (erpUx.writeRawCookie — ASP.NET decode yapmaz!).</summary>
     private async Task ApplyPreferenceCookiesAsync(SignInPrefs? prefs)
     {

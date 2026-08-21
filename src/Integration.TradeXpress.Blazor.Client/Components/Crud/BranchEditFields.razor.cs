@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Blazor.Client.Components.Crud;
 
 /// <summary>Şube form ALANLARI (PAYLAŞILAN) code-behind — standalone (BranchLayout) + Company şube-drill'i
 /// (CompanyBranchDrill) AYNI bu alanları tüketir (DRY). Adres editörü (ValueObjectEdit ✎ → popup) burada yaşar →
-/// her iki yüzeyde de görünür/düzenlenir; kayıt yüzeyin kendi save'ine (standalone → branch, graf → company) bağlı.</summary>
+/// her ikisinde de görünür/düzenlenir; kayıt çağıranın kendi save'ine (standalone → branch, graf → company) bağlı.</summary>
 public partial class BranchEditFields : CrudComponentBase
 {
     [Parameter, EditorRequired] public BranchGetDto Model { get; set; } = default!;
@@ -20,7 +20,7 @@ public partial class BranchEditFields : CrudComponentBase
 
     /// <summary>Şubenin altında GÖMÜLÜ çizilecek merkez kasa (yalnız YENİ kayıt formlarında verilir; null =
     /// kasa bölümü çizilmez). Kasa da şube kadar zorunludur (OrgTreeManager en-az-1-çocuk) — arka planda
-    /// sessizce kurulduğu için kullanıcı adını göremiyordu (2026-08-03 Hakan bulgusu). Üç yüzey de
+    /// sessizce kurulduğu için kullanıcı adını göremiyordu (2026-08-03 Hakan bulgusu). Üç form da
     /// (şirket/tenant/şube onboarding) bu TEK parametreyi besler; kasa markup'ı tek yerde yaşar.</summary>
     [Parameter] public VaultGraphDto? EmbeddedVault { get; set; }
 
@@ -40,7 +40,7 @@ public partial class BranchEditFields : CrudComponentBase
     [Parameter] public bool ShowBaseCurrency { get; set; } = true;
 
     /// <summary>Adres editörü grubun İÇİNDE mi render edilsin. Onboarding'de true → "Merkez Şube" grubu şubenin
-    /// TÜM bilgisini (kod/ad/para birimi/adres) tek çerçevede toplar. Varsayılan false → mevcut yüzeylerde adres
+    /// TÜM bilgisini (kod/ad/para birimi/adres) tek çerçevede toplar. Varsayılan false → mevcut formlarda adres
     /// bilinçli olarak grupsuz kalır (ui-blazor sırası: General → Adres → Description → Status).</summary>
     [Parameter] public bool AddressInsideGroup { get; set; }
 

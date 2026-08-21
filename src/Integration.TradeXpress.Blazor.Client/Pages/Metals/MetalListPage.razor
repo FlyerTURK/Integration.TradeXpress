@@ -18,7 +18,7 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            CustomActions="@_customActions">
+            CustomActions="@BuildCustomActions()">
 
     <GridColumns>
         <DxGridDataColumn Caption="@L["Preview"]" Width="60px" VisibleIndex="0" TextAlignment="GridTextAlignment.Center">

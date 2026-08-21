@@ -58,7 +58,7 @@ public class TradeXpressBlazorClientModule : AbpModule
 
         // Geliştirici Hata Paneli (sink/reporter Framework'e taşındı; panel bileşeni bu projede)
         context.Services.AddSingleton<Integration.Framework.Blazor.Client.Resilience.DevErrorSink>();
-        // Yakalanan teknik hataları panele taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
+        // Yakalanan teknik hataları panele taşıyan IClientErrorReporter (Blazor Server'da ILogger tarayıcıya gitmez).
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter,
                                       Integration.Framework.Blazor.Client.Resilience.DevErrorReporter>();
         // Grid export assembly lazy-loader (CrudLayout + DrillList ortak; WASM'da lazy-load, Server'da no-op).
@@ -76,7 +76,7 @@ public class TradeXpressBlazorClientModule : AbpModule
         // Çalışma bağlamı (working context) — seçili çalışma şubesi (company+branch); sol menü footer combo'su sürer.
         context.Services.AddScoped<Services.Working.IWorkingContextService, Services.Working.WorkingContextService>();
 
-        // Fiş satırı kaydının TEK karar noktası: dış cari → normal fiş yolu · iç kasa → Teyit (ayna onayı).
+        // Fiş satırı kaydının TEK karar noktası: dış cari → normal fiş yolu · iç kasa → Teyit (mirror onayı).
         // Üç panel hiyerarşisi de (ProcessPanelHostBase / CommodityProcessPanelBase / DebitNoteProcessPanel)
         // bunu tüketir → kural tek yerde yaşar.
         context.Services.AddScoped<Pages.CurrentTransactions.VoucherLinePersister>();

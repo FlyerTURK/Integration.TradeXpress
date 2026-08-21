@@ -14,7 +14,7 @@ using Volo.Abp;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Goods;
 
-/// <summary>Mamül edit host — ince sarmal (coordinator + lookup listeleri kurar, geri kalan CrudEditHost'ta).
+/// <summary>Mamül edit host — ince host (coordinator + lookup listeleri kurar, geri kalan CrudEditHost'ta).
 /// DUMB layout servis çağırmaz → tedarikçi cari (Account/SubAccount) + para birimi listelerini host yükler.</summary>
 public partial class GoodEditHost
 {
@@ -26,7 +26,7 @@ public partial class GoodEditHost
     /// <summary>ÇAĞRI-BAŞI footer daraltma (2026-08-06 Hakan kararı): sihirbazın emtia adımı bu formu popup'ta
     /// açarken "Kaydet ve Yeni" + "Sil"i gizler (extraParams ile false geçer) — orada Kaydet zaten
     /// doğrula+kaydet+kapat çalışır ve ikinci kayıt/silme akışın parçası değildir. GLOBAL mod DEĞİL:
-    /// başka yüzeyler (liste sayfası, MDI sekmesi) bu bayraklara dokunmaz, default true.</summary>
+    /// başka çağıranlar (liste sayfası, MDI sekmesi) bu bayraklara dokunmaz, default true.</summary>
     [Parameter] public bool SupportsSaveAndNew { get; set; } = true;
 
     [Parameter] public bool SupportsDelete { get; set; } = true;
@@ -66,7 +66,7 @@ public partial class GoodEditHost
 
     [Parameter] public string? SeedName { get; set; }
 
-    /// <summary>ÜRÜNÜN MAMÜL AYNASI — <c>ProductToGoodProjector</c> çıktısı. Kod/ad/KDV'nin yanında
+    /// <summary>ÜRÜNÜN MAMÜL PROJEKSİYONU — <c>ProductToGoodProjector</c> çıktısı. Kod/ad/KDV'nin yanında
     /// NİTELİK ve VARYANT grafını da taşır; kullanıcı aynı bilgiyi ikinci kez girmez.
     /// <para>Verilirse <see cref="SeedCode"/>/<see cref="SeedName"/>'i EZER (daha zengin kaynak).</para></summary>
     [Parameter] public GoodGetDto? SeedModel { get; set; }
@@ -75,9 +75,9 @@ public partial class GoodEditHost
     {
         m.IsActive = true;
 
-        // ZENGİN TOHUM önce: ürünün mamül aynası varsa kod/ad/KDV + nitelik + varyant grafı olduğu gibi
+        // ZENGİN SEED önce: ürünün mamül projeksiyonu varsa kod/ad/KDV + nitelik + varyant grafı olduğu gibi
         // gelir ve aşağıdaki perakende varsayılanlarını EZER (kullanıcının üründe verdiği KDV, uydurulmuş
-        // varsayılandan daha doğrudur). Yoksa eski davranış: yalnız kod/ad tohumu, sonra varsayılanlar.
+        // varsayılandan daha doğrudur). Yoksa eski davranış: yalnız kod/ad seed'i, sonra varsayılanlar.
         if (SeedModel is { } s)
         {
             m.Code            = s.Code;

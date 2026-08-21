@@ -58,7 +58,7 @@ public static class TradeXpressIcons
     public const string CurrentTransactions = "custom-icon-current-transactions";
     // Kasa→kasa transfer — mevcut swap (takas) ikonu reuse (kasalar arası değer taşıma); yeni CSS yok.
     public const string Transfer = "custom-icon-swap";
-    // Teyit (karşılıklı ayna onayı) — mevcut check-circle (onay) ikonu reuse; yeni CSS yok.
+    // Teyit (karşılıklı mirror onayı) — mevcut check-circle (onay) ikonu reuse; yeni CSS yok.
     public const string Confirmation = "custom-icon-check-circle";
     // Ortak Gelen Kutusu (pano) — mevcut comments (mesaj kutusu) ikonu reuse; yeni CSS yok.
     // Neden bu: kutunun içeriği "dikkat bekleyen mesaj/kayıt" ailesidir (teyit · ürün sorusu · yarın kullanıcı

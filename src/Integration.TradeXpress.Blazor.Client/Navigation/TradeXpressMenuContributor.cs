@@ -75,7 +75,7 @@ public class TradeXpressMenuContributor : IMenuContributor
                 order: 2
             ).RequirePermissions(TradeXpressPermissions.Confirmations.Propose));
 
-            // Teyitler — organizasyon-içi karşılıklı ayna onayı gelen/giden kutusu (kasa↔kasa; postlama
+            // Teyitler — organizasyon-içi karşılıklı mirror onayı gelen/giden kutusu (kasa↔kasa; postlama
             // yalnız iki taraf da kendi kaydını yazıp teyitleyince). Tenant-only (kasa operasyonu).
             context.Menu.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.Confirmations,
@@ -197,7 +197,7 @@ public class TradeXpressMenuContributor : IMenuContributor
                 icon: TradeXpressIcons.Product
             ).RequirePermissions(TradeXpressPermissions.Products.Default));
 
-            // Ürün Kategorileri — çekirdek taksonomi (serbest derinlikli ağaç); pazaryeri kategorilerine eşleştirilir.
+            // Ürün Kategorileri — core taksonomi (serbest derinlikli ağaç); pazaryeri kategorilerine eşleştirilir.
             sales.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.ProductCategories,
                 l["ProductCategories"],

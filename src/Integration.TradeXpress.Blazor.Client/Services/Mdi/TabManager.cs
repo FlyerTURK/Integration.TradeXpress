@@ -75,7 +75,7 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         // Working context'in yüklenmesi beklenir (paylaşılan Task — ek maliyet yok): saklı şube geçersizse
         // WorkingContextService onu düzeltip sunucu ayarına persist eder; sunucu-tarafı anahtar çözümleme
         // (GetMdiTabsAsync) bu düzeltmeden SONRA doğru kovayı okur. try/catch İLE: bu, RehydrateAsync'in
-        // kendi try/catch'inin (bozuk kayıt → "boş liste + toast") DIŞINDA kalan bir çağrıdır — sarmalanmazsa
+        // kendi try/catch'inin (bozuk kayıt → "boş liste + toast") DIŞINDA kalan bir çağrıdır — try/catch'e alınmazsa
         // şube/kasa listesi API'sindeki geçici bir hata (ağ/timeout) MdiTabHost.OnAfterRenderAsync'e kadar
         // yakalanmadan yayılıp tüm kabuğu (AutoRecoverErrorBoundary) düşürürdü. GetMdiTabsAsync bucket'ı
         // SUNUCUDAKİ working-branch ayarından çözer (ABP setting) — client _working state'i başarısız
@@ -118,7 +118,7 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
     public async Task HardResetAsync()
     {
         // InitializeCoreAsync'teki desenle tutarlı: saklı şube geçersizse EnsureLoadedAsync onu düzeltip
-        // sunucuya persist etsin — aksi halde /reset-tabs (bozuk-durum kurtarma kapısı, TAM DA bunun gibi
+        // sunucuya persist etsin — aksi halde /reset-tabs (bozuk-durum kurtarma yolu, TAM DA bunun gibi
         // bir yarışın olacağı an) "[]"i bayat/yanlış şube kovasına yazabilir ve sıfırlama etkisiz kalırdı.
         try
         {
@@ -389,7 +389,7 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
     // Aktif persist sürerken gelen istek yalnız 'dirty' işaretler; aktif tur bitince güncel durum
     // BİR kez daha yazılır → "son istenen durum kazanır", eski state yeniyi ezemez.
     // Circuit dispatcher tek-thread olduğundan bayraklar await'ler arasında güvenli; SemaphoreSlim(1,1)
-    // yalnız "aktif persist var mı" kapısı (lock değil — await-düzeni korunur, dispatcher bloklanmaz).
+    // yalnız "aktif persist var mı" gate'idir (_persistGate; lock değil — await-düzeni korunur, dispatcher bloklanmaz).
     private readonly SemaphoreSlim _persistGate = new(1, 1);
     private bool _persistDirty;
 

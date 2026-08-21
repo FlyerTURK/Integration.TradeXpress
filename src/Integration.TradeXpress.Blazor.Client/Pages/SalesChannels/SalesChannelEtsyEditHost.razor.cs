@@ -9,7 +9,7 @@ using Volo.Abp.ObjectMapping;
 namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannels;
 
 /// <summary>Etsy satış kanalı edit host code-behind — coordinator kurulumu (tipe-özel ISalesChannelEtsyAppService)
-/// + OAuth köprüsü ("Bağlan" → authorize URL YENİ SEKMEDE; callback dönüşünde ?oauth=ok|err toast'u).</summary>
+/// + OAuth akışı ("Bağlan" → authorize URL YENİ SEKMEDE; callback dönüşünde ?oauth=ok|err toast'u).</summary>
 public partial class SalesChannelEtsyEditHost
 {
     [Parameter] public Guid? Id { get; set; }

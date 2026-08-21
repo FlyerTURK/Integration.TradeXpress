@@ -406,7 +406,7 @@ public partial class GeographyCascadePicker : CrudComponentBase
         }
 
         _areaText = text;
-        _selectedAreaId = null;      // özel değer → çekirdek coğrafya id'si YOK (ad serbest metin olarak taşınır)
+        _selectedAreaId = null;      // özel değer → core coğrafya id'si YOK (ad serbest metin olarak taşınır)
         ResetLocalityState();
         ResetNeighborhoodState();
         _localityText = null;

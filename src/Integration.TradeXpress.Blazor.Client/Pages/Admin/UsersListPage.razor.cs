@@ -58,7 +58,7 @@ public partial class UsersListPage
         await TabManager.OpenOrActivateAsync($"/admin/permissions/U/{u.Id}", header);
     }
 
-        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator + izin/rol-scope paneli kancaları (eski UserEditPage kaldırıldı).
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator + izin/rol-scope paneli bağları (eski UserEditPage kaldırıldı).
         public override System.Type EditComponentType => typeof(UserEditHost);
     }
 

@@ -82,7 +82,7 @@
             <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.VariantCount)"
                               Caption="@L["Variants"]" Width="90px" />
 
-            @* KARAR SÜTUNU — tahtanın asıl sebebi. Renk durumu ANLATIR, yalnız süslemez. *@
+            @* KARAR SÜTUNU — board'un asıl sebebi. Renk durumu ANLATIR, yalnız süslemez. *@
             <DxGridDataColumn Caption="@L["TrendyolProduct:PricingBoard:Status"]" Width="170px">
                 <CellDisplayTemplate>
                     @{ var row = (TrendyolPricingBoardItemDto)context.DataItem; }

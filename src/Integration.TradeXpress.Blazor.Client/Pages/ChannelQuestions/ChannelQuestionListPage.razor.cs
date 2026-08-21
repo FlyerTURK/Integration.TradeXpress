@@ -20,7 +20,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.ChannelQuestions;
 ///
 /// <para><b>Neden CrudLayout değil:</b> bu bir KATALOG değil gelen kutusu — Yeni/Sil yok (kayıtlar
 /// yalnız kanaldan çekilir) ve satır tıklaması bir edit formu değil CEVAP popup'ı açar. CrudLayout'un
-/// getirdiği yeni/sil/aktiflik iskeleti burada yanıltıcı affordance olurdu.</para>
+/// getirdiği yeni/sil/aktiflik araç çubuğu burada yanıltıcı affordance olurdu.</para>
 ///
 /// <para><b>Gönderim KAPALI:</b> cevap yalnız YERELDE saklanır (taslak ya da gönderim kuyruğu).
 /// Bu yüzden buton "Gönder" değil "Gönderilmeye Hazır"dır ve "Gönderildi" ibaresi yalnız
@@ -330,7 +330,7 @@ public partial class ChannelQuestionListPage : IDisposable
         }
     }
 
-    /// <summary>Okundu/okunmadı — AÇIK kullanıcı eylemi (popup açılınca sessizce damgalanmaz).</summary>
+    /// <summary>Okundu/okunmadı — AÇIK kullanıcı eylemi (popup açılınca <c>IsRead</c> sessizce yazılmaz).</summary>
     private async Task ToggleReadAsync()
     {
         if (_busy || _row is not { } row)

@@ -147,7 +147,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         /// ile çevirir), toolbar yalnız çizer. ⚠ Split kipi bu parametreyi HENÜZ beslemiyor: SplitCrudView yığını
         /// uykuda (CLAUDE.md §9 — dokunulmaz) ve hiçbir canlı sayfa çizmiyor; yığın canlandırılırken
         /// SplitCrudView'ın da bu bayrağı kablolaması gerekir, yoksa split'te arama ikonu ölü kalır
-        /// (gömülü ShowSearchBox kaldırıldı — tek arama yüzeyi bu satır).</summary>
+        /// (gömülü ShowSearchBox kaldırıldı — tek arama kutusu bu satır).</summary>
         [Parameter] public bool NarrowSearchOpen { get; set; }
 
         private string? _localSearchText;

@@ -18,13 +18,13 @@ using Volo.Abp.ObjectMapping;
 namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannelProducts;
 
 /// <summary>
-/// Kanal-ürünü düzenleme gövdesi — kanal türüne göre tipli alan setini yükler ve tipli servisle kaydeder.
+/// Kanal-ürünü düzenleme bileşeni — kanal türüne göre tipli alan setini yükler ve tipli servisle kaydeder.
 ///
 /// <para><b>Model alanları AYRI tutulur (tek <c>object</c> değil):</b> Razor'da tipli bileşene bağlanacak
 /// modelin derleme zamanında bilinmesi gerekir; tek ortak alan tutup her kullanımda cast etmek, yanlış
 /// kanalın formuna yanlış modeli bağlama hatasını ÇALIŞMA ZAMANINA ertelerdi.</para>
 ///
-/// <para><b>Kaydetmeyi drill tetikler:</b> <see cref="SaveAsync"/> panelin <c>PersistUpdate</c> kancasından
+/// <para><b>Kaydetmeyi drill tetikler:</b> <see cref="SaveAsync"/> panelin <c>PersistUpdate</c> callback'inden
 /// çağrılır. Doğrulama BURADA yapılır (tipli modele bağlı kendi EditContext'i ile); geçmezse istisna
 /// fırlatılır ve drill popup'ı AÇIK bırakıp mesajı gösterir — kullanıcı girdisini kaybetmez.</para>
 ///
@@ -112,7 +112,7 @@ public partial class ChannelProductEditFields : IDisposable
                     break;
 
                 default:
-                    // Bilinmeyen tür SESSİZ GEÇİLMEZ — gövde sebebi yazar, boş form gösterilmez.
+                    // Bilinmeyen tür SESSİZ GEÇİLMEZ — bileşen sebebi yazar, boş form gösterilmez.
                     _loadError = L["SalesChannelProduct:UnsupportedChannel"].Value;
                     break;
             }

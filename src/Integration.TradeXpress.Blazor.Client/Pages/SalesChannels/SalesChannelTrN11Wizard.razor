@@ -24,8 +24,8 @@
     <h5 style="margin:0;">@L["SalesChannelTrN11:Wizard:Title"]</h5>
 </div>
 
-@* Sarmalayıcı MDI gövdesinin verdiği yüksekliği DOLDURUR (flex:1 + min-height:0) — kabuk içeride
-   kaydırsın, ayak düğmeleri her viewport'ta görünür kalsın. *@
+@* Kapsayan MDI sekmesinin verdiği yüksekliği DOLDURUR (flex:1 + min-height:0) — kabuk içeride
+   kaydırsın, alt (footer) düğmeleri her viewport'ta görünür kalsın. *@
 <div class="p-3" style="flex:1; min-height:0; display:flex; flex-direction:column;">
     <WizardShell FinishText="@L["SalesChannelTrN11:Wizard:Finish"]" OnFinished="@GoToChannelAsync">
 
@@ -156,7 +156,7 @@
             }
 
             @* ÇEK VE GÖR AYNI SAYFADA (2026-08-09 Hakan talebi) — Trendyol sihirbazıyla simetrik.
-               Kanal kaydedilmeden tahta çizilmez (kimlik gerekiyor); kendiliğinden yüklenmez. *@
+               Kanal kaydedilmeden board çizilmez (kimlik gerekiyor); kendiliğinden yüklenmez. *@
             @if (_channelId != Guid.Empty)
             {
                 <N11PricingBoardPanel SalesChannelId="@_channelId" />

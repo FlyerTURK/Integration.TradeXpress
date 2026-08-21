@@ -59,7 +59,7 @@
                 </DxGridDataColumn>
                 <DxGridDataColumn FieldName="ProductTitle" Caption="@L["ProductTitle"]" MinWidth="180" />
                 <DxGridDataColumn FieldName="CustomerName" Caption="@L["ChannelQuestion:Column:Customer"]" Width="160px" />
-                @* Soru gövdesi 4000 karaktere kadar olabilir → satırda KIRPILMIŞ tek satır; tamamı cevap popup'ında. *@
+                @* QuestionText 4000 karaktere kadar olabilir → satırda KIRPILMIŞ tek satır; tamamı cevap popup'ında. *@
                 <DxGridDataColumn FieldName="QuestionText" Caption="@L["QuestionText"]" MinWidth="240">
                     <CellDisplayTemplate>
                         @{
@@ -122,7 +122,7 @@
          MaxHeight="90vh"
          CloseOnEscape="true"
          ShowFooter="false">
-    @* Context adı AÇIK verilir: DxPopup'ın gövde şablonu ile içindeki DxFormLayoutItem'lar varsayılan
+    @* Context adı AÇIK verilir: DxPopup'ın BodyContentTemplate'i ile içindeki DxFormLayoutItem'lar varsayılan
        'context' adını paylaşınca Razor derleyicisi RZ9999 ile durur (aynı ad iki kez bağlanamaz). *@
     <BodyContentTemplate Context="__answerBody">
         @if (_row is { } row)

@@ -11,8 +11,8 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Nakit (Cash) fiş satırı paneli — ortak parametre seti / HandleSave iskeleti / LoadForEditAsync
-/// deseni ProcessPanelHostBase'te; burada yalnız Cash'e özel lookup + hesap motoru köprüsü var.
+/// Nakit (Cash) fiş satırı paneli — ortak parametre seti / HandleSave akışı / LoadForEditAsync
+/// deseni ProcessPanelHostBase'te; burada yalnız Cash'e özel lookup + hesap motoru yardımcıları var.
 /// </summary>
 public partial class CashProcessPanel
 {
@@ -89,7 +89,7 @@ public partial class CashProcessPanel
         await SelectFirstPayItem();
     }
 
-    // ── Hesap motoru köprüsü (in-process) ───────────────────────────────────────
+    // ── Hesap motoru yardımcıları (in-process) ───────────────────────────────────────
 
     private decimal BuyOf(Guid id) => _buyByUnit.GetValueOrDefault(id);
 
@@ -240,11 +240,11 @@ public partial class CashProcessPanel
         return Task.CompletedTask;
     }
 
-    // Ortak panel stilleri (ProcessPanelStyles SSOT) — markup kısa çağrı kullansın diye sarmalayıcı.
+    // Ortak panel stilleri (ProcessPanelStyles SSOT) — markup kısa çağrı kullansın diye yerel kısayol.
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
+    // ── Base override'ları (HandleSave / LoadForEditAsync ortak akışı ProcessPanelHostBase'te) ──
 
     protected override bool CanSave() => Model.MainUnitId != Guid.Empty; // emtia/birim seçili değilse çık
 

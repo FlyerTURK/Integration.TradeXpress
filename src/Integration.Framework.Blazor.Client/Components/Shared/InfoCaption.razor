@@ -8,7 +8,7 @@
      normal caption  → <label class="dxbl-fl-cpt dxbl-text">
      CaptionTemplate → <div   class="dxbl-fl-cpt dxbl-fl-caption-tmpl">   ← "dxbl-text" YOK
    Hizayı veren `.dxbl-text`: inline-flex + align-items:center + padding .25rem/.375rem + 1px şeffaf kenarlık.
-   Template sarmalayıcısında bu sınıf bulunmadığından metin hücrenin tepesine yapışıp standart caption'lardan
+   CaptionTemplate'in dış div'inde bu sınıf bulunmadığından metin hücrenin tepesine yapışıp standart caption'lardan
    kayıyordu (`.dxbl-fl-caption-tmpl`'in CSS'te HİÇ kuralı yok — salt işaretleyici).
    Çözüm: hardcoded piksel DEĞİL — DevExpress'in KENDİ caption sınıfını span'e ekliyoruz; tema/boyut (dxbl-sm/lg)
    değişince padding de onunla değişir.

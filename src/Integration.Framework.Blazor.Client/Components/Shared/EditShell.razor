@@ -4,7 +4,7 @@
 
 @*
    TEK chrome kabuğu — 3 kopyanın (GlobalPopupHost / CrudEditView / DrillList) yerine geçer.
-   "Shell" = chrome (DxPopup sarmalı + buton seti + pencere durumu); İÇERİK = ChildContent (sahip ne verirse).
+   "Shell" = chrome (DxPopup + buton seti + pencere durumu); İÇERİK = ChildContent (sahip ne verirse).
    Header İÇERİĞİ paylaşılan EditHeaderView motoru ile çizilir (TabHeaderData'dan). Mantık (guard/dock/persistence)
    KABUKTA DEĞİL — sahibe (DrillList/GlobalPopupHost/...) EventCallback ile delege edilir.
    NRE izolasyonu: EditForm/EditContext KURMAZ — DrillList kendi CascadingValue<EditContext>'ini ChildContent
@@ -16,7 +16,7 @@
 
 @if (Mode == EditShellMode.Inline)
 {
-    @* Chrome yok — sayfa/split/embedded; gövde doğrudan. *@
+    @* Chrome yok — sayfa/split/embedded; ChildContent doğrudan. *@
     @ChildContent
 }
 else
@@ -80,8 +80,8 @@ else
                 </div>
             </div>
         </HeaderContentTemplate>
-        @* GÖVDE = <Content> PASSTHROUGH: scroll + sabit-toolbar çerçevesini SAHİP içerik kurar (EntityEditForm gibi:
-           flex-column + explicit max-height + iç gövde overflow-y:auto). Kabuk gövdeye YAPI/PADDING DAYATMAZ →
+        @* BODY = <Content> PASSTHROUGH: scroll + sabit-toolbar çerçevesini SAHİP içerik kurar (EntityEditForm gibi:
+           flex-column + explicit max-height + iç body overflow-y:auto). Kabuk ChildContent'e YAPI/PADDING DAYATMAZ →
            içerik 88vh'ye sığar, dx-modal-body KAYMAZ (toolbar üstünde sızıntı yok) ve EntityEditForm'un kendi
            scroll'uyla çakışmaz. Yatay taşma kesilir (max-width:100%). *@
         <Content>

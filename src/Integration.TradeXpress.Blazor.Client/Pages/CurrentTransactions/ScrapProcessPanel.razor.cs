@@ -12,8 +12,8 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Hurda (Scrap) fiş satırı paneli — ortak iskelet ProcessPanelHostBase'te; burada hurda lookup'ı,
-/// Has (Miktar×Milyem) ana bacağı ve Peşin/Bedelli fiyat bacağı var.
+/// Hurda (Scrap) fiş satırı paneli — ortak taban ProcessPanelHostBase'te; burada hurda lookup'ı,
+/// Has (Miktar×Milyem) ana leg'i ve Peşin/Bedelli fiyat leg'i var.
 /// </summary>
 public partial class ScrapProcessPanel
 {
@@ -44,7 +44,7 @@ public partial class ScrapProcessPanel
 
     private List<CashListDto> _allCashes = new();
 
-    // Karşı bacak (Peşin→Cash, Bedelli→para birimi). Id=combo değeri, PayUnitId=gerçek para birimi (bakiye/parite).
+    // Karşı leg (Peşin→Cash, Bedelli→para birimi). Id=combo değeri, PayUnitId=gerçek para birimi (bakiye/parite).
     private record PayComboItem(Guid Id, string Code, bool IsActive, Guid? PayUnitId, string? PayUnitCode);
     private List<PayComboItem> _activePayItems = new();
     private PayComboItem? _selectedPayItem;
@@ -118,7 +118,7 @@ public partial class ScrapProcessPanel
             _parityPairs, a, b,
             id => CurrencyUnitPriority.RankOf(_codeByUnit.GetValueOrDefault(id, string.Empty)));
 
-    // Has = Miktar × Milyem = Amount × Factor = Total (ana bacak).
+    // Has = Miktar × Milyem = Amount × Factor = Total (ana leg).
     private void RecomputeHas()
     {
         Model.Total = Model.Amount * Model.Factor;
@@ -131,14 +131,14 @@ public partial class ScrapProcessPanel
 
         if (!HasPriceLeg || Model.MainUnitId == Guid.Empty || Model.PayUnitId is null)
         {
-            // Fiyat bacağı yok (Normal/İade/Emanet) → yalnız Has; pay alanları sıfır.
+            // Fiyat leg'i yok (Normal/İade/Emanet) → yalnız Has; pay alanları sıfır.
             Model.PayFactor = 0m;
             Model.PayTotal  = 0m;
             Model.Profit    = 0m;
             return;
         }
 
-        // Calculator'a ana bacak Has (=Total), Factor=1 verilir → PayTotal = Has × parite, Profit hesaplanır.
+        // Calculator'a ana leg Has (=Total), Factor=1 verilir → PayTotal = Has × parite, Profit hesaplanır.
         var r = VoucherLineCalculator.Calculate(
             new VoucherLineCalcInput(
                 ProcessType:  ProcessType.Scrap,
@@ -169,7 +169,7 @@ public partial class ScrapProcessPanel
         Model.MainUnitId    = s?.FollowingUnitId ?? Guid.Empty;
         if (s is { }) { Model.Factor = s.Factor; _milyemReadOnly = !s.FactorChange; }
 
-        // Hurda'da fiyat bacağı yalnız Peşin/Bedelli'de var; Normal/İade/Emanet'te pay kontrolleri
+        // Hurda'da fiyat leg'i yalnız Peşin/Bedelli'de var; Normal/İade/Emanet'te pay kontrolleri
         // görünmez → PayCommodity NULL kalmalı (kayda hayalet birim yazılmasın).
         if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
         else             { ApplyPayItem(null); }
@@ -230,7 +230,7 @@ public partial class ScrapProcessPanel
     {
         Model.PaymentType = value;
         if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
-        else             { ApplyPayItem(null); }   // fiyat bacağı yok → pay seçimi temizlenir
+        else             { ApplyPayItem(null); }   // fiyat leg'i yok → pay seçimi temizlenir
         Recalc(EditedField.PaymentType);
     }
 
@@ -256,7 +256,7 @@ public partial class ScrapProcessPanel
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
+    // ── Base override'ları (HandleSave / LoadForEditAsync ortak akışı ProcessPanelHostBase'te) ──
 
     protected override bool CanSave() => Model.CommodityId is not null && Model.MainUnitId != Guid.Empty;
 
@@ -266,7 +266,7 @@ public partial class ScrapProcessPanel
 
         if (!HasPriceLeg)
         {
-            // Fiyat bacağı yok → pay alanları temizlenir.
+            // Fiyat leg'i yok → pay alanları temizlenir.
             Model.PayCommodityId   = null;
             Model.PayCommodityCode = null;
             Model.PayUnitId   = null;

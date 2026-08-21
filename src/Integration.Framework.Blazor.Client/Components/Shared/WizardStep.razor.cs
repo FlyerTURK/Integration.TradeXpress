@@ -11,7 +11,7 @@ namespace Integration.Framework.Blazor.Client.Components.Shared;
 ///
 /// <para><b>Neden pasif adım hiç render edilmiyor:</b> görünmeyen bir form alanı doğrulamayı tetikleyebilir
 /// (kullanıcı sebebini göremediği bir hata alır) ve ağ çağrısı yapan bir alt bileşen sırası gelmeden koşabilir.
-/// Adım gövdesini koşullu çizmek ikisini de kapatır.</para>
+/// Adım ChildContent'ini koşullu çizmek ikisini de kapatır.</para>
 ///
 /// <para><b><see cref="OnBeforeAdvanceAsync"/> sözleşmesi:</b> "İleri"ye basıldığında koşar ve
 /// <c>false</c> dönerse adım DEĞİŞMEZ. Gerekçeyi ADIM gösterir (kabuk uygulamanın hata dilini bilmez).
@@ -27,7 +27,7 @@ public partial class WizardStep : CrudComponentBase, IDisposable
     /// <summary>Adımın üstünde gösterilen açıklama (opsiyonel) — ne yapılacağını bir cümleyle anlatır.</summary>
     [Parameter] public string? Description { get; set; }
 
-    /// <summary>Bu adım atlanabilir mi — işaretliyse ayağa "Atla" düğmesi çıkar ve
+    /// <summary>Bu adım atlanabilir mi — işaretliyse footer'a "Atla" düğmesi çıkar ve
     /// <see cref="OnBeforeAdvanceAsync"/> KOŞULMADAN ilerlenir.</summary>
     [Parameter] public bool CanSkip { get; set; }
 
@@ -36,7 +36,7 @@ public partial class WizardStep : CrudComponentBase, IDisposable
 
     /// <summary>Bu adımdan İLERLENEBİLİR mi — <c>false</c> iken kabuk "İleri"/"Bitir"i PASİFLEŞTİRİR.
     ///
-    /// <para><b>Neden <see cref="OnBeforeAdvanceAsync"/> yetmiyor</b> (2026-08-06 Hakan tespiti): o kanca
+    /// <para><b>Neden <see cref="OnBeforeAdvanceAsync"/> yetmiyor</b> (2026-08-06 Hakan tespiti): o EventCallback
     /// yalnız BASILDIKTAN SONRA koşar, yani düğme etkin görünür, kullanıcı basar, sonra reddedilir. Zorunlu
     /// bir seçim eksikken düğmenin etkin durması KULLANICIYA YALAN SÖYLER — Trendyol kargo adımında tam
     /// bunu yaşadık: İleri basılabiliyordu ama kurulum sonda tamamlanmıyordu.</para>
@@ -102,7 +102,7 @@ public sealed class WizardStepAdvanceContext
     /// <summary>Adım ilerlemeyi ENGELLEDİ mi.</summary>
     public bool Cancelled { get; private set; }
 
-    /// <summary>İlerlemeyi engelle — adım gerekçeyi kendi yüzeyinde göstermiş olmalıdır.</summary>
+    /// <summary>İlerlemeyi engelle — adım gerekçeyi kendi içeriğinde göstermiş olmalıdır.</summary>
     public void Cancel()
     {
         Cancelled = true;

@@ -5,7 +5,7 @@
 @* "Kendi Girişimi Yaz" — alıcı KENDİ satırını KENDİ ELİYLE yazar; teklifin process tipine karşılık gelen
    GERÇEK panel host edilir (ayrı/sahte bir beyan formu YOK → alıcı, gönderenle aynı aracı kullanır).
    ÖN-DOLDURMA YOK: paneller boş doğar, gönderenin değerleri gösterilmez/kopyalanmaz (spec §6 — sistem
-   aynalamaz). Sunucu iki satırın AYNA olduğunu doğrular; tutmazsa MirrorMismatch ekrana düşer.
+   mirror üretmez). Sunucu iki satırın MIRROR olduğunu doğrular; tutmazsa MirrorMismatch ekrana düşer.
    Paneller iki hiyerarşide yaşadığı için parametre setleri farklı (Context vs düz parametreler) —
    olgunlaştırmada VoucherLineContext'te birleşecek (bkz. teyit-spec.md §11). *@
 
@@ -115,7 +115,7 @@
     }
     else if (Row.ProcessType == ProcessType.Bullion)
     {
-        @* Takoz: gönderenin yönü ÇIKIŞ ise alıcının aynası GİRİŞ'tir (ve tersi) → alıcıya ZIT yönün paneli açılır. *@
+        @* Takoz: gönderenin yönü ÇIKIŞ ise alıcının mirror'ı GİRİŞ'tir (ve tersi) → alıcıya ZIT yönün paneli açılır. *@
         @if (Row.Direction == ProcessDirectionType.Outbound)
         {
             <BullionProcessPanel OnBack="@OnCancel"

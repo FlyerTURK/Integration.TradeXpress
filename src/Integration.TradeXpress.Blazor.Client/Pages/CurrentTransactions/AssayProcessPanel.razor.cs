@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 /// Çeşni paneli (Assay=14): takoz girişlerinde biriken numune (AssayAmount) havuzundan cariye saf metal
 /// çıkışı. Yön SABİT ÇIKIŞ, parasal alan YOK (Total=0, Kodu="CESNI"). HAS/GUM = Miktar × milyem
 /// (salt-okunur); açılışta mevcut çeşni stoğu ön-doldurulur (GetAssayStockAsync — legacy Cesni paritesi).
-/// Metal bacak birimleri (HAS/GUM) satıra panelden yazılır — AssayBalancePoster bunlara postlar.
+/// Metal leg birimleri (HAS/GUM) satıra panelden yazılır — AssayBalancePoster bunlara postlar.
 /// </summary>
 public partial class AssayProcessPanel : IVoucherLineEditPanel
 {
@@ -156,10 +156,10 @@ public partial class AssayProcessPanel : IVoucherLineEditPanel
             Amount        = _amount,
             Factor        = _auMilyem,        // altın milyemi
             SilverFactor  = _agMilyem,        // gümüş milyemi
-            // Metal bacak birimleri — poster HAS'a −(Miktar×Factor), GUM'a −(Miktar×SilverFactor) postlar.
+            // Metal leg birimleri — poster HAS'a −(Miktar×Factor), GUM'a −(Miktar×SilverFactor) postlar.
             MainUnitId    = _hasUnitId.Value,
             SilverUnitId  = _gumUnitId,
-            // Parasal alan YOK: saf metal çıkışı (Fiyat=Tutar=0, birim bacağı yok).
+            // Parasal alan YOK: saf metal çıkışı (Fiyat=Tutar=0, birim leg'i yok).
             Total         = 0m,
             PayTotal      = 0m,
             Description   = _description,

@@ -69,7 +69,7 @@
 @if (!IsNew)
 {
     @* SİHİRBAZ DÜĞMESİ KALDIRILDI (2026-08-10 Hakan kararı): "bu yüzeyde farklı bir şey planlıyorum".
-       Trendyol tahtasındaki ikizi de aynı gün kalktı. ⚠ Bilinen sonuç: sihirbaz artık YALNIZ "Yeni ▾ → N11"
+       Trendyol board'undaki ikizi de aynı gün kalktı. ⚠ Bilinen sonuç: sihirbaz artık YALNIZ "Yeni ▾ → N11"
        yolundan açılıyor; o yol da tek-kanal kuralıyla kapalı olduğundan MEVCUT kanalın sihirbazına UI'dan
        ulaşılmıyor (rota — /sales-channels/n11/wizard/{id} — duruyor). Yeni giriş noktası tasarlanacak. *@
 
@@ -78,7 +78,7 @@
        görünümünde çekimi kendiliğinden başlatır; rapor yine ekranda kalır (KDV uyarısı görünür olsun diye). *@
     <N11MarketplaceImportPanel SalesChannelId="@Model.Id" AutoImport="@AutoImportProducts" />
 
-    @* N11 ÇALIŞMA TAHTASI — Trendyol tahtasının ikizi; içe aktarımın BIRAKTIĞI işi gösterir.
+    @* N11 ÇALIŞMA TAHTASI — Trendyol board'unın ikizi; içe aktarımın BIRAKTIĞI işi gösterir.
        İçe aktarım panelinin hemen ALTINDA: akış sıralı — önce çek, sonra "şimdi ne yapmam gerekiyor"u gör. *@
     <N11PricingBoardPanel SalesChannelId="@Model.Id" />
 

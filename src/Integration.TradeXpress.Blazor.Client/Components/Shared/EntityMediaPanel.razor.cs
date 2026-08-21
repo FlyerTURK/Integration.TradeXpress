@@ -12,7 +12,7 @@ using Microsoft.JSInterop;
 namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 
 /// <summary>Entity MEDYA paneli — kayıt'ın merkezi kütüphane medyalarına LİNK setini (in-memory) yönetir. Yükle/URL-import →
-/// self-contained blob (dedup) → link; poster/▶; varsayılan/aktif (varsayılan pasif olamaz); sırala; sil; video kapak.
+/// self-contained blob (dedup) → link; poster/▶; varsayılan/aktif (varsayılan pasif olamaz); sırala; sil; video poster'ı.
 /// Sahip AppService save'de EntityMediaAppService.ReplaceFor ile persist eder.</summary>
 public partial class EntityMediaPanel
 {

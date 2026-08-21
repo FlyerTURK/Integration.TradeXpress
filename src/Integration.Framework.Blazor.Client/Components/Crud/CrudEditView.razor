@@ -2,7 +2,7 @@
 
 @*
    Edit formunun kabuğu — içeriği (form layout'u) ya SAYFA içinde ya da POPUP içinde gösterir.
-   Popup modunda: header'da opsiyonel ikon + başlık (sola yaslı), kayan gövde + DevExpress'in
+   Popup modunda: header'da opsiyonel ikon + başlık (sola yaslı), kayan body (BodyContentTemplate) + DevExpress'in
    kendi footer'ı (FooterTemplate) → Save/Cancel toolbar'ı içerikle KAYMAZ, hep altta sabit.
 *@
 
@@ -50,8 +50,8 @@
                 @ChildContent
             </div>
         </BodyContentTemplate>
-        @* FooterContentTemplate (FooterTemplate değil): gövdeyle AYNI tema padding'i + üst ayraç
-           çizgisini otomatik uygular → footer içeriği her temada gövdeyle hizalı kalır. *@
+        @* FooterContentTemplate (FooterTemplate değil): BodyContentTemplate ile AYNI tema padding'i + üst ayraç
+           çizgisini otomatik uygular → footer içeriği her temada body ile hizalı kalır. *@
         <FooterContentTemplate Context="popup">
             <div style="@(_isMinimized ? "display: none !important;" : "")">
                 @Footer

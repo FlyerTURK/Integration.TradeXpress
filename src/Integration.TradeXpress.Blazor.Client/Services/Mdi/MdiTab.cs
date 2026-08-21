@@ -48,7 +48,7 @@ public sealed class MdiTab : IMdiTab
     /// <summary>Sekme içeriğinin yükleme durumu (yükleniyor paneli). KALICILAŞMAZ — PersistedTab'a yazılmaz.</summary>
     public TabContentLoad Load { get; } = new();
 
-    /// <summary>Yükleniyor panelinin bağlanacağı sekme gövdesinin DOM id'si. Kalıcı bir kimlik DEĞİL,
+    /// <summary>Yükleniyor panelinin bağlanacağı sekme panelinin (pane) DOM id'si. Kalıcı bir kimlik DEĞİL,
     /// mevcut <see cref="Id"/>'den türetilir (yeni Guid üretilmez).</summary>
     public string PaneElementId
     {

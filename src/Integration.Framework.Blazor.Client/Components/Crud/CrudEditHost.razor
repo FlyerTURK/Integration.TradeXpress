@@ -15,9 +15,9 @@
 
 @*
    GENERIC edit host — persistence sahibi (ICommitCoordinator) + agnostic EntityEditForm sunumu.
-   Entity-spesifik her şey PARAMETRE: coordinator (sarmal kurar), Layout (ChildContent), defaults, ref'ler
-   sarmalda, header/değer/validasyon/readonly/silme callback'leri. Böylece entity başına yalnız İNCE bir
-   sarmal (AppService inject + coordinator + Layout + config) + Layout kalır. commit/save/delete/close TEK yerde.
+   Entity-spesifik her şey PARAMETRE: coordinator ({Entity}EditHost kurar), Layout (ChildContent), defaults, ref'ler
+   {Entity}EditHost'ta, header/değer/validasyon/readonly/silme callback'leri. Böylece entity başına yalnız İNCE bir
+   {Entity}EditHost (AppService inject + coordinator + Layout + config) + Layout kalır. commit/save/delete/close TEK yerde.
 *@
 
 @if (_loadFailedMessage is { } failMessage)
@@ -81,21 +81,21 @@ else
 }
 
 @code {
-    // ── Sarmaldan gelen ──
-    /// <summary>Persistence sınırı — sarmal concrete AppService ile kurar (kapalı generic DI'dan çözülmez).</summary>
+    // ── {Entity}EditHost'tan gelen ──
+    /// <summary>Persistence sınırı — {Entity}EditHost concrete AppService ile kurar (kapalı generic DI'dan çözülmez).</summary>
     [Parameter, EditorRequired] public ICommitCoordinator<TGetDto, TListDto, TKey, TListRequestDto> Coordinator { get; set; } = default!;
     /// <summary>Dumb Layout (GetDto'yu forma yansıtır).</summary>
     [Parameter, EditorRequired] public RenderFragment<TGetDto> ChildContent { get; set; } = default!;
 
     /// <summary>Düzenlenecek kayıt; boş/default → yeni kayıt. (Unconstrained TKey'de nullable kullanılamaz —
-    /// sarmal Guid?'yi <c>?? Guid.Empty</c> ile unwrap edip verir.)</summary>
+    /// {Entity}EditHost Guid?'yi <c>?? Guid.Empty</c> ile unwrap edip verir.)</summary>
     [Parameter] public TKey Id { get; set; } = default!;
     [Parameter] public bool IsPopupMode { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
     /// <summary>Cross-tab liste tazeleme anahtarı. Boşsa typeof(TListDto).FullName → CrudPageBase'in default'uyla
-    /// otomatik eşleşir (özel key'li listelerde — Roles/Users — sarmal verir).</summary>
+    /// otomatik eşleşir (özel key'li listelerde — Roles/Users — {Entity}EditHost verir).</summary>
     [Parameter] public string? EntityChangeKey { get; set; }
 
     // MDI tab bağlamı (routable host tab'da açılınca cascade gelir). Popup'ta null → tab-close yerine OnClosed.

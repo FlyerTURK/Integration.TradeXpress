@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannelProducts;
 
 /// <summary>
-/// Gönderim geçmişi popup'ı — bir kanal-ürünün delil defterini gösterir. <b>Salt okuma</b>: bu ekran hiçbir
+/// Gönderim geçmişi popup'ı — bir kanal-ürünün PushHistoryni gösterir. <b>Salt okuma</b>: bu ekran hiçbir
 /// şey yazmaz, silmez, düzeltmez (defter append-only'dir; düzeltilebilir bir delil delil değildir).
 /// </summary>
 public partial class ChannelProductPushHistoryPopup

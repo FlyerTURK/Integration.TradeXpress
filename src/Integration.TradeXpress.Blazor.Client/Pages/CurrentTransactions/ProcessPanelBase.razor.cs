@@ -36,7 +36,7 @@ public partial class ProcessPanelBase
     /// <c>null</c> geçilirse karşı hesap bölümü çizilmez.</summary>
     [Parameter] public VoucherLineDto? Line { get; set; }
 
-    /// <summary>Fişin KENDİ alt hesabı — karşı hesap listesinden elenir (kendine virman/ayna olmaz).</summary>
+    /// <summary>Fişin KENDİ alt hesabı — karşı hesap listesinden elenir (kendine virman/karşı fiş olmaz).</summary>
     [Parameter] public Guid? OwnSubAccountId { get; set; }
 
     /// <summary>Karşı hesap bölümü gösterilsin mi. Virmanda alan ZORUNLU ve kendi panelinde yönetildiği için
@@ -104,7 +104,7 @@ public partial class ProcessPanelBase
         }
     }
 
-    /// <summary>HAYIR'a dönülünce seçim TEMİZLENİR — aksi hâlde gizli bir seçim ayna fiş açtırırdı.</summary>
+    /// <summary>HAYIR'a dönülünce seçim TEMİZLENİR — aksi hâlde gizli bir seçim karşı fiş açtırırdı.</summary>
     private void OnUseCounterAccountChanged(bool value)
     {
         _useCounterAccount = value;

@@ -147,7 +147,7 @@ public partial class OrderReservationPanel
     /// kasada çalışıyorsa odur. Ayrı bir seçici koymak, yanlış kasadan çıkış yapmayı kolaylaştırırdı.</para>
     ///
     /// <para>Onay metni sonucu AÇIKÇA söyler — bu işlemden sonra iptal reddedilir ve rezervasyon serbest
-    /// bırakılamaz. Fiyat farkı beyanı bu dilimde girilmez (satır-başı beyan yüzeyi ayrı iş); beyan
+    /// bırakılamaz. Fiyat farkı beyanı bu dilimde girilmez (satır-başı beyan ekranı ayrı iş); beyan
     /// edilmediğinde <c>null</c> kalır, yani "fark yok" DEMEZ.</para></summary>
     private async Task FulfillAsync()
     {

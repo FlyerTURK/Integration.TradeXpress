@@ -16,7 +16,7 @@ public abstract class CrudStateServiceBase<TListDto, TKey> : ICrudStateService<T
 
     public void RequestReload() => OnReloadRequested?.Invoke();
 
-    // ── Köprü: kayıtlı liste grid'i (CrudLayout, ISplitGridActions) — popup/liste sayfa-aşırı gezinmeyi sürer ──
+    // ── RegisterGrid: kayıtlı liste grid'i (CrudLayout, ISplitGridActions) — popup/liste sayfa-aşırı gezinmeyi sürer ──
     private ISplitGridActions? _grid;
     public void RegisterGrid(ISplitGridActions grid) => _grid = grid;
     public void UnregisterGrid(ISplitGridActions grid) { if (ReferenceEquals(_grid, grid)) _grid = null; }
@@ -110,7 +110,7 @@ public abstract class CrudStateServiceBase<TListDto, TKey> : ICrudStateService<T
     private bool? _isActiveFilter;
     public bool? IsActiveFilter { get => _isActiveFilter; set => Set(ref _isActiveFilter, value); }
 
-    // "Neredeyiz" tek tanım: kayıtlı köprü delegesi (popup: Id) varsa onu, yoksa SelectedItem'ı kaynak al.
+    // "Neredeyiz" tek tanım: kayıtlı CurrentKeyProvider delegesi (popup: Id) varsa onu, yoksa SelectedItem'ı kaynak al.
     private object? EffectiveKey => CurrentKeyProvider?.Invoke() ?? CurrentKey;
     // Sayfa-aşırı üst sınır: kayıtlı grid varsa onun canlı TotalCount'u, yoksa son senkronlanan alan.
     private long EffectiveTotal => _grid?.TotalCount ?? TotalCount;

@@ -29,7 +29,7 @@
         </DxFormLayoutItem>
     </text>;
 
-    @* Alanlar TEK yerde; Embedded moduna göre sarmalanır. EMBEDDED=true iken KENDİ DxFormLayout'unu
+    @* Alanlar TEK yerde; Embedded moduna göre DxFormLayout içine alınır. EMBEDDED=true iken KENDİ DxFormLayout'unu
        RENDER ETMEZ → parent'ın TEK layout'una iner (caption sütunları hizalı kalır; iç içe/tekrarlayan
        DxFormLayout yığmak kaymaya yol açıyordu). AddressFields/GeographyCascadePicker ile aynı desen. *@
     RenderFragment branchItems =@<text>

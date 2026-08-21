@@ -11,7 +11,7 @@
 
 @* Entity MEDYA paneli — kayıt'ın merkezi kütüphane medyalarına LİNK'lerini yönetir (görsel + video birlikte). Yükle /
    URL-import → self-contained blob (dedup) → link. Poster thumbnail + video ▶; varsayılan/aktif (varsayılan pasif olamaz);
-   sırala; sil; video → istediğin karede kapak. URL alanı GÖSTERİLMEZ. Sahip AppService save'de link setini persist eder. *@
+   sırala; sil; video → istediğin kareden poster. URL alanı GÖSTERİLMEZ. Sahip AppService save'de link setini persist eder. *@
 
 @* Ekleme yolları TEK "+ Yeni" dropdown'ında (reçete/işlem toolbar deseniyle aynı), Sil seçime bağlı toolbar'da. *@
 <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
@@ -121,7 +121,7 @@
     </FooterContentTemplate>
 </DxPopup>
 
-@* Video → kareyi kapak yap *@
+@* Video → kareyi poster yap *@
 <DxPopup @bind-Visible="@_capturePopupVisible" HeaderText="@L["MediaSetPoster"]" Width="min(95vw, 720px)" ShowFooter="true">
     <BodyContentTemplate Context="__captureBody">
         @if (_captureLink?.Media is not null)

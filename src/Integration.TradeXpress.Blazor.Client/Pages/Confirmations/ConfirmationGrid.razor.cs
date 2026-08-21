@@ -25,7 +25,7 @@ public enum ConfirmationAction
 public sealed record ConfirmationActionRequest(ConfirmationDto Row, ConfirmationAction Action);
 
 /// <summary>
-/// Teyit gelen/giden grid'i — iki sekmenin ORTAK gövdesi (kolon seti + aksiyon gate'leri tek yerde).
+/// Teyit gelen/giden grid'i — iki sekmenin ORTAK bileşeni (kolon seti + aksiyon gate'leri tek yerde).
 /// Aksiyon matrisi (spec §6): GELEN+Proposed → Kendi Girişimi Yaz / Reddet · GELEN+Declared → aksiyon yok
 /// (gönderenin teyidi bekleniyor) · GİDEN+Declared → Teyit Et · GİDEN+Proposed → aksiyon yok (İPTAL YOK) ·
 /// Confirmed/Rejected → aksiyon yok (kapandı).
@@ -43,11 +43,11 @@ public partial class ConfirmationGrid
 
     [Parameter] public EventCallback<ConfirmationActionRequest> OnAction { get; set; }
 
-    /// <summary>GELEN + Proposed: alıcı KENDİ girişini KENDİ ELİYLE yazar (sistem aynalamaz).</summary>
+    /// <summary>GELEN + Proposed: alıcı KENDİ girişini KENDİ ELİYLE yazar (sistem mirror üretmez).</summary>
     private bool CanDeclareRow(ConfirmationDto row)
         => CanDeclare && Side == ConfirmationSide.Incoming && row.IsCounterpartyMine && row.Status == ConfirmationStatus.Proposed;
 
-    /// <summary>GİDEN + Declared: gönderen alıcının kaydını teyit eder → iki bacak postlanır.</summary>
+    /// <summary>GİDEN + Declared: gönderen alıcının kaydını teyit eder → iki leg postlanır.</summary>
     private bool CanConfirmRow(ConfirmationDto row)
         => CanConfirm && Side == ConfirmationSide.Outgoing && row.IsInitiatorMine && row.Status == ConfirmationStatus.Declared;
 

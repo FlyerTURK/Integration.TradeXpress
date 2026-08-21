@@ -42,7 +42,7 @@ public partial class GoodLayout
 
     // Fiyat/stok-limiti ana mamülde DEĞİL → varyant-başı (aşağıdaki ExitPreviewOf varyant için).
 
-    // Varyant-başı türetilmiş satış önizlemesi — MarginSetting.Apply aynası (sunucu OTORİTER; canlı UI geri bildirimi).
+    // Varyant-başı türetilmiş satış önizlemesi — MarginSetting.Apply ile aynı hesap (sunucu OTORİTER; canlı UI geri bildirimi).
     private static decimal ExitPreviewOf(GoodVariantGraphDto v)
     {
         return v.MarginType switch

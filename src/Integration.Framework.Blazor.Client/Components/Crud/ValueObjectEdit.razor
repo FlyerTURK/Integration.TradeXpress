@@ -10,7 +10,7 @@
    DevExpress-native (ERPPROV3 pure-HTML yerine DxTextBox + DxEditorButton).
 *@
 @* ÇİFT TIK da popup'ı açar (✎ butonuna ek kolaylık; kutu salt-okunur olduğundan çift tık boşta kalıyordu —
-   kullanıcı isteği). İnce olay sarmalayıcı: DxTextBox @ondblclick'i doğrudan almaz, Dx karşılığı da yok. *@
+   kullanıcı isteği). İnce olay katmanı olan dış div: DxTextBox @ondblclick'i doğrudan almaz, Dx karşılığı da yok. *@
 <div class="w-100" @ondblclick="@OnDoubleClick">
     <DxTextBox Text="@_displayText"
                ReadOnly="true"
@@ -52,7 +52,7 @@
 
     private Task OnEditButtonClick(MouseEventArgs _) => _canEdit ? OnEditClick.InvokeAsync() : Task.CompletedTask;
 
-    // Çift tık = ✎ ile aynı kapı (aynı guard: devre dışıysa ya da OnEditClick bağlı değilse hiçbir şey yapmaz).
+    // Çift tık = ✎ ile aynı yol (aynı guard: devre dışıysa ya da OnEditClick bağlı değilse hiçbir şey yapmaz).
     private Task OnDoubleClick(MouseEventArgs _) => _canEdit ? OnEditClick.InvokeAsync() : Task.CompletedTask;
 }
 

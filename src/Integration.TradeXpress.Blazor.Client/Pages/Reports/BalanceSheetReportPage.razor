@@ -39,7 +39,7 @@
                     RowDoubleClick="@OnRowDoubleClick"
                     CssClass="w-100" style="@(_isMobile ? "height:360px;" : "flex:1; min-height:0;")">
                 <ToolbarTemplate>
-                    @* İki toolbar alt alta (saf layout sarmalayıcı) — her biri az item → mobilde menü butonuna DARALMAZ. *@
+                    @* İki toolbar alt alta (saf layout div'i) — her biri az item → mobilde menü butonuna DARALMAZ. *@
                     <div style="display:flex; flex-direction:column; gap:4px;">
                         @* 1) Tarih + Şube/Şirket *@
                         <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">

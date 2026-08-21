@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannels;
 /// <summary>
 /// "Mağazadan içe aktar" işinin TEK dağıtım noktası — kanal türüne göre doğru servisi çağırır.
 ///
-/// <para><b>Neden ayrı servis:</b> aynı dağıtımı İKİ yüzey soruyor — kanal edit formundaki düğme
+/// <para><b>Neden ayrı servis:</b> aynı dağıtımı İKİ çağıran soruyor — kanal edit formundaki düğme
 /// (<c>ChannelImportButton</c>) ve kanal listesinin araç çubuğu. Biri bileşen, diğeri toolbar aksiyonu
 /// olduğundan kod paylaşımının başka yolu yok; kopyalasaydık dördüncü bir pazaryeri eklendiğinde biri
 /// güncellenir, diğeri sessizce eski kalırdı (connascence-of-algorithm).</para>

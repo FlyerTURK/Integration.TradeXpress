@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.Confirmations;
 ///
 /// <para><b>ÖN-DOLDURMA YOK (spec §6):</b> panele gönderenin hiçbir değeri (yön/emtia/miktar/tutar/birim)
 /// geçirilmez — paneller kendi varsayılanlarıyla BOŞ doğar. Ön-doldurma teyidin anlamını öldürürdü: alıcı
-/// kendi gözlediğini yazmalı ki iki bağımsız beyanın AYNA olup olmadığı anlamlı bir sınav olsun.</para>
+/// kendi gözlediğini yazmalı ki iki bağımsız beyanın MIRROR olup olmadığı anlamlı bir sınav olsun.</para>
 ///
 /// <para><b>Bağlam yönü:</b> alıcı KENDİ satırını yazar → <c>VaultId</c> = alıcının kasası
 /// (<see cref="ConfirmationDto.CounterpartyVaultId"/>), karşı taraf = gönderenin kasası
@@ -31,7 +31,7 @@ public partial class ConfirmationDeclarePanelHost
     /// <summary>Beyanı yazılacak Teyit (gelen kutusu satırı).</summary>
     [Parameter] public ConfirmationDto? Row { get; set; }
 
-    /// <summary>Beyan sunucuya kabul edilince (ayna tuttu) tetiklenir — çağıran popup'ı kapatıp listeyi tazeler.</summary>
+    /// <summary>Beyan sunucuya kabul edilince (mirror tuttu) tetiklenir — çağıran popup'ı kapatıp listeyi tazeler.</summary>
     [Parameter] public EventCallback OnDeclared { get; set; }
 
     /// <summary>Vazgeç (panelin GERİ'si).</summary>

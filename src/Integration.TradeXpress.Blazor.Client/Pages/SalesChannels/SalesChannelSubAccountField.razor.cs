@@ -20,7 +20,8 @@ public partial class SalesChannelSubAccountField
     /// bir <see cref="FieldIdentifier"/> ile bilebilir, o da bu ifadeden üretilir.</para></summary>
     [Parameter] public Expression<Func<Guid?>>? ValueExpression { get; set; }
 
-    /// <summary>Formun düzenleme bağlamı — sarmalayıcı bileşen olduğumuz için cascade ile gelir.</summary>
+    /// <summary>Formun düzenleme bağlamı — <c>LookupComboBox</c>'ı içeride çizen bir bileşen olduğumuz için
+    /// cascade ile gelir.</summary>
     [CascadingParameter] private EditContext? EditContext { get; set; }
 
     [Inject] private ISubAccountAppService SubAccountAppService { get; set; } = default!;
@@ -46,7 +47,7 @@ public partial class SalesChannelSubAccountField
     /// <c>IsModified()</c> false kalıyor ve "kaydedilmemiş değişiklik" takibi bu alanı görmüyordu.</para>
     ///
     /// <para>Formdaki diğer alanlar doğrudan <c>@bind-*</c> ile modele bağlı olduğu için bildirimleri
-    /// otomatik çıkıyordu; sorun yalnız sarmalayıcı bileşenin arkasında kalan bu alandaydı.</para>
+    /// otomatik çıkıyordu; sorun yalnız <c>SalesChannelSubAccountField</c>'ın arkasında kalan bu alandaydı.</para>
     /// </summary>
     private async Task OnChangedAsync(Guid? subAccountId)
     {

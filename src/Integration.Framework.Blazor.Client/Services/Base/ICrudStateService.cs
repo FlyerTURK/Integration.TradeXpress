@@ -55,8 +55,8 @@ public interface ICrudStateService<TListDto, TKey> : Volo.Abp.DependencyInjectio
     event Action? OnReloadRequested;
     void RequestReload();
 
-    // ── Köprü: liste grid'ini StateService'e doğrudan bağla (split + popup TEK prensiple gezinir) ──
-    // CrudLayout her zaman (SplitHost'tan bağımsız) kendini register eder; köprü grid'i doğrudan sürer
+    // ── RegisterGrid: liste grid'ini StateService'e doğrudan bağla (split + popup TEK prensiple gezinir) ──
+    // CrudLayout her zaman (SplitHost'tan bağımsız) kendini register eder; StateService grid'i doğrudan sürer
     // (GridVisibleKeys/PageSkip/TotalCount canlı okunur, EnsurePageForGlobalIndexAsync/FocusDataItemAsync çağrılır).
     void RegisterGrid(ISplitGridActions grid);
     void UnregisterGrid(ISplitGridActions grid);
@@ -68,7 +68,7 @@ public interface ICrudStateService<TListDto, TKey> : Volo.Abp.DependencyInjectio
     /// <summary>Komşu kayda geçmeden önce ayrılma güvenli mi? (popup: ConfirmCloseAsync — dirty Kaydet/Yoksay.)</summary>
     Func<System.Threading.Tasks.Task<bool>>? CanLeaveGuard { get; set; }
 
-    /// <summary>Köprü hedef kaydı bulunca "nasıl gösterileceği" hook'u (popup: Id=Key; LoadDataAsync).</summary>
+    /// <summary>StateService hedef kaydı bulunca "nasıl gösterileceği" hook'u (popup: Id=Key; LoadDataAsync).</summary>
     Func<NavTransition, System.Threading.Tasks.Task>? OnRecordActivated { get; set; }
 
     /// <summary>Sayfa-aşırı (tüm kayıtlar) önceki/sonraki kayda geç: CrossPageNavigator + guard + grid + hook.</summary>

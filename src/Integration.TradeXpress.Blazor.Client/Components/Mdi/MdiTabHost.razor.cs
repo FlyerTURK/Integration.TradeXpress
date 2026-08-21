@@ -41,7 +41,7 @@ public partial class MdiTabHost : IDisposable
     {
         if (firstRender)
         {
-            // Kurtarma kapısı: adres çubuğuna /reset-tabs yazılırsa restore HİÇ denenmeden kayıt sıfırlanır.
+            // Kurtarma yolu: adres çubuğuna /reset-tabs yazılırsa restore HİÇ denenmeden kayıt sıfırlanır.
             // (Bozuk persisted state açılışı kilitliyorsa tek çıkış yolu budur — MainLayout @Body render
             // etmediğinden routed bir sıfırlama sayfası çalışamaz; ayrıca Ayarlar panelinde buton var.)
             if (new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').EndsWith("/reset-tabs", StringComparison.OrdinalIgnoreCase))

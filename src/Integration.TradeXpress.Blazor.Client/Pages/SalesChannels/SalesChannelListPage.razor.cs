@@ -127,7 +127,7 @@ public partial class SalesChannelListPage : IDisposable
 
         // KANAL ÜRÜNLERİ — bağımsız liste. Kanal SEÇİMİ GEREKTİRMEZ (satır seçili olmasa da açılır):
         // sayfa tüm kanalların kayıtlarını gösterir, daraltma orada yapılır. Kanal edit formundaki liste
-        // ile AYNI bileşeni sürer; bu düğme yalnız ona kanal-bağımsız bir giriş kapısı açar.
+        // ile AYNI bileşeni sürer; bu düğme yalnız ona kanal-bağımsız bir giriş noktası açar.
         // SAYFA olduğu için popup yolundan DEĞİL sekmeden/adres çubuğundan açılır (sihirbazla aynı gerekçe).
         new()
         {

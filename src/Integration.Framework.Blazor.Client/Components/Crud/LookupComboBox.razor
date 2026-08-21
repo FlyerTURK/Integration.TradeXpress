@@ -91,11 +91,11 @@
     /// sonraki güncelleme "Cannot access a disposed object" ile çöküyordu (2026-08-15 mamül varyant combo'su).</para></summary>
     [Parameter] public Func<TValue, object?>? EditIdSelector { get; set; }
 
-    /// <summary>Add(+) butonunun YETKİ kapısı — host, ilgili Create iznini kontrol edip verir (UI gate;
+    /// <summary>Add(+) butonunun YETKİ koşulu — host, ilgili Create iznini kontrol edip verir (UI gate;
     /// gerçek denetim server-side policy'de). Varsayılan true (izin kavramı olmayan lookuplar etkilenmez).</summary>
     [Parameter] public bool CanAdd { get; set; } = true;
 
-    /// <summary>Edit(✎) butonunun YETKİ kapısı — host, ilgili Update iznini kontrol edip verir.</summary>
+    /// <summary>Edit(✎) butonunun YETKİ koşulu — host, ilgili Update iznini kontrol edip verir.</summary>
     [Parameter] public bool CanEdit { get; set; } = true;
 
     /// <summary>Add(+) için izin adı (ör. <c>TradeXpressPermissions.CurrencyUnits.Create</c>) — verilirse
@@ -176,7 +176,7 @@
     private bool _effectiveEnabled => Enabled && !FormIsReadOnly;
 
     // Görünürlük (kural): handler override VEYA düzenleme bileşeni ÇÖZÜLEBİLİYORSA buton aktiftir.
-    //   Add  → readonly/disabled değilse VE CanAdd (yetki kapısı) iken.
+    //   Add  → readonly/disabled değilse VE CanAdd (yetki koşulu) iken.
     //   Edit → readonly/disabled değil VE değer (EditValue) dolu VE CanEdit iken.
     //
     // ⚠ HEDEF TİPTEN DE ÇÖZÜLÜR (2026-08-07 Hakan kuralı): bu bileşenin varlık sebebi ekle/düzelt düğmeleridir
@@ -252,7 +252,7 @@
         return OpenEditByIdAsync(editId);
     }
 
-    // Edit host'unu ÇEVRİLMİŞ kimlikle açar (EditIdSelector yolu ile ortak gövde).
+    // Edit host'unu ÇEVRİLMİŞ kimlikle açar (EditIdSelector yolu ile ortak metot).
     private Task OpenEditByIdAsync(object? editId)
     {
         var editComponentType = _resolvedEditComponentType;
@@ -280,7 +280,7 @@
         {
             // Bus olayı, bileşenin barındığı form dispose olduktan SONRA da gelebilir (popup kapanış yarışı) ve
             // kullanıcıya "Cannot access a disposed object" olarak yansıyordu. Yeniden çizilecek bileşen zaten
-            // yok, kaybolan iş de yok (tazeleme yeni yüzeyde kendiliğinden yapılır) — yutmak doğru davranış.
+            // yok, kaybolan iş de yok (tazeleme yeni açılan bileşende kendiliğinden yapılır) — yutmak doğru davranış.
         }
     }
 

@@ -1,6 +1,6 @@
 @inject IStringLocalizer<TradeXpressResource> L
 
-@* Dış kapsayıcı taşmayı KESER: yatay kaydırma yalnız alan bloklarının kendi sarmalayıcısında olur,
+@* Dış kapsayıcı taşmayı KESER: yatay kaydırma yalnız alan bloklarının kendi kabında olur,
    panelin tamamında ikinci bir çubuk belirmez.
 
    YÜKSEKLİK SINIRI + KENDİ DİKEY KAYDIRMASI: panel ekrana sığmadığında başlık şeridi üstte, Kaydet/Geri
@@ -16,9 +16,9 @@
    görünür alandan uzun olup pager'ı fold altına itiyor"). İlk satır dvh bilmeyen tarayıcı için fallback.
 
    NOT (2026-07-26, denenip GERİ ALINDI): "panel kendi kabını kurmasın, sticky dış gride bağlansın" denendi
-   (overflow-x:clip) — başlığın panel boyunca görünür kalması için. ÇALIŞMADI: hemen üstteki sarmalayıcı
+   (overflow-x:clip) — başlığın panel boyunca görünür kalması için. ÇALIŞMADI: hemen üstteki kap
    .tx-process-panel-wrap'te "overflow-x:auto" var (AccountSelectionPanel), o da bir kaydırma kabıdır ve
-   sticky ona bağlanıp tamamen ölür. Bu yol ancak o sarmalayıcı da kap olmaktan çıkarılırsa işler — ama
+   sticky ona bağlanıp tamamen ölür. Bu yol ancak o .tx-process-panel-wrap da kap olmaktan çıkarılırsa işler — ama
    oradaki yatay kaydırma masaüstünde gerekli, o yüzden dokunulmadı. *@
 <div style="display:flex; flex-direction:column; box-sizing:border-box; min-width:0; max-width:100%; overflow-x:hidden;
             max-height:@(_isNarrow ? "calc(100vh - 170px)" : "100%");
@@ -30,14 +30,14 @@
         @StripText()
     </div>
 
-    @* Alan bloklarının YATAY KAYDIRMASI burada — dokuz panel aynı sarmalayıcıyı tekrar ediyordu.
+    @* Alan bloklarının YATAY KAYDIRMASI burada — dokuz panel aynı kabı tekrar ediyordu.
        Dar ekranda kaydırma yok (alanlar zaten alt alta dizilir). *@
     <div style="padding:8px; @(_isNarrow ? "" : "overflow-x:auto;") @(ReadOnly ? "pointer-events:none; opacity:0.85;" : "")">
         @ChildContent
     </div>
 
     @* Karşı hesap — TÜM süreç panellerinde ortak. Önce EVET/HAYIR, evet seçilince alt hesap seçici görünür.
-       Seçiliyse karşı hesaba YENİ FİŞ açılır ve bu satırın AYNASI (ters yön) yazılır; karşı fişin
+       Seçiliyse karşı hesaba YENİ FİŞ açılır ve bu satırın TERS YÖNLÜSÜ yazılır; karşı fişin
        açıklamasında kaynak cari kodu geçer. Kargo gideri buradan işler: kanal fişinde hizmet çıkışı ↔
        kargo firmasının kendi defterinde giriş (tek firma = tek bakiye). Virmanda alan ZORUNLU olduğundan
        orada gösterilmez — kendi paneli yönetir. *@

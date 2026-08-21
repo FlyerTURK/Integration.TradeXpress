@@ -14,11 +14,11 @@
 @inject IObjectMapper Mapper
 
 @*
-   User edit host = İNCE SARMAL: coordinator (UserCrudAdapter üstünden) + İZİN PANELİ kancaları.
+   User edit host = İNCE HOST: coordinator (UserCrudAdapter üstünden) + İZİN PANELİ bağları (HasExtraChanges / OnAfterCommit).
    İzin paneli User DTO'sunun parçası DEĞİL → ayrı servise yazılır:
      • HasExtraChanges → panel dirty'sini Kaydet/"*"/kapanış-onayına dahil et (extra-dirty).
      • OnAfterCommit → kullanıcı kaydedildikten SONRA (ProviderKey=Id artık geçerli) panel izinleri yazar (extra-commit).
-   ScopedRolesEditor de aynı kanca: inline stage edilir, extra-dirty + OnAfterCommit'te DB'ye yazılır. Yeni kullanıcı: şifre zorunlu (ValidateContext),
+   ScopedRolesEditor de aynı desen: inline stage edilir, extra-dirty + OnAfterCommit'te DB'ye yazılır. Yeni kullanıcı: şifre zorunlu (ValidateContext),
    IsActive=true default (ApplyNewDefaults). Üst-seviye entity → @page (TAB; izin ağacı için ferah). Liste EntityChanges ile tazelenir.
 *@
 @if (_coordinator != null)

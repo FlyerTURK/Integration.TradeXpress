@@ -9,9 +9,9 @@ namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 /// <summary>
 /// Varyant şablonunu (katalog demeti) bir entity'nin nitelik grafına KATAR — saf, DB'siz.
 ///
-/// <para><b>Neden ayrı sınıf:</b> şablon uygulaması iki yüzeyden tetikleniyor — nitelik popup'ındaki
+/// <para><b>Neden ayrı sınıf:</b> şablon uygulaması iki yerden tetikleniyor — nitelik popup'ındaki
 /// "Katalogtan Uygula" ve varyant panelindeki hızlı seçim combo'su. Mantık iki yerde ayrı yazılsaydı biri
-/// güncellenip diğeri unutulur, aynı şablon iki yüzeyde farklı sonuç verirdi (2026-07-27).</para>
+/// güncellenip diğeri unutulur, aynı şablon iki yerde farklı sonuç verirdi (2026-07-27).</para>
 ///
 /// <para><b>Katma kuralı:</b> mevcut nitelik/değerler SİLİNMEZ — yalnız eksikler eklenir. Aynı ADLI grup varsa
 /// değerleri ona katılır (ad/değer bazında, büyük-küçük harf duyarsız tekilleştirme). Entity başına nitelik

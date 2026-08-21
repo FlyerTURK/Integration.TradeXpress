@@ -4,7 +4,7 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
-   Etsy satış kanalı edit host = ince sarmal: coordinator (Etsy DTO'ları + ISalesChannelEtsyAppService) + OAuth köprüsü.
+   Etsy satış kanalı edit host İNCEDİR: coordinator (Etsy DTO'ları + ISalesChannelEtsyAppService) + OAuth akışı.
    Company-owned. SharedSecret update'te BOŞ gelir (redaksiyon); Keystring public client_id → görünür. "Etsy'ye Bağlan"
    StartOAuthAsync ile Etsy onay URL'ini alıp TAM yönlendirme yapar; Etsy /etsy/oauth-callback'e döner, endpoint bu
    sayfaya ?oauth=ok|err ile geri yönlendirir (toast burada gösterilir).

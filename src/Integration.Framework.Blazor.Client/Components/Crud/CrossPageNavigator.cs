@@ -18,7 +18,7 @@ public readonly record struct NavOutcome(NavKind Kind, object? LocalKey, int Tar
 }
 
 /// <summary>
-/// Köprünün "hangi kayda geçildiği" sinyali. StateService gezinmeyi çözer; çağıran bağlam
+/// StateService'in "hangi kayda geçildiği" sinyali. StateService gezinmeyi çözer; çağıran bağlam
 /// (popup: Id=Key + LoadDataAsync) <see cref="Key"/>'i alıp "nasıl gösteririm"i uygular.
 /// </summary>
 public readonly record struct NavTransition(object Key);

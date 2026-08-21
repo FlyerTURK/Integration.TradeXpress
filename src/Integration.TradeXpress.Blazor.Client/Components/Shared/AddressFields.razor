@@ -1,7 +1,7 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @* Yeniden-kullanılabilir TEMİZ adres formu — herhangi bir IAddressEditModel'e bind eder (ör. BranchAddressDto).
-   TEK KAYNAK ilkesi: üstteki GeographyCascadePicker İl/İlçe/Mahalle + kodlar + id-only köprüler + CountryCode'u
+   TEK KAYNAK ilkesi: üstteki GeographyCascadePicker İl/İlçe/Mahalle + kodlar + id-only alanlar + CountryCode'u
    DOLDURUR; bu alanlar için AYRI serbest-metin kutusu YOK (tekrar/drift önlenir). Serbest-metin: Line (zorunlu *) +
    UBL zenginleştirme alanları (BuildingName/BuildingNumber/Room/Floor/PostalCode/Postbox/AdditionalStreetName/Title).
    GRUPSUZ — her satırda EN FAZLA 2 editör (ColSpanMd=6), mantıklı sıra.

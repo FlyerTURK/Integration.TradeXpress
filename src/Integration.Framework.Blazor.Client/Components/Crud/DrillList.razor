@@ -16,7 +16,7 @@
    Farklı entity'ler için Columns + EditContent + NewItemFactory parametreleriyle özelleştirilir.
 
    C# mantığı DrillList.razor.cs code-behind'ında (ui-blazor: @@code yasak). Markup içeren üç
-   şablon (arama kutusu / aktif filtre / edit gövdesi) Razor inline template olduğundan C#
+   şablon (arama kutusu / aktif filtre / EditFormBody) Razor inline template olduğundan C#
    dosyasına taşınamaz → aşağıdaki kod bloğunda her render başında alanlara atanır (kullanımları
    markup'ta daha aşağıda; davranış eski @@code property'leriyle birebir aynı).
 *@
@@ -51,7 +51,7 @@
         </div>
     </text>;
 
-    // Popup modunun (AllowInlineEdit=false) düzenleme gövdesi (form + Save/Cancel).
+    // Popup modunun (AllowInlineEdit=false) EditFormBody'si (form + Save/Cancel).
     // EditForm YOK — CascadingValue<EditContext> ile kendi EditContext'imizi cascade ediyoruz.
     // EditForm bir <form> HTML elementi oluşturup EditContext cascade eder; iç içe gelince
     // (nested DrillList → nested EditForm → nested EditContext) DxGrid'in ambient EditContext'e
@@ -167,7 +167,7 @@
 @if (!AllowInlineEdit)
 {
     @* Popup chrome ARTIK TEK KAYNAK: EditShell (3 kabuk kopyası yerine). Header zaten TabHeaderData
-       (BuildDrillHeader → EditHeaderView); guard OnPopupClosing'de; gövde EditForm'suz CascadingValue<EditContext>
+       (BuildDrillHeader → EditHeaderView); guard OnPopupClosing'de; body EditForm'suz CascadingValue<EditContext>
        — kabuğun DIŞINDA, ChildContent olarak girer → nested EditContext NRE'si yapısal olarak imkânsız.
        Pencere durumu (fullscreen/minimize) + butonlar EditShell'de. *@
     <EditShell Mode="EditShellMode.Popup"
@@ -181,8 +181,8 @@
         @if (_popupVisible)
         {
             @* EntityEditForm ile AYNI desen: flex-column + EXPLICIT max-height (popup'ta h-100 çözülmez) →
-               toolbar flex-shrink:0 SABİT, gövde flex:1 overflow-y:auto KAYAR. Sticky hack YOK; dx-modal-body
-               kaymadığı için toolbar üstünde sızıntı da yok. Toolbar yalnız alt padding; gövde edge-to-edge. *@
+               toolbar flex-shrink:0 SABİT, body flex:1 overflow-y:auto KAYAR. Sticky hack YOK; dx-modal-body
+               kaymadığı için toolbar üstünde sızıntı da yok. Toolbar yalnız alt padding; body edge-to-edge. *@
             <div style="display:flex; flex-direction:column; max-height:calc(90vh - 84px); max-height:calc(90dvh - 84px); min-height:0; overflow-x:hidden; max-width:100%;">
                 <div style="flex-shrink:0; padding-bottom:0.5rem;">
                     @* Genel edit ile AYNI bileşen (ikiz değil): EditToolbar. Drill: yalnız Kaydet + Kaydet&Yeni. *@

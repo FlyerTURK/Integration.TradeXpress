@@ -11,7 +11,7 @@
 @inject IServiceProvider ServiceProvider
 
 @* Şirket-kapsamlı MEDYA KÜTÜPHANESİ (DAM) — kendi blob storage'ının yönetimi: sol klasör ağacı (Tümü/Klasörsüz/hiyerarşi),
-   sağ medya gridi. Yükle / URL'den içe aktar (seçili klasöre) / poster galeri / video→kare-yakalama→kapak / klasöre taşı / sil.
+   sağ medya gridi. Yükle / URL'den içe aktar (seçili klasöre) / poster galeri / video→kare-yakalama→poster / klasöre taşı / sil.
    Medya self-contained (URL saklanmaz); entity'ler buna link verir (ayrı panel). *@
 
 <div class="h-100 d-flex" style="gap:0.5rem;">
@@ -151,14 +151,14 @@
     </FooterContentTemplate>
 </DxPopup>
 
-@* Video → kareyi kapak yap *@
+@* Video → kareyi poster yap *@
 <DxPopup @bind-Visible="@_capturePopupVisible" HeaderText="@L["MediaSetPoster"]" Width="min(95vw, 720px)" ShowFooter="true">
     <BodyContentTemplate Context="__captureBody">
         @if (_captureMedia is not null)
         {
             <div style="display:flex; flex-direction:column; gap:0.5rem;">
                 <span style="color:var(--dxbl-text-muted, #6c757d); font-size:0.85rem;">@L["MediaCaptureHint"]</span>
-                @* ham video: Dx video bileşeni yok — istediğin anda durdurup "Bu kareyi kapak yap" *@
+                @* ham video: Dx video bileşeni yok — istediğin anda durdurup "Bu kareyi poster yap" *@
                 <video id="@_captureVideoId" src="@_captureMedia.ContentUrl" controls playsinline webkit-playsinline
                        style="width:100%; max-height:420px; background:#000; border-radius:6px;"></video>
             </div>

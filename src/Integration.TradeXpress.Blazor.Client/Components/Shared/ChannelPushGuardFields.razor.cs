@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 
 /// <summary>Kanal-ürün push emniyet alanları (emniyet payı + fiyat tabanı/tavanı) — kanal formlarının ortak parçası.
-/// Kural gövdesi sunucuda (<c>ChannelPushGuard</c>); burada yalnız giriş yüzeyi vardır.</summary>
+/// Kuralın kendisi sunucuda (<c>ChannelPushGuard</c>); burada yalnız giriş alanları vardır.</summary>
 public partial class ChannelPushGuardFields : CrudComponentBase
 {
     /// <summary>Kanalda gösterilmeyen stok payı (opsiyonel).</summary>

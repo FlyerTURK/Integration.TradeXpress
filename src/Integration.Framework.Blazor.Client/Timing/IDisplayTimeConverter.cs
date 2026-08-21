@@ -3,7 +3,7 @@ using System;
 namespace Integration.Framework.Blazor.Client.Timing;
 
 /// <summary>
-/// UTC zaman damgaları ile kullanıcının YEREL saati arasındaki TEK dönüşüm noktası (görüntü katmanı).
+/// UTC timestamp'ler ile kullanıcının YEREL saati arasındaki TEK dönüşüm noktası (görüntü katmanı).
 /// Uygulama genelinde timestamp'ler (CreationTime, LastModificationTime, ExchangeRate.RateDate,
 /// CurrentPriceDto.RateDate gibi bir <b>an</b> ifade eden alanlar) burada UTC→yerele çevrilir.
 /// <para><b>DİKKAT — date-only iş tarihleri ÇEVRİLMEZ:</b> VoucherDate / DueDate / AsOfDate /
@@ -12,7 +12,7 @@ namespace Integration.Framework.Blazor.Client.Timing;
 /// </summary>
 public interface IDisplayTimeConverter
 {
-    /// <summary>UTC bir zaman damgasını kullanıcının yerel saatine çevirir (<see cref="DateTimeKind.Unspecified"/>
+    /// <summary>UTC bir timestamp'i kullanıcının yerel saatine çevirir (<see cref="DateTimeKind.Unspecified"/>
     /// döner — görüntü için). TZ henüz yakalanmadıysa değeri UTC olarak olduğu gibi bırakır.</summary>
     DateTime ToLocal(DateTime utc);
 

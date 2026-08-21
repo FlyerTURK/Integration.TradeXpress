@@ -8,7 +8,7 @@ using Volo.Abp.Users;
 namespace Integration.TradeXpress.Blazor.Client.Services.Working;
 
 /// <summary>
-/// <see cref="ICompanyContextProvider"/> köprüsü — Blazor circuit'indeki <see cref="IWorkingContextService"/>'in
+/// <see cref="ICompanyContextProvider"/> uygulaması — Blazor circuit'indeki <see cref="IWorkingContextService"/>'in
 /// çalışılan şirketini sunucu-ambient <see cref="ICurrentCompany"/>'ye taşır. Böylece AppService/DbContext
 /// aktif şirketi DTO'dan değil ambient'ten okur (auto-stamp + merkezi filtre bununla çalışır).
 /// Default <c>NullCompanyContextProvider</c>'ı değiştirir.

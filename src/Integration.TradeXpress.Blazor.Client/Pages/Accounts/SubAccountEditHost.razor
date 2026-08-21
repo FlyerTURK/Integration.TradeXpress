@@ -26,7 +26,7 @@
             @* Cari (Account) lookup — Code'dan ÖNCE yarım satır; yeni kayıtta seçilir, edit'te salt-okunur (UpdateDto'da AccountId yok).
                CanAdd/CanEdit KAPALI (bilinçli): bu form kendisi popup'ta açılır; içinden Account popup'ı açmak
                PopupService tek-popup modelinde bu formu EZER (iç içe popup istisnası). Ana hesap yönetimi çağıran
-               yüzeyin Account lookup'ında (ör. AccountSelectionPanel üst combosu / Account listesi). *@
+               formun Account lookup'ında (ör. AccountSelectionPanel üst combosu / Account listesi). *@
             <DxFormLayoutItem Caption="@($"{L["Account"]} *")" ColSpanMd="6">
                 <LookupComboBox TItem="AccountListDto" TValue="Guid?"
                                 Data="@_accounts"

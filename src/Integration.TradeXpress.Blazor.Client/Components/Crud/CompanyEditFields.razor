@@ -13,7 +13,7 @@
    drill'i AYRI bileşendedir (CompanyBranchDrill) — iç içe DrillList'i EditContent'e gömmek NRE verir. *@
 
 @{
-    @* Alanlar TEK yerde; Embedded moduna göre sarmalanır. EMBEDDED=true iken KENDİ DxFormLayout'unu
+    @* Alanlar TEK yerde; Embedded moduna göre DxFormLayout içine alınır. EMBEDDED=true iken KENDİ DxFormLayout'unu
        RENDER ETMEZ → parent'ın TEK layout'una iner (caption sütunları hizalı kalır; iç içe/tekrarlayan
        DxFormLayout yığmak kaymaya yol açıyordu). AddressFields/GeographyCascadePicker ile aynı desen. *@
     RenderFragment companyItems =@<text>
@@ -117,7 +117,7 @@ else
     [Parameter] public string? GroupCaption { get; set; }
 
     /// <summary>Merkez switch'i görünsün mü. Onboarding'de GİZLİ: tenant'ın ilk şirketi tanımı gereği merkezdir,
-    /// seçenek sunmak yanıltıcı olur. Varsayılan true → mevcut yüzeyler (standalone/şirket drill'i) değişmez.</summary>
+    /// seçenek sunmak yanıltıcı olur. Varsayılan true → mevcut kullanım yerleri (standalone/şirket drill'i) değişmez.</summary>
     [Parameter] public bool ShowHeadquarters { get; set; } = true;
 
     /// <summary>Açıklama / Durum / Sıra görünsün mü. Onboarding'de GİZLİ — kullanıcı varsayılanlarla başlar,
@@ -129,7 +129,7 @@ else
     [Parameter] public bool Embedded { get; set; }
 
     /// <summary>Şirket grubunun SONUNA eklenecek içerik (opsiyonel) — ör. onboarding'de merkez şube grubu.
-    /// Null → hiçbir şey render edilmez; mevcut yüzeyler etkilenmez.</summary>
+    /// Null → hiçbir şey render edilmez; mevcut kullanım yerleri etkilenmez.</summary>
     [Parameter] public RenderFragment? GroupFooter { get; set; }
 
     // Quick-add/edit (opsiyonel; host bağlar → +/✎ butonları görünür). Boşsa butonlar gizli.

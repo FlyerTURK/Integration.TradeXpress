@@ -1,0 +1,24 @@
+@*
+   SATIŞA-HAZIRLIK İŞARETLİ BAŞLIK — sekme başlığı ve form-grubu başlığı için ORTAK parça (2026-08-19).
+
+   Hakan kuralı: "bulgu bulunduğu HER seviyede görünsün; her bölüm o bölümün EN YÜKSEK ağırlığıyla renklensin."
+   Bu bileşen o kuralın TEK uygulamasıdır: kendisine verilen kapsam yolunu (SaleReadinessScope) endekse sorar,
+   dönen ağırlığa göre metni boyar ve karar gerektiren issue sayısını rozetle yazar.
+
+   Neden bileşen: aynı üç satır (renk + rozet + ipucu) ürün formunda dört sekme başlığında, varyant reçete
+   grubunda ve kanal ürünü formlarında tekrar edecekti. Kopyalanan bir işaretleme, bir yerde güncellenip
+   diğerlerinde unutulur — ve tam olarak "işaret görünmüyor" biçiminde, yani sessizce bozulur. (Kanal ürünü
+   formları bir süre kendi elle açtıkları kopyayı taşıdı ve kopya SAPTI: başlıklar orada kalın çizilmiyordu.
+   2026-08-19'da hepsi bu bileşene indirildi.)
+
+   Rozet ReadinessMark'ın HeadingBadge kipine devredilir: sayaç + renk + ipucu kuralı iki bileşende ayrı ayrı
+   yazılırsa aynı sapma rozet tarafında tekrarlanır.
+
+   Ham <span>: renkli metin için DevExpress karşılığı yok (ui-blazor'un rozet/renk istisnası).
+   YENİ CSS SINIFI AÇILMADI (onay gerektirir) — renkler SaleReadinessPalette'ten inline gelir.
+*@
+<span style="@TextStyle">@Text</span>
+<ReadinessMark Index="@EffectiveIndex"
+               Scope="@Scope"
+               TreatNullScopeAsRoot="@TreatNullScopeAsRoot"
+               Mode="ReadinessMarkMode.HeadingBadge" />

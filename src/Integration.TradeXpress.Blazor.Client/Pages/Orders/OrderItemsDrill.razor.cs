@@ -117,7 +117,7 @@ public partial class OrderItemsDrill
             return;
         }
 
-        // NumericSpinEdit alt sınır uygulamıyor (framework sarmalayıcısında MinValue yok) — N11'e GERÇEK/geri
+        // NumericSpinEdit alt sınır uygulamıyor (framework bileşeninde MinValue yok) — N11'e GERÇEK/geri
         // alınamaz istek gitmeden önce geçersiz (≤0) paket sayısını burada engelle.
         if (item.ActionInputNumberOfPackages < 1)
         {

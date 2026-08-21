@@ -33,6 +33,6 @@ public sealed record VoucherLineContext
 
     /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz"): doluysa panel yeni bir teklif AÇMAZ,
     /// bu Teyit'e alıcının KENDİ satırını yazar (<see cref="Confirmations.IConfirmationAppService.DeclareAsync"/>).
-    /// Sunucu satırın gönderenin satırıyla AYNA olduğunu doğrular. Null = normal (teklif/cari) akışı.</summary>
+    /// Sunucu satırın gönderenin satırıyla MIRROR olduğunu doğrular. Null = normal (teklif/cari) akışı.</summary>
     public Guid? DeclareConfirmationId { get; init; }
 }

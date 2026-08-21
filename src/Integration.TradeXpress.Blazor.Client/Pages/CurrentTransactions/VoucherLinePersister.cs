@@ -38,7 +38,7 @@ public sealed record VoucherLinePersistResult(VoucherLinePersistOutcome Outcome,
 
 /// <summary>
 /// Fiş satırı kaydının <b>TEK KARAR NOKTASI</b> (SSOT): satır normal fiş yoluna mı gidecek, yoksa Teyit
-/// (organizasyon-içi ayna onayı) yoluna mı?
+/// (organizasyon-içi mirror onayı) yoluna mı?
 ///
 /// <para><b>Neden servis, neden base sınıf değil:</b> paneller İKİ ayrı hiyerarşide yaşıyor
 /// (<see cref="ProcessPanelHostBase"/> → Nakit/Maden/Hurda/Vadeli/Hizmet · <c>CommodityProcessPanelBase</c> →
@@ -72,7 +72,7 @@ public class VoucherLinePersister
 
     public async Task<VoucherLinePersistResult> PersistAsync(VoucherLinePersistRequest request)
     {
-        // BEYAN: alıcı kendi satırını yazdı → sunucu AYNA doğrular (tutmazsa MirrorMismatch fırlatır, çağıran gösterir).
+        // BEYAN: alıcı kendi satırını yazdı → sunucu MIRROR doğrular (tutmazsa MirrorMismatch fırlatır, çağıran gösterir).
         if (request.DeclareConfirmationId is { } confirmationId)
         {
             await _confirmationService.DeclareAsync(new DeclareConfirmationInput

@@ -275,13 +275,13 @@ public class TradeXpressBlazorModule : AbpModule
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService,
                                    Integration.TradeXpress.Blazor.Client.Services.Working.WorkingContextService>();
 
-        // ICurrentCompany köprüsü — working şubenin şirketini sunucu-ambient ICurrentCompany'ye taşır. Client modülü
+        // WorkingCompanyContextProvider kaydı — working şubenin şirketini sunucu-ambient ICurrentCompany'ye taşır. Client modülü
         // DependsOn'da olmadığından [Dependency(ReplaceServices)] sunucuda çalışmaz → elle kaydet (son kayıt kazanır).
         // Yoksa ICurrentCompany.Id sunucuda DAİMA null → yerel kur re-base / pozisyon / emtia scope çözülmez.
         context.Services.AddScoped<Integration.TradeXpress.MultiCompany.ICompanyContextProvider,
                                    Integration.TradeXpress.Blazor.Client.Services.Working.WorkingCompanyContextProvider>();
 
-        // ICurrentBranch / ICurrentVault köprüsü — çalışma bağlamı artık KASA hassasiyetinde (şirket+şube+kasa).
+        // WorkingBranchContextProvider / WorkingVaultContextProvider kaydı — çalışma bağlamı artık KASA hassasiyetinde (şirket+şube+kasa).
         // Aynı gerekçe: client modülü DependsOn'da değil → [Dependency(ReplaceServices)] sunucuda çalışmaz, elle kaydet.
         // Kaynak singleton WorkingSelectionStore'dur (UoW child scope'unda boş kopya tuzağı).
         // NOT: kasa ambient'i hiçbir query-filter'a BAĞLANMAZ — ortam varsayılanı, kısıtlama değil.
@@ -295,7 +295,7 @@ public class TradeXpressBlazorModule : AbpModule
         // "yazıldı ama görünmüyor / parent bulunamadı" kök-neden fix'i). Client modülü DependsOn'da değil → elle kayıt.
         context.Services.AddSingleton<Integration.TradeXpress.Blazor.Client.Services.Working.WorkingSelectionStore>();
 
-        // Fiş satırı kaydının TEK karar noktası (dış cari → normal fiş yolu · iç kasa → Teyit ayna onayı).
+        // Fiş satırı kaydının TEK karar noktası (dış cari → normal fiş yolu · iç kasa → Teyit mirror onayı).
         // Client modülü DependsOn zincirinde değil → server'da da ELLE kaydedilir, yoksa paneller DI'da patlar.
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions.VoucherLinePersister>();
 
@@ -326,7 +326,7 @@ public class TradeXpressBlazorModule : AbpModule
         // auto-scan çalışmıyor; circuit-level servisler burada manuel kayıtlanır.
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IUiStateService,
                                       Integration.TradeXpress.Blazor.Client.Services.TradeXpressUiStateService>();
-        // Yakalanan teknik hataları Developer Error Panel'e taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
+        // Yakalanan teknik hataları Developer Error Panel'e taşıyan DevErrorReporter (Blazor Server'da ILogger tarayıcıya gitmez).
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter,
                                       Integration.Framework.Blazor.Client.Resilience.DevErrorReporter>();
         // Grid export assembly lazy-loader (CrudLayout + DrillList ortak; Server'da no-op, WASM'da lazy-load).
@@ -416,13 +416,25 @@ public class TradeXpressBlazorModule : AbpModule
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.TrendyolProducts.TrendyolBatchStatusWorker>());
 
+        // N11 KUYRUK çözücü işçisi (5 dk) — Trendyol batch işçisinin N11 karşılığı: kuyruğa alınmış REST push
+        // task'larının akıbetini sorgular (2026-08-19). EnsureNoPendingPushAsync bekleyen task
+        // varken yeni push'u durdurur; bu işçi o kilidi açar. YALNIZ Blazor host'ta.
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11Products.N11PendingPushResolverWorker>());
+
+        // GÜNLÜK MUTABAKAT işçisi (24 saat) — kanalın FİİLÎ listeleme durumunu okur, sapan LastSent tabanını
+        // gözleme çeker; normal senkron turu doğruyu kendiliğinden geri yazar (2026-08-21 — panelden elle
+        // değişiklik / kaçan batch sonsuza dek kalmasın). YALNIZ Blazor host'ta.
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.Orchestration.ChannelReconciliationWorker>());
+
         // Etsy taxonomy TAM-RECONCILE worker (günlük; RunOnStart=true → açılışta İLK bayatlık kontrolü). Bayat/boşsa
         // reconcile (ekle/güncelle/HARD-sil); değilse atlar. YALNIZ Blazor host'ta → çift-çalışma yok.
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.EtsyTaxonomies.EtsyTaxonomySyncWorker>());
 
         // N11 kategori ağacı + komisyon mutabakatı (günlük; RunOnStart=true → açılışta İLK bayatlık kontrolü).
-        // Damga 1 günden yeniyse N11'e istek bile gitmez. Komisyon bu turun parçası — kullanıcı düğmeye basmaz.
+        // LastSyncedAt 1 günden yeniyse N11'e istek bile gitmez. Komisyon bu turun parçası — kullanıcı düğmeye basmaz.
         // YALNIZ Blazor host'ta → çift-çalışma yok (dağıtık kilit sağlayıcısı kayıtlı değil, iki hostta kayıt
         // aynı anda iki tam ağaç çekimi + ExternalId unique index çakışması demek olurdu).
         //
@@ -513,7 +525,7 @@ public class TradeXpressBlazorModule : AbpModule
                     if (!result.Succeeded)
                         return Microsoft.AspNetCore.Http.Results.Json(new { success = false, error = "Invalid credentials." });
 
-                    // Kullanıcının UI tercihleri (tema/boyut/dil) yanıta eklenir → Login bunları ayna
+                    // Kullanıcının UI tercihleri (tema/boyut/dil) yanıta eklenir → Login bunları tx.last_*
                     // cookie'lerine yansıtır; forceLoad sonrası App.razor SSR'ı DOĞRUDAN bu kullanıcının
                     // görünümüyle boyar (ara flaş/ikinci reload yok). Hata girişi ENGELLEMEZ (best-effort).
                     string? theme = null, size = null, culture = null;
@@ -617,10 +629,10 @@ public class TradeXpressBlazorModule : AbpModule
     // (bundled Chromium, headless) Harem socket.io WS'i dinlenir — harici HaremBridge (Node/Python/8765)
     // GEREKMEZ. HaremEnabled=false ise hiç başlatılmaz.
     /// <summary>
-    /// N11 sahte sunucusu ETKİN mi — ÜÇ kapı birden: geliştirme ortamı + <c>N11:Mock:Enabled</c> +
+    /// N11 sahte sunucusu ETKİN mi — ÜÇ koşul birden: geliştirme ortamı + <c>N11:Mock:Enabled</c> +
     /// taban adresin gerçek N11'den BAŞKA bir yeri göstermesi.
     ///
-    /// <para>Üçüncü kapı belirleyici: bayrak açık olsa bile taban adres hâlâ <c>api.n11.com</c> ise hiçbir
+    /// <para>Üçüncü koşul (<c>N11EndpointOptions.IsRedirected</c>) belirleyici: bayrak açık olsa bile taban adres hâlâ <c>api.n11.com</c> ise hiçbir
     /// istek mock'a gitmez, dolayısıyla "mock kipi" de değiliz. Worker kararı bu yüzden bayrağa değil
     /// <b>trafiğin nereye gittiğine</b> bakar.</para>
     /// </summary>
@@ -644,7 +656,7 @@ public class TradeXpressBlazorModule : AbpModule
         return endpoints.IsRedirected;
     }
 
-    /// <summary>Sahte N11 uçlarını haritalar — yalnız üç kapı da açıkken. Kapalıysa hiçbir rota kaydedilmez
+    /// <summary>Sahte N11 uçlarını haritalar — yalnız <c>IsN11MockActive</c> doğruyken. Kapalıysa hiçbir rota kaydedilmez
     /// (üretimde bu kod zaten derlenmiyor: proje referansı Debug-only).</summary>
     private static void MapN11MockEndpointsIfEnabled(IEndpointRouteBuilder builder, ApplicationInitializationContext context)
     {

@@ -5,14 +5,17 @@
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Volo.Abp.ObjectMapping
+@using Integration.TradeXpress.Blazor.Client.Services.Working
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IMetalAppService MetalAppService
 @inject ICurrencyUnitAppService CurrencyUnitAppService
 @inject IObjectMapper Mapper
+@inject IWorkingContextService Working
 @inject IUiInteractionService UiService
 
 @*
-   Maden edit host — STANDART CrudEditHost akışı. Yeni kayıt default'ları + standart ana varyant tohumu.
+   Maden edit host — STANDART CrudEditHost akışı. Yeni kayıt default'ları working şirkete + standart ana
+   varyanta atanır (Good/Jewelry/Stone ile birebir desen).
 *@
 
 @if (_coordinator != null && _ready)

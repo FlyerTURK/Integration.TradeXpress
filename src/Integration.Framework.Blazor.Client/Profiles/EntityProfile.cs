@@ -3,9 +3,9 @@ using System;
 namespace Integration.Framework.Blazor.Client.Profiles;
 
 /// <summary>
-/// Bir entity'nin TÜM yüzeylere (listeleme / popup / drill / split / edit) yetecek TEK tarifi — XAF "BOModel"
+/// Bir entity'nin TÜM UI bağlamlarına (listeleme / popup / drill / split / edit) yetecek TEK tarifi — XAF "BOModel"
 /// karşılığı. Kimlik (ikon/başlık/parent/permission), DTO tipleri, edit host tipi ve persistence modu burada
-/// TEK KAYNAKTIR; her yüzey bunu tüketir (ayrı komponentte tekrar yazmaz). Kolon/toolbar/edit-layout sonraki
+/// TEK KAYNAKTIR; her bağlam bunu tüketir (ayrı komponentte tekrar yazmaz). Kolon/toolbar/edit-layout sonraki
 /// fazlarda eklenir. Profiller stateless (yalnız metadata) → DI'da singleton, registry'de toplanır.
 /// </summary>
 public abstract class EntityProfile

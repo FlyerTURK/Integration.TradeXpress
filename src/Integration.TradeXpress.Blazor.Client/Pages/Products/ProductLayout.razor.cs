@@ -39,6 +39,61 @@ public partial class ProductLayout
     [Parameter, EditorRequired] public ProductGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
 
+    // ── KADEMELİ KİLİT (yalnız YENİ üründe): kategori → kod → ad → geri kalan ────────────────────────
+    //
+    // 2026-08-20 Hakan talimatı. Gerekçe kategoride: ürün nitelikleri, kanal kategori eşleşmesi ve zorunlu
+    // alanlar kategoriden TÜREDİĞİ için sonradan değiştirmek kullanıcının doldurduğu alanların bir kısmını
+    // geçersizleştiriyor. Kod/ad ise kaydın kimliğidir (form standardında da ilk iki alan).
+    //
+    // KAYITLI üründe kilit YOKTUR: mevcut ürün bu adımlardan zaten geçmiştir; alanlarını kilitlemek düzeltme
+    // yapmayı imkânsızlaştırırdı.
+    //
+    // Ölçüt "dolu mu", "geçerli mi" DEĞİL: uzunluk/benzersizlik kuralları kaydetme yolunun işidir (entity +
+    // AppService). Kilit yalnız SIRAYI dayatır; yazarken kullanıcıyı ikinci bir doğrulamayla boğmaz.
+
+    /// <summary>Kod alanı düzenlenebilir mi — kategori seçilince açılır.</summary>
+    private bool CanEditCode
+    {
+        get { return !IsNew || Model.ProductCategoryId is not null; }
+    }
+
+    /// <summary>Ad alanı düzenlenebilir mi — kod girilince açılır.</summary>
+    private bool CanEditName
+    {
+        get { return CanEditCode && (!IsNew || !string.IsNullOrWhiteSpace(Model.Code)); }
+    }
+
+    /// <summary>Formun geri kalanı (diğer alanlar, gruplar ve sekmeler) düzenlenebilir mi — ad girilince açılır.</summary>
+    private bool CanEditRest
+    {
+        get { return CanEditName && (!IsNew || !string.IsNullOrWhiteSpace(Model.Name)); }
+    }
+
+    /// <summary>Sıradaki adımın metni; kilit yoksa <c>null</c> (ipucu çizilmez). Kilitli bir alanın NEDEN kilitli
+    /// olduğu yazılmazsa kullanıcı formu bozuk sanar — bu yüzden kilit sessiz değildir.</summary>
+    private string? NewProductStepHint
+    {
+        get
+        {
+            if (!IsNew || CanEditRest)
+            {
+                return null;
+            }
+
+            if (!CanEditCode)
+            {
+                return L["Product:NewStepSelectCategory"].Value;
+            }
+
+            if (!CanEditName)
+            {
+                return L["Product:NewStepEnterCode"].Value;
+            }
+
+            return L["Product:NewStepEnterName"].Value;
+        }
+    }
+
     // Reçete drill'inin katalog lookup verisi — host yükler (DUMB layout servis çağırmaz).
     [Parameter] public IReadOnlyList<MetalListDto> Metals { get; set; } = Array.Empty<MetalListDto>();
     [Parameter] public IReadOnlyList<MetalVariantLookupDto> MetalVariants { get; set; } = Array.Empty<MetalVariantLookupDto>();
@@ -95,7 +150,7 @@ public partial class ProductLayout
     /// <summary>Reçete değişince CANLI maliyet — host yapar (persistsiz hesap, varyant bazında); tam kayıt gerekmez.</summary>
     [Parameter] public Func<ProductVariantGraphDto, Task>? OnRecipeChanged { get; set; }
 
-    /// <summary>"Üründen emtia yarat" — layout DİLSİZDİR, işi host yapar (katalogların sahibi o). Bu köprü
+    /// <summary>"Üründen emtia yarat" — layout DİLSİZDİR, işi host yapar (katalogların sahibi o). Bu delege
     /// yalnız çağrıyı geçirir; host bağlı değilse akış SESSİZCE durur ve panel draft açmaz.</summary>
     [Parameter] public Func<ProcessType, Task<Guid?>>? OnCreateCommodityFromProduct { get; set; }
 
@@ -351,6 +406,25 @@ public partial class ProductLayout
         set { Model.RecipeTemplateId = value; }
     }
 
+    /// <summary>Şablon bloğunun altındaki ipucu — YENİ üründe METİN DEĞİŞİR.
+    ///
+    /// <para><b>Neden iki metin:</b> kaydedilmemiş üründe "Uygula" düğmesi gizlidir (uygulanacak varyant
+    /// henüz yok) ve düğmeyi göremeyen kullanıcı seçimin işe yaramadığını sanardı. İpucu, uygulamanın
+    /// ertelendiğini — ilk kayıtta kendiliğinden bir kez yapılacağını — SÖYLER; kilitli/gizli bir kontrolün
+    /// nedenini yazmamak formu bozuk gösterir (kademeli kilidin ipucuyla aynı gerekçe).</para></summary>
+    private string RecipeTemplateHint
+    {
+        get
+        {
+            if (IsNew)
+            {
+                return L["RecipeTemplate:ApplyOnSaveHint"].Value;
+            }
+
+            return L["RecipeTemplate:ApplyHint"].Value;
+        }
+    }
+
     private void OnRecipeTemplateSelected(Guid? templateId)
     {
         _selectedRecipeTemplateId = templateId;
@@ -472,6 +546,10 @@ public partial class ProductLayout
         // kombinasyonlara bunun KOPYASI serilir: hedef miktar değişince varyant kümesi baştan kuruluyor ve
         // kombinasyon satırları şablon satırlarını eziyordu; kullanıcı paketleme/kargo/sigortayı her seferinde
         // elle yeniden uygulamak zorunda kalıyor, unuttuğunda fiyat sessizce eksik çıkıyordu (2026-07-28 Hakan).
+        // Prototip YALNIZ dokunulmamış şablon satırlarından seçilir (TemplateEdited HARİÇ) — sunucunun kardeşten
+        // çoğaltma sorgusuyla (SubstitutionVariantMaterializer) BİREBİR aynı küme olsun diye: önizlemenin kaydın
+        // ne yapacağını göstermesi gerekir, kullanıcının bir varyanta özgü düzeltmesini yeni kombinasyonlarda
+        // göstermek kaydedilmeyecek bir sayı vaat ederdi.
         var sablonPrototipi = mevcutlar
             .Select(v => v.RecipeLines.Where(l => !l.IsDeleted && l.Origin == RecipeLineOrigin.Template).ToList())
             .FirstOrDefault(l => l.Count > 0) ?? new List<ProductRecipeLineGraphDto>();
@@ -506,8 +584,13 @@ public partial class ProductLayout
                 // yoksa prototipin kopyası serilir. Şablon satırları kombinasyon satırlarının ARDINA gelir:
                 // yüzde/brütleştirme kalemleri kendinden ÖNCEKİ satırların toplamına uygulanır, önde
                 // kalsalardı taban eksik hesaplanırdı.
+                // ŞABLON SOYUNUN TAMAMI korunur (dokunulmamış + kullanıcı düzenlemesi): yalnız Template'e
+                // baksaydı düzenlenmiş satır yeni listeye HİÇ girmez, ekrandan kaybolur ama DB'de yaşamaya
+                // devam ederdi (kaydetmede silme bayrağı da taşımaz) → kullanıcının göremediği ama fiyatlanan
+                // hayalet satır + çakışan LineOrder (2026-08-20 inceleme bulgusu).
                 var kendiSablonu = variant.RecipeLines
-                    .Where(l => !l.IsDeleted && l.Origin == RecipeLineOrigin.Template)
+                    .Where(l => !l.IsDeleted
+                        && (l.Origin == RecipeLineOrigin.Template || l.Origin == RecipeLineOrigin.TemplateEdited))
                     .ToList();
                 var sablonSatirlari = kendiSablonu.Count > 0
                     ? kendiSablonu
@@ -591,6 +674,124 @@ public partial class ProductLayout
             await _variantScopePanel.SelectAllAsync();
             StateHasChanged();
         }
+
+        // Satışa hazırlık panelinden gelen "bu varyantı düzelt" isteği: Varyantlar sekmesi az önce açıldı, panel bu render'da kuruldu —
+        // şimdi satırın formu açılabilir. Varyant listede yoksa (bayat issue) sekmede kalınır; ikinci deneme YOK.
+        if (_pendingVariantEditId is { } variantId && _variantsPanel is not null)
+        {
+            _pendingVariantEditId = null;
+            _variantsPanel.EditVariant(variantId);
+        }
+    }
+
+    // ── Ürünün satışa hazırlık paneli (ProductSaleReadinessPanel) bağlantıları ─────────────────────────────────────────
+
+    /// <summary>Sekme indeksleri — satışa hazırlık paneli "Düzelt →" hedefini sekmeye çevirir. Sıra ProductLayout.razor'daki
+    /// DxTabPage sırasıdır; Visible ile gizlenen sekme de sayılır (toplayıcıya kayıtlı kalır).</summary>
+    private const int CockpitTabIndex = 0;
+    private const int VariantsTabIndex = 2;
+    private const int MediaTabIndex = 3;
+    private const int SalesChannelsTabIndex = 7;
+
+    // DrillTabs'e bağlı aktif sekme; satışa hazırlık paneli ilk sekme olduğu için form satışa hazırlık paneliyle açılır.
+    private int _activeTabIndex = CockpitTabIndex;
+
+    /// <summary>
+    /// ISSUE ENDEKSİ — sekme başlıkları, varyant satırları ve reçete bölümü bunun üzerinden renklenir
+    /// (<c>CascadingValue Name="SaleReadinessIndex"</c>).
+    ///
+    /// <para><b>Neden ALANDA tutulur:</b> endeksi üreten satışa hazırlık paneli bir SEKME içeriğidir; endeks panelin
+    /// içinde yaşasaydı yalnız o sekme çizilirken erişilebilir olurdu. Burada tutulunca tüm sekmeler aynı
+    /// referanstan okur ve panel her yüklendiğinde (form açılışı · kayıt sonrası taze model · "Yenile" · satışa hazırlık paneli
+    /// aksiyonu) üzerine taze endeksi yazar.</para>
+    ///
+    /// <para><b>Tazeliğin ŞARTI — DrillTabs OnDemand:</b> panel ancak MOUNT kaldığı sürece parametre değişimini
+    /// (taze <c>Model</c> = <c>ReloadToken</c>) görüp endeksi yeniler. DxTabs'in varsayılan kipinde sekme
+    /// değişince içerik yıkıldığı için kullanıcı başka sekmede kaydettiğinde bu alan son (bayat) değerinde
+    /// donardı. ProductLayout.razor'daki <c>RenderMode="TabsRenderMode.OnDemand"</c> bunun için vardır —
+    /// kaldırılırsa işaretler sessizce bayatlar.</para>
+    ///
+    /// <para>Layout endeksi KENDİ ÇEKMEZ: aynı sunucu ucuna ikinci bir tur atmak hem gereksiz maliyet olurdu
+    /// hem de iki kopya farklı anlarda tazelenip ayrışırdı.</para>
+    /// </summary>
+    private SaleReadinessIssueIndex _readinessIndex = SaleReadinessIssueIndex.Empty;
+
+    private void HandleReadinessIndexChanged(SaleReadinessIssueIndex index)
+    {
+        _readinessIndex = index;
+        StateHasChanged();
+    }
+
+    // ── Satışa-hazırlık: satışa hazırlık paneline geçiş ──────────────────────────────────────────────────────────────
+
+    // NOT (2026-08-20): bandın metin/ton/görünürlük yardımcıları KALDIRILDI — bant artık kapsam-duyarlı ortak
+    // bileşende (ReadinessNotice) yaşıyor ve her bileşen kendi kapsamını veriyor. Burada yalnız "satışa hazırlık paneline git"
+    // metodu kaldı.
+    private void OpenReadinessCockpit()
+    {
+        _activeTabIndex = CockpitTabIndex;
+        StateHasChanged();
+    }
+
+    private EntityVariantsPanel<ProductVariantGraphDto>? _variantsPanel;
+
+    // Sekme geçişi ile varyant formunun açılması AYNI render'da olamaz (sekme İLK kez açılıyorsa içeriği o
+    // render'da çizilir; panel referansı ancak geçişten SONRA dolar) → istek ertelenir, OnAfterRenderAsync uygular.
+    private Guid? _pendingVariantEditId;
+
+    /// <summary>Formun efektif kirliliği — EntityEditForm cascade'i (Name="EditIsDirty"). Satışa hazırlık paneli "Satışa Doğrula"yı
+    /// kirli formda kapatır. Cascade yoksa (layout tek başına çizildi — test) temiz sayılır.</summary>
+    [CascadingParameter(Name = "EditIsDirty")] private Func<bool>? EditIsDirty { get; set; }
+
+    /// <summary>"Satışa Doğrula" — host'un mevcut yolu (onay + VerifySaleReadinessAsync + rozet tazeleme). Layout dilsiz:
+    /// servis çağırmaz, yalnız iletir. Bağlı değilse satışa hazırlık paneli düğmesi işlevsiz kalır ama gizlenmez (test edilebilirlik).</summary>
+    [Parameter] public Func<Task>? OnVerifyForSale { get; set; }
+
+    private bool IsFormDirty
+    {
+        get { return EditIsDirty?.Invoke() ?? false; }
+    }
+
+    private async Task HandleVerifyForSaleAsync()
+    {
+        if (OnVerifyForSale is not null)
+        {
+            await OnVerifyForSale();
+        }
+    }
+
+    /// <summary>Satışa hazırlık paneli "Düzelt →" → sekme. <c>GeneralTab</c> için sekme YOK: genel alanlar sekmelerin ÜSTÜNDEKİ
+    /// formdadır ve her zaman görünür. <c>VariantForm</c>: Varyantlar sekmesi + (id varsa) satır formu — panel
+    /// referansı render sonrası dolduğundan form açma ertelenir; varyant bulunamazsa sekmeye düşülür.
+    /// <c>ChannelProductForm</c>: kanal sekmesine düşülür — kanal satırının düzenleme formunu id ile açan bir API
+    /// bugün yok (DrillList satırı ClientKey ile tutuyor); sekme açılır, satır kullanıcı tarafından tıklanır.</summary>
+    private void HandleSaleReadinessNavigate(SaleReadinessNavigation navigation)
+    {
+        switch (navigation.Target)
+        {
+            case SaleReadinessFixTarget.VariantsTab:
+                _activeTabIndex = VariantsTabIndex;
+                break;
+            case SaleReadinessFixTarget.VariantForm:
+                _activeTabIndex = VariantsTabIndex;
+                _pendingVariantEditId = navigation.TargetId;
+                break;
+            case SaleReadinessFixTarget.MediaTab:
+                _activeTabIndex = MediaTabIndex;
+                break;
+            case SaleReadinessFixTarget.ChannelsTab:
+            case SaleReadinessFixTarget.ChannelProductForm:
+                _activeTabIndex = SalesChannelsTabIndex;
+                break;
+            case SaleReadinessFixTarget.GeneralTab:
+            case SaleReadinessFixTarget.Verify:
+            case SaleReadinessFixTarget.None:
+            default:
+                // Genel alanlar sekme dışı (her zaman görünür); Verify satışa hazırlık panelinin kendi düğmesidir; None hedefsizdir.
+                break;
+        }
+
+        StateHasChanged();
     }
 
     /// <summary>
@@ -923,7 +1124,7 @@ public partial class ProductLayout
         return duplicate ? L["Product:AddOnDuplicate"].Value : null;
     }
 
-    /// <summary>Satış statüsü rozetinin rengi. <c>Ready</c> DIŞINDAKİ her durum push kapısından geçemez —
+    /// <summary>Satış statüsü rozetinin rengi. <c>Ready</c> DIŞINDAKİ her durum push guard'ından geçemez —
     /// bu yüzden yalnız Ready yeşil, kalanlar dikkat çeken tonlarda: kullanıcı "satışa hazır değil"i bir
     /// bakışta görmeli, yoksa ürünün neden pazaryerinde olmadığını aramak zorunda kalır.</summary>
     private static string SaleStatusCssClass(ProductSaleStatus status)

@@ -9,7 +9,18 @@
 @inject Volo.Abp.ObjectMapping.IObjectMapper Mapper
 
 @*
-   Service edit host = ince sarmal: coordinator + config. Global Service tenant'ta salt-okunur.
+   Service edit host = ince host: coordinator + config. Global Service tenant'ta salt-okunur.
+
+   HAZIRLIK KAPISI (_ready) BURADA BİLİNÇLİ OLARAK YOK — sapma DEĞİL (2026-08-20 denetim notu):
+   kardeş emtia host'ları (Metal · Scrap · Future · Jewelry · Stone · Good) OnInitializedAsync'te GERÇEK I/O
+   bekliyor (para birimi lookup'ı, Working.EnsureLoadedAsync, yerel para birimi) ve Blazor ilk render'ı o
+   await'te yaptığı için `_ready` olmasa form BOŞ lookup listeleriyle çizilir, veri gelince yeniden çizilirdi;
+   `_ready` tam bunu önlüyor. Hizmette beklenecek bir şey yok: ServiceLayout saf DUMB form (yalnız Model + IsNew;
+   lookup yok, servis çağrısı yok) ve coordinator kurulumu SENKRON → OnInitialized ilk render'dan ÖNCE bitiyor,
+   yani `_ready` eklemek davranışı değiştirmez (form bir tık geç çizilmez, ilk render'da boş kalmaz) ama
+   OLMAYAN bir async hazırlığı varmış gibi gösterirdi. Aynı sebeple `_ready`siz kardeşler: SubAccountEditHost ·
+   RoleEditHost · UserEditHost · SalesChannel{Etsy,TrN11,TrTrendyol}EditHost.
+   ⚠ Buraya bir gün await'li hazırlık girerse (lookup / working context) hazırlık bayrağı DA gerekir — `_ready` o zaman eklenir.
 *@
 
 @if (_coordinator != null)

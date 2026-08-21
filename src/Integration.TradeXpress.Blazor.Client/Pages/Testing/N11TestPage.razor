@@ -7,7 +7,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject IN11Scraper Scraper
 
-@* MDI kabuğunu bypass et: MainLayout @Body yerine MDI host basıyor → menüde olmayan raw URL'ler gövdeyi
+@* MDI kabuğunu bypass et: MainLayout @Body yerine MDI host basıyor → menüde olmayan raw URL'ler @Body'yi
    gösteremez (Login gibi). EmptyLayout ile sayfa URL'den standalone açılır (/test/n11). *@
 
 @* TEST sayfası — n11 kategori ürünlerini ürün-kartı ızgarasında gösterir (DxGrid değil; resim üstte).

@@ -13,7 +13,7 @@ using Volo.Abp;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Jewelries;
 
-/// <summary>Mücevher edit host — ince sarmal (coordinator + para birimi listesi + "Varyantları Oluştur" delegesi).
+/// <summary>Mücevher edit host — ince host (coordinator + para birimi listesi + "Varyantları Oluştur" delegesi).
 /// DUMB layout servis çağırmaz → lookup + varyant üretimi host'ta (Good deseni).</summary>
 public partial class JewelryEditHost
 {
@@ -29,6 +29,13 @@ public partial class JewelryEditHost
     [Parameter] public string? SeedCode { get; set; }
 
     [Parameter] public string? SeedName { get; set; }
+
+    /// <summary>ÜRÜNÜN MÜCEVHER PROJEKSİYONU — <c>ProductToCommodityProjector</c> çıktısı (2026-08-20). Kimlik +
+    /// nitelik + varyant grafı + iki bağlam medya taşır. Fiyat TAŞINMAZ (mücevherde fiyat entity seviyesinde
+    /// yaşar ve kullanıcının kararıdır).
+    /// <para>Verilirse <see cref="SeedCode"/>/<see cref="SeedName"/>'i EZER (daha zengin kaynak).</para></summary>
+    [Parameter] public JewelryGetDto? SeedModel { get; set; }
+
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
@@ -56,7 +63,20 @@ public partial class JewelryEditHost
         m.PriceTypeChange = true;
         m.CompanyId = Working.CurrentCompanyId;
 
-        // Panel tohumu (U1 — gerekçe MetalEditHost'ta).
+        // ZENGİN SEED önce (gerekçe MetalEditHost'ta): ürünün mücevher projeksiyonu varsa kimlik + nitelik +
+        // varyant grafı + medya olduğu gibi gelir ve aşağıdaki ana-varyant kurulumu ATLANIR.
+        if (SeedModel is { } s)
+        {
+            m.Code        = s.Code;
+            m.Name        = s.Name;
+            m.Description = s.Description;
+            m.Attributes  = s.Attributes;
+            m.Media       = s.Media;
+            m.Variants.AddRange(s.Variants);
+            return;
+        }
+
+        // Panel seed'i (U1 — gerekçe MetalEditHost'ta).
         if (!string.IsNullOrWhiteSpace(SeedCode))
         {
             m.Code = SeedCode!;

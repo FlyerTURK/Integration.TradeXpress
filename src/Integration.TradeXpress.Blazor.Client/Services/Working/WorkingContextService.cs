@@ -46,7 +46,7 @@ public interface IWorkingContextService
     /// Şube/erişim kümesini sunucudan YENİDEN yükler (GetMyBranchesAsync). Grant runtime'da değişince
     /// (admin ScopedRoles'ü daralttı/genişletti) çağrılmalı: cache'li <see cref="Branches"/> ve türetilen
     /// <see cref="CurrentCompanyId"/> tazelenir; geçersizleşen seçim ilk izinli şubeye düşer. Tam
-    /// invalidasyon-push yok — bu yeniden-yükleme kapısı yeterli (grant değişince tetiklenmeli).
+    /// invalidasyon-push yok — bu yeniden-yükleme yolu (RefreshAsync) yeterli (grant değişince tetiklenmeli).
     /// </summary>
     Task RefreshAsync();
 }

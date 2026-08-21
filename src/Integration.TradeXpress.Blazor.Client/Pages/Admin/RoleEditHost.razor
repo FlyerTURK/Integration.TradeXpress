@@ -13,7 +13,7 @@
 @inject IObjectMapper Mapper
 
 @*
-   Role edit host = İNCE SARMAL: coordinator (RoleCrudAdapter üstünden) + İZİN PANELİ kancaları.
+   Role edit host = İNCE HOST: coordinator (RoleCrudAdapter üstünden) + İZİN PANELİ bağları (HasExtraChanges / OnAfterCommit).
    İzin paneli Role DTO'sunun parçası DEĞİL → ayrı servise yazılır:
      • HasExtraChanges → panel dirty'sini Kaydet/"*"/kapanış-onayına dahil et (extra-dirty).
      • OnAfterCommit → rol kaydedildikten SONRA (ProviderKey=Name artık geçerli) panel izinleri yazar (extra-commit).

@@ -5,64 +5,134 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
-   ORTAK SİPARİŞ PANELİ — TEK SEVİYELİ CrudLayout server-side grid. Satır = SİPARİŞ (kanal/no/tarih/müşteri/
-   ürün detayı/durum/tutar); kalemler "Ürün Detayı" sütununda satır içinde görünür (OrderItemsCell) — genişletilecek
-   detay satırı YOK. Kalemin zengin alanları sipariş popup'ında.
-   Sıralama: order status → tarih (yeni→eski). Create/Delete YOK (Order yalnız senkronizasyondan gelir) — yalnız
-   DÜZENLEME (STANDART CrudEditHost/EntityEditForm akışı: OnUpdateClick → ViewOpener → OrderEditHost). "Siparişleri Çek"
-   pazaryerinden (Trendyol + N11) çeker; arka planda OrderSyncBackgroundWorker boş kanalları kendiliğinden doldurur.
+   ORTAK SİPARİŞ PANELİ — İKİ SEKME (2026-08-21 Hakan yerleşim kararı):
+   ① "Siparişler" = TEK SEVİYELİ CrudLayout server-side grid. Satır = SİPARİŞ (kanal/no/tarih/müşteri/
+      ürün detayı/durum/tutar); kalemler "Ürün Detayı" sütununda satır içinde görünür (OrderItemsCell) — genişletilecek
+      detay satırı YOK. Kalemin zengin alanları sipariş popup'ında.
+      Sıralama: order status → tarih (yeni→eski). Create/Delete YOK (Order yalnız senkronizasyondan gelir) — yalnız
+      DÜZENLEME (STANDART CrudEditHost/EntityEditForm akışı: OnUpdateClick → ViewOpener → OrderEditHost). "Siparişleri Çek"
+      pazaryerinden (Trendyol + N11) çeker; arka planda OrderSyncBackgroundWorker boş kanalları kendiliğinden doldurur.
+   ② "Karar Bekleyenler" = bugüne kadar hiçbir ekranda görünmeyen üç şey tek listede: Blocked rezervasyonlar
+      (gerekçesiyle) · kanaldan gelen iptal talepleri (insan kararı bekler) · yaşlanan aktif rezervler (süre aşımı
+      YOK — yalnız görünürlük). SALT OKUMA; karar satırdan açılan sipariş formundaki rezervasyon panelinde verilir.
+      Sekme başlığı bekleyen sayısını taşır.
 *@
 
-<CrudLayout TGetDto="OrderDto"
-            TListDto="OrderListDto"
-            TKey="Guid"
-            StateService="StateService"
-            DataSource="@GridDataSource"
-            EntityName="@L["Order"]"
-            EntityIcon="@TradeXpressIcons.SalesChannel"
-            PageTitle="@L["Orders"]"
-            LayoutVersion="v4"
-            ShowNew="false"
-            ShowColumnFilter="true"
-            CustomActions="@_customActions"
-            OnUpdateClick="OpenDetailAsync"
-            OnRefreshClick="ReloadAsync"
-            OnSearchChanged="OnSearchAsync">
+@* İnce flex sarmalayıcı (ham div gerekçesi: saf layout — Dx karşılığı yok). RenderMode=OnDemand: sekme değişince
+   CrudLayout YIKILMASIN — grid durumu (sayfa/filtre/arama) korunur; karar sekmesi ilk ziyarette kurulur. *@
+<div style="display:flex; flex-direction:column; height:100%; min-height:0; box-sizing:border-box;">
+    <DrillTabs Stretch="true" RenderMode="TabsRenderMode.OnDemand"
+               ActiveTabIndex="@_activeTabIndex" ActiveTabIndexChanged="@OnActiveTabChangedAsync">
+        <DxTabPage Text="@L["Orders"]">
+            <CrudLayout TGetDto="OrderDto"
+                        TListDto="OrderListDto"
+                        TKey="Guid"
+                        StateService="StateService"
+                        DataSource="@GridDataSource"
+                        EntityName="@L["Order"]"
+                        EntityIcon="@TradeXpressIcons.SalesChannel"
+                        PageTitle="@L["Orders"]"
+                        LayoutVersion="v4"
+                        ShowNew="false"
+                        ShowColumnFilter="true"
+                        CustomActions="@_customActions"
+                        OnUpdateClick="OpenDetailAsync"
+                        OnRefreshClick="ReloadAsync"
+                        OnSearchChanged="OnSearchAsync">
 
-    <GridColumns>
-        <DxGridDataColumn FieldName="ChannelType" Caption="@L["Order:Channel"]" Width="140px" VisibleIndex="1">
-            <CellDisplayTemplate>@ChannelLabel((OrderListDto)context.DataItem)</CellDisplayTemplate>
-        </DxGridDataColumn>
-        <DxGridDataColumn FieldName="OrderNumber" Caption="@L["Order:OrderNumber"]" Width="160px" VisibleIndex="2" />
-        @* Sipariş tarihi bir ANDIR (pazaryerinden UTC gelir) → kullanıcının yerel saatine çevrilir.
-           Ham DisplayFormat sunucunun/veritabanının UTC'sini basıyordu: müşteri "23:40'ta sipariş verdim"
-           derken panoda 20:40 görünüyordu ve hiçbir yerde "UTC" yazmadığı için fark edilmiyordu.
-           SIRALAMA/FİLTRE bozulmaz — FieldName duruyor, yalnız hücrenin ÇİZİMİ değişti. *@
-        <DxGridDataColumn FieldName="OrderDate" Caption="@L["Order:Date"]" Width="150px" VisibleIndex="3">
-            <CellDisplayTemplate><UtcLocalText Value="@(((OrderListDto)context.DataItem).OrderDate)" /></CellDisplayTemplate>
-        </DxGridDataColumn>
-        <DxGridDataColumn FieldName="CustomerName" Caption="@L["Order:Customer"]" MinWidth="180" VisibleIndex="4" />
-        @* Ürün detayı — kalemler SATIR İÇİNDE (N11 satıcı panelindeki "Ürün Detayı" sütunu deseni). Sıralama/
-           filtre/gruplama KAPALI: kalem alanları sunucunun izinli alan listesinde yok, açık bırakılsa kullanıcı
-           filtreler ama sonuç değişmezdi (yanıltıcı affordance). Export da kapalı — hücre çok satırlı. *@
-        <DxGridDataColumn FieldName="Items" Name="OrderItemsCell" Caption="@L["Order:Items"]" MinWidth="260" VisibleIndex="5"
-                          AllowSort="false" AllowGroup="false" FilterRowEditorVisible="false" ExportEnabled="false">
-            <CellDisplayTemplate>
-                <OrderItemsCell Items="@(((OrderListDto)context.DataItem).Items)" />
-            </CellDisplayTemplate>
-        </DxGridDataColumn>
-        <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Order:Status"]" Width="130px" VisibleIndex="6">
-            <CellDisplayTemplate>@StatusLabel(((OrderListDto)context.DataItem).NeutralStatus)</CellDisplayTemplate>
-        </DxGridDataColumn>
-        <DxGridDataColumn FieldName="TotalAmount" Caption="@L["Order:Amount"]" Width="120px"
-                          DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" VisibleIndex="7" />
-    </GridColumns>
+                <GridColumns>
+                    <DxGridDataColumn FieldName="ChannelType" Caption="@L["Order:Channel"]" Width="140px" VisibleIndex="1">
+                        <CellDisplayTemplate>@ChannelLabel((OrderListDto)context.DataItem)</CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="OrderNumber" Caption="@L["Order:OrderNumber"]" Width="160px" VisibleIndex="2" />
+                    @* Sipariş tarihi bir ANDIR (pazaryerinden UTC gelir) → kullanıcının yerel saatine çevrilir.
+                       Ham DisplayFormat sunucunun/veritabanının UTC'sini basıyordu: müşteri "23:40'ta sipariş verdim"
+                       derken panoda 20:40 görünüyordu ve hiçbir yerde "UTC" yazmadığı için fark edilmiyordu.
+                       SIRALAMA/FİLTRE bozulmaz — FieldName duruyor, yalnız hücrenin ÇİZİMİ değişti. *@
+                    <DxGridDataColumn FieldName="OrderDate" Caption="@L["Order:Date"]" Width="150px" VisibleIndex="3">
+                        <CellDisplayTemplate><UtcLocalText Value="@(((OrderListDto)context.DataItem).OrderDate)" /></CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="CustomerName" Caption="@L["Order:Customer"]" MinWidth="180" VisibleIndex="4" />
+                    @* Ürün detayı — kalemler SATIR İÇİNDE (N11 satıcı panelindeki "Ürün Detayı" sütunu deseni). Sıralama/
+                       filtre/gruplama KAPALI: kalem alanları sunucunun izinli alan listesinde yok, açık bırakılsa kullanıcı
+                       filtreler ama sonuç değişmezdi (yanıltıcı affordance). Export da kapalı — hücre çok satırlı. *@
+                    <DxGridDataColumn FieldName="Items" Name="OrderItemsCell" Caption="@L["Order:Items"]" MinWidth="260" VisibleIndex="5"
+                                      AllowSort="false" AllowGroup="false" FilterRowEditorVisible="false" ExportEnabled="false">
+                        <CellDisplayTemplate>
+                            <OrderItemsCell Items="@(((OrderListDto)context.DataItem).Items)" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Order:Status"]" Width="130px" VisibleIndex="6">
+                        <CellDisplayTemplate>@StatusLabel(((OrderListDto)context.DataItem).NeutralStatus)</CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="TotalAmount" Caption="@L["Order:Amount"]" Width="120px"
+                                      DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" VisibleIndex="7" />
+                </GridColumns>
 
-    @* Master-detail satırı 2026-07-28'de KALDIRILDI (Hakan): kalemler artık "Ürün Detayı" sütununda satır içinde
-       görünüyor, genişletmeye gerek kalmadı. Kalemin zengin alanları (komisyon/indirim/kargo/nitelik/tarihler)
-       kaybolmadı — sipariş popup'ında OrderDetailItemDto üzerinden, detay satırından DAHA GENİŞ haliyle duruyor. *@
+                @* Master-detail satırı 2026-07-28'de KALDIRILDI (Hakan): kalemler artık "Ürün Detayı" sütununda satır içinde
+                   görünüyor, genişletmeye gerek kalmadı. Kalemin zengin alanları (komisyon/indirim/kargo/nitelik/tarihler)
+                   kaybolmadı — sipariş popup'ında OrderDetailItemDto üzerinden, detay satırından DAHA GENİŞ haliyle duruyor. *@
 
-</CrudLayout>
+            </CrudLayout>
+        </DxTabPage>
+
+        @* Karar Bekleyenler — başlık bekleyen sayısını taşır ("Karar Bekleyenler (3)"; basit sayı yeterli,
+           yeni rozet bileşeni icat edilmedi). *@
+        <DxTabPage Text="@PendingTabCaption">
+            <div style="display:flex; flex-direction:column; height:100%; min-height:0; gap:6px; padding-top:6px;">
+                <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+                    <DxToolbarItem Alignment="ToolbarItemAlignment.Right" Text="@L["Refresh"]"
+                                   IconCssClass="@TradeXpressIcons.Refresh" Click="@ReloadPendingAsync" />
+                </DxToolbar>
+                @* SALT OKUMA grid (in-memory — bekleyen iş listesi kısadır, server-side sayfalama gereksiz).
+                   Varsayılan sıralama yaş kolonundan ESKİDEN YENİYE (en uzun bekleyen üstte). Satır aksiyonu TEK:
+                   siparişi aç — karar sipariş formundaki rezervasyon panelinde verilir; burada ikinci bir
+                   onay/red yüzeyi açmak aynı guard'ların kopyasını doğururdu. *@
+                <DxGrid Data="@_pendingRows" CssClass="w-100 tx-grid-fill" PageSize="50"
+                        KeyFieldName="@nameof(OrderPendingDecisionDto.OrderId)"
+                        SelectionMode="GridSelectionMode.Single" AllowSelectRowByClick="true">
+                    <Columns>
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.Kind)" Caption="@L["Order:PendingDecision:Kind"]" Width="160px">
+                            <CellDisplayTemplate>
+                                @{ var row = (OrderPendingDecisionDto)context.DataItem; }
+                                <span style="@KindBadgeStyle(row.Kind)">@L[$"Enum:OrderPendingDecisionKind:{row.Kind}"]</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        @* Yaş = süre (UTC çıpa − UTC şimdi) → timezone çevirisi GEREKMEZ; UtcLocalText bilerek yok. *@
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.PendingSinceUtc)" Caption="@L["Order:PendingDecision:Age"]"
+                                          Width="90px" SortIndex="0" SortOrder="GridColumnSortOrder.Ascending">
+                            <CellDisplayTemplate>@FormatAge(((OrderPendingDecisionDto)context.DataItem).PendingSinceUtc)</CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.ChannelType)" Caption="@L["Order:Channel"]" Width="120px">
+                            <CellDisplayTemplate>
+                                @{ var row = (OrderPendingDecisionDto)context.DataItem; }
+                                @ChannelText(row.ChannelType, row.SalesChannelCode)
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.OrderNumber)" Caption="@L["Order:OrderNumber"]" Width="150px" />
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.OrderDate)" Caption="@L["Order:Date"]" Width="140px">
+                            <CellDisplayTemplate><UtcLocalText Value="@(((OrderPendingDecisionDto)context.DataItem).OrderDate)" /></CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.CustomerName)" Caption="@L["Order:Customer"]" Width="160px" />
+                        @* Gerekçe genişliği PAYLAŞIR (MinWidth, Width değil) — sabit kolonlar toplamı grid'i aşarsa
+                           DevExpress hepsini sıkıştırır ve gerekçe okunamaz olurdu. *@
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.Reason)" Caption="@L["Order:Reservation:Note"]" MinWidth="220" />
+                        @* Aksiyon kolonu — FieldName ZORUNLU (FieldName'siz DxGridDataColumn HİÇ render edilmez;
+                           ConfirmationGrid'de DOM kanıtıyla yaşandı). Gösterim template'ten; OrderId nötr taşıyıcı. *@
+                        <DxGridDataColumn FieldName="@nameof(OrderPendingDecisionDto.OrderId)" Caption="@L["Open"]" AllowSort="false" Width="110px">
+                            <CellDisplayTemplate>
+                                @{ var row = (OrderPendingDecisionDto)context.DataItem; }
+                                <DxButton Text="@L["Open"]" IconCssClass="@TradeXpressIcons.Edit" SizeMode="SizeMode.Small"
+                                          RenderStyle="ButtonRenderStyle.Primary" RenderStyleMode="ButtonRenderStyleMode.Outline"
+                                          Click="@(() => OpenPendingAsync(row))" />
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            </div>
+        </DxTabPage>
+    </DrillTabs>
+</div>
 
 @* Çekim sonuç raporu (sessiz geçilmez) — çekilen/yeni/güncellenen + pencere + uyarılar. *@
 <DxPopup @bind-Visible="_showReport"

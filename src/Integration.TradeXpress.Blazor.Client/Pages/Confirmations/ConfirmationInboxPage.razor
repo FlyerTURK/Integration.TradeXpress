@@ -3,7 +3,7 @@
 @attribute [Authorize(TradeXpressPermissions.Confirmations.View)]
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* Teyit gelen/giden kutusu — organizasyon-içi karşılıklı AYNA ONAYI (spec: .claude/research/transfers/teyit-spec.md).
+@* Teyit gelen/giden kutusu — organizasyon-içi karşılıklı MIRROR ONAYI (spec: .claude/research/transfers/teyit-spec.md).
    GELEN = karşı kasa benim (kaydımı/teyidimi bekleyenler) · GİDEN = benim başlattıklarım. Tüm statüler görünür
    (kapananların izi sürülsün). İPTAL YOKTUR — gönderen teklifi geri çekemez; süreci yalnız alıcı Reddet ile durdurur. *@
 <div style="display:flex; flex-direction:column; height:100%; padding:6px; box-sizing:border-box; min-height:0;">
@@ -33,7 +33,7 @@
 
 @* BEYAN popup'ı — "Kendi Girişimi Yaz". Alıcı, teklifin tipine karşılık gelen GERÇEK process panelinde
    KENDİ satırını yazar (ayrı/sahte beyan formu YOK; gönderenle aynı araç). ÖN-DOLDURMA YOK: paneller boş
-   doğar, gönderenin değerleri gösterilmez. Ayna sunucuda doğrulanır; uyuşmazlıkta panel kendi hata
+   doğar, gönderenin değerleri gösterilmez. Mirror sunucuda doğrulanır; uyuşmazlıkta panel kendi hata
    toast'ını verir (MirrorMismatch — beklenen/girilen fark). *@
 <DxPopup @bind-Visible="@_declareVisible" HeaderText="@L["Confirmation:Action:Declare"]" Width="90vw" ShowFooter="false">
     <BodyContentTemplate Context="declareContext">

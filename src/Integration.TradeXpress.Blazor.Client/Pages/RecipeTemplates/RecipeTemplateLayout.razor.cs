@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.RecipeTemplates;
 /// Reçete şablonu dumb layout code-behind — satır drill'i, enum combo kaynakları, otomatik sıra.
 ///
 /// <para>UI bu sürümde HİZMET satırlarına odaklanır (paketleme/kargo/sigorta/işçilik — Hakan'ın "orta reçete"
-/// tanımı). Veri modeli yarı mamul (katalog emtiası) satırını da taşır; onun düzenleme yüzeyi ürün reçete
+/// tanımı). Veri modeli yarı mamul (katalog emtiası) satırını da taşır; onun düzenleme formu ürün reçete
 /// paneliyle aynı zenginlikte lookup zinciri gerektirdiğinden ayrı bir adımda eklenecek.</para>
 /// </summary>
 public partial class RecipeTemplateLayout

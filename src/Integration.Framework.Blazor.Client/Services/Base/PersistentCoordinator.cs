@@ -12,7 +12,7 @@ namespace Integration.Framework.Blazor.Client.Services.Base;
 /// üst-seviye liste bağlamı. <b>TEK API sınırı:</b> liste-fetch + commit (GetDto→Create/Update map) + get +
 /// sil hepsi AppService'e gider. Host (liste sayfası / EditHost) bunu kendi concrete AppService'iyle kurar
 /// (kapalı generic DI'dan çözülmediği için); agnostic <c>EntityEditForm</c> event'le buraya delege eder.
-/// Nav v1'de minimal (sayfa-aşırı gezinme rollout'ta StateService köprüsüyle birleştirilecek).
+/// Nav v1'de minimal (sayfa-aşırı gezinme rollout'ta StateService ile birleştirilecek).
 /// </summary>
 public class PersistentCoordinator<TGetDto, TListDto, TKey, TListRequestDto, TCreateDto, TUpdateDto>
     : ICommitCoordinator<TGetDto, TListDto, TKey, TListRequestDto>

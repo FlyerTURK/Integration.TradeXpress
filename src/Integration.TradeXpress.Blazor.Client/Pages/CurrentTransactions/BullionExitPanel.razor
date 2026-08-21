@@ -118,7 +118,7 @@
         </DxFormLayoutGroup>
 
         @* ── Açıklama + Takoz Bakiyesi net sonuç özeti ──
-              Çıkışın cari'ye net etkisi (işçilik toplamı + metal net bacakları, birim-başı) — GİRİŞ panelindeki
+              Çıkışın cari'ye net etkisi (işçilik toplamı + metal net leg'leri, birim-başı) — GİRİŞ panelindeki
               (BullionProcessPanel) özet deseniyle birebir simetrik; ERPPRO iFTakozGiris canlı net grid paritesi.
               Ara milyem/has göstergesi YOK (kullanıcı kimlik/içerik istemedi); yalnız net sonuç. *@
         <DxFormLayoutGroup Caption="@L["Voucher_Op_Description"]" ColSpanMd="@(_summaryLegs.Count > 0 ? 8 : 12)">
@@ -134,7 +134,7 @@
                 {
                     <DxFormLayoutItem Caption="@leg.Code" ColSpanMd="12" ColSpanSm="6">
                         <span class="tx-leg-value @(leg.Value >= 0 ? "pos" : "neg")">@leg.Value.ToString("N2")</span>
-                        @* Raporsuz TAKOZ bacağının HAS değerlemesi (salt gösterim; legacy Stok.TakozOzet ×0.6). *@
+                        @* Raporsuz TAKOZ leg'inin HAS değerlemesi (salt gösterim; legacy Stok.TakozOzet ×0.6). *@
                         @if (leg.Code == BullionConsts.PseudoUnitCode)
                         {
                             <span style="margin-left:6px; opacity:.65; font-size:.85em;">@L["Voucher_Op_ApproxHas", (leg.Value * BullionConsts.DefaultCarpan).ToString("N2")]</span>

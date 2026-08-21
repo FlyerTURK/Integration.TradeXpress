@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Vadeli (Future) fiş satırı paneli — ortak iskelet ProcessPanelHostBase'te; burada vadeli enstrüman
+/// Vadeli (Future) fiş satırı paneli — ortak taban ProcessPanelHostBase'te; burada vadeli enstrüman
 /// lookup'ı, sabit Çarpan/Total ve Gram/Ons fiyat gösterimi var.
 /// </summary>
 public partial class FutureProcessPanel
@@ -100,7 +100,7 @@ public partial class FutureProcessPanel
         if (Model.MainUnitId == Guid.Empty || Model.PayUnitId is null)
             return;
 
-        // Calculator'a ana bacak Total'ı (Miktar×Çarpan) Amount olarak verilir, Factor=1.
+        // Calculator'a ana leg Total'ı (Miktar×Çarpan) Amount olarak verilir, Factor=1.
         var r = VoucherLineCalculator.Calculate(
             new VoucherLineCalcInput(
                 ProcessType:  ProcessType.Future,
@@ -177,7 +177,7 @@ public partial class FutureProcessPanel
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
+    // ── Base override'ları (HandleSave / LoadForEditAsync ortak akışı ProcessPanelHostBase'te) ──
 
     protected override bool CanSave()
         => Model.CommodityId is not null && Model.MainUnitId != Guid.Empty && Model.PayUnitId is not null;

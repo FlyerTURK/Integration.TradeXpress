@@ -1,0 +1,196 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   ÜRÜNÜN SATIŞA HAZIRLIK PANELİ — "bu ürün neden satışta değil, sıradaki adım ne, nereye tıklayacağım?" (2026-08-19, harita §7).
+
+   Panel HESAP YAPMAZ: adımlar · issue'lar · sayaçlar · kanal satırları sunucudan (IProductAppService.GetSaleReadinessAsync)
+   hazır gelir; burada yalnız çizilir ve tıklamalar sahibe iletilir (OnNavigate → sekme/form · OnVerifyRequested →
+   host'un mevcut doğrulama yolu). Kural iki yerde yaşamasın diye bu panel ne varyant sayar ne KDV'ye bakar.
+
+   Ham <div>/<span> yalnız ince yerleşim düzeni ve renkli rozet/ikon için (ui-blazor istisnası: DevExpress'te
+   rozet/bant bileşeni yok). Listeler DxGrid, düğmeler DxButton/DxToolbar.
+*@
+
+@if (ProductId == Guid.Empty)
+{
+    @* Yeni (kaydedilmemiş) ürün: sunucuda değerlendirilecek kayıt yok — yükleme bile yapılmaz. *@
+    <InfoNotice Text="@L["Product:SaleReadinessSaveFirst"].Value" />
+}
+else
+{
+    <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain" CssClass="mb-2">
+        @* "Satışa Doğrula" — host'un MEVCUT doğrulama yolunu çağırır (mantık kopyalanmaz). Kirli formda pasif:
+           kaydedilmemiş reçete/fiyat doğrulamaya girmez ve onay eski içeriğe verilmiş olur. *@
+        <DxToolbarItem Text="@L["Product:VerifyForSale"]"
+                       IconCssClass="@TradeXpressIcons.CheckCircle"
+                       RenderStyle="ButtonRenderStyle.Primary"
+                       RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
+                       Enabled="@CanVerifyNow"
+                       Tooltip="@VerifyTooltip"
+                       Click="@VerifyAsync" />
+        <DxToolbarItem Text="@L["Refresh"]"
+                       IconCssClass="@TradeXpressIcons.Refresh"
+                       Enabled="@(!_loading)"
+                       Click="@ReloadAsync" />
+    </DxToolbar>
+
+    @if (IsDirty)
+    {
+        <InlineWarning>@L["Product:SaleReadinessSaveBeforeVerify"]</InlineWarning>
+    }
+
+    @if (_loading && _data is null)
+    {
+        <span style="color:#6c757d;">@L["Loading"]</span>
+    }
+    else if (_data is null)
+    {
+        @* Yükleme başarısız: toast zaten gösterildi; panel BOŞ KALMAZ — sebep ve yeniden deneme burada. *@
+        <InlineWarning>@L["Product:SaleReadinessLoadFailed"]</InlineWarning>
+    }
+    else
+    {
+        @* ── Özet şerit — sayaçlar salt-okunur (kaynak sunucu). Stok kaynağı formda hiç görünmüyordu; burada görünür. ── *@
+        <DxFormLayout CssClass="w-100 mb-2">
+            <DxFormLayoutItem Caption="@L["Product:ActiveVariants"]" ColSpanMd="2" CaptionPosition="CaptionPosition.Vertical">
+                <span>@_data.ActiveVariantCount</span>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Product:PricedVariants"]" ColSpanMd="2" CaptionPosition="CaptionPosition.Vertical">
+                <span style="@CounterStyle(_data.PricedVariantCount, _data.ActiveVariantCount)">@_data.PricedVariantCount</span>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Product:SellableVariants"]" ColSpanMd="2" CaptionPosition="CaptionPosition.Vertical">
+                <span style="@CounterStyle(_data.SellableVariantCount, _data.ActiveVariantCount)">@_data.SellableVariantCount</span>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Product:StaleVerifiedVariants"]" ColSpanMd="2" CaptionPosition="CaptionPosition.Vertical">
+                <span style="@(_data.StaleVerifiedVariantCount > 0 ? "color:#b45309; font-weight:600;" : string.Empty)">@_data.StaleVerifiedVariantCount</span>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Product:StockPolicy"]" ColSpanMd="2" CaptionPosition="CaptionPosition.Vertical">
+                <span>@StockPolicyText</span>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Product:VatRate"]" ColSpanMd="2" CaptionPosition="CaptionPosition.Vertical">
+                <span>@VatRateText</span>
+            </DxFormLayoutItem>
+        </DxFormLayout>
+
+        @* ── Kontrol listesi — sunucunun sıraladığı adımlar. "Düzelt →" yalnız hedefi olan adımda. ── *@
+        <DxGrid Data="@_data.Steps" PagerVisible="false" PageSize="100" CssClass="w-100 mb-3" ShowFilterRow="false">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(SaleReadinessStepDto.State)" Caption="@L["Status"]" Width="140px" AllowSort="false">
+                    <CellDisplayTemplate>
+                        @{
+                            var stepRow = (SaleReadinessStepDto)context.DataItem;
+                        }
+                        <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                            <i class="@StepIcon(stepRow.State)" aria-hidden="true" style="color:@StepColor(stepRow.State);"></i>@StepStateText(stepRow.State)
+                        </span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="@nameof(SaleReadinessStepDto.Title)" Caption="@L["Product:SaleReadinessStep"]" MinWidth="180" AllowSort="false" />
+                <DxGridDataColumn FieldName="@nameof(SaleReadinessStepDto.Detail)" Caption="@L["Description"]" MinWidth="220" AllowSort="false" />
+                <DxGridDataColumn FieldName="@nameof(SaleReadinessStepDto.IssueCount)" Caption="@L["Product:SaleReadinessIssueCount"]" Width="90px" AllowSort="false" />
+                <DxGridDataColumn Caption="@L["Product:SaleReadinessFix"]" Width="130px" AllowSort="false" TextAlignment="GridTextAlignment.Center">
+                    <CellDisplayTemplate>
+                        @{
+                            var fixStep = (SaleReadinessStepDto)context.DataItem;
+                        }
+                        @if (fixStep.FixTarget != SaleReadinessFixTarget.None)
+                        {
+                            <DxButton Text="@L["Product:SaleReadinessFix"]" RenderStyle="ButtonRenderStyle.Secondary"
+                                      IconCssClass="@TradeXpressIcons.Edit"
+                                      Click="@(() => NavigateAsync(fixStep.FixTarget, null))" />
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+
+        @* ── Issue'lar — en ağırı önde (sunucu sıralar). Boşsa açıkça yazılır. ── *@
+        <div style="font-weight:600; margin-bottom:0.25rem;">@L["Product:SaleReadinessIssues"]</div>
+        @if (_data.Issues.Count == 0)
+        {
+            <span style="color:#16a34a; display:inline-block; margin-bottom:0.75rem;">@L["Product:SaleReadinessNoIssues"]</span>
+        }
+        else
+        {
+            <DxGrid Data="@_data.Issues" PagerVisible="false" PageSize="500" CssClass="w-100 mb-3" ShowFilterRow="false">
+                <Columns>
+                    <DxGridDataColumn FieldName="@nameof(SaleReadinessIssueDto.Severity)" Caption="@L["Product:SaleReadinessSeverity"]" Width="120px" AllowSort="false">
+                        <CellDisplayTemplate>
+                            @{
+                                var issueRow = (SaleReadinessIssueDto)context.DataItem;
+                            }
+                            <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                <i class="@SeverityIcon(issueRow.Severity)" aria-hidden="true" style="color:@SeverityColor(issueRow.Severity);"></i>@SeverityText(issueRow.Severity)
+                            </span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="@nameof(SaleReadinessIssueDto.Message)" Caption="@L["Product:SaleReadinessMessage"]" MinWidth="260" AllowSort="false" />
+                    <DxGridDataColumn FieldName="@nameof(SaleReadinessIssueDto.TargetLabel)" Caption="@L["Product:SaleReadinessTarget"]" Width="160px" AllowSort="false" />
+                    <DxGridDataColumn Caption="@L["Product:SaleReadinessFix"]" Width="130px" AllowSort="false" TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate>
+                            @{
+                                var fixIssue = (SaleReadinessIssueDto)context.DataItem;
+                            }
+                            @if (fixIssue.FixTarget != SaleReadinessFixTarget.None)
+                            {
+                                <DxButton Text="@L["Product:SaleReadinessFix"]" RenderStyle="ButtonRenderStyle.Secondary"
+                                          IconCssClass="@TradeXpressIcons.Edit"
+                                          Click="@(() => NavigateAsync(fixIssue.FixTarget, fixIssue.TargetId))" />
+                            }
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        }
+
+        @* ── Kanallar — kanal ürünü başına bir satır; aksiyonlar TEK bileşenden (ChannelProductActions). ── *@
+        <div style="font-weight:600; margin-bottom:0.25rem;">@L["Product:SaleReadinessChannels"]</div>
+        @if (_data.Channels.Count == 0)
+        {
+            <span style="color:#6c757d;">@L["Product:SaleReadinessNoChannels"]</span>
+        }
+        else
+        {
+            <DxGrid Data="@_data.Channels" PagerVisible="false" PageSize="100" CssClass="w-100" ShowFilterRow="false">
+                <Columns>
+                    <DxGridDataColumn FieldName="@nameof(ChannelReadinessRowDto.SalesChannelCode)" Caption="@L["SalesChannel"]" Width="160px" AllowSort="false">
+                        <CellDisplayTemplate>@ChannelLabel((ChannelReadinessRowDto)context.DataItem)</CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="@nameof(ChannelReadinessRowDto.StatusText)" Caption="@L["Status"]" Width="150px" AllowSort="false" />
+                    <DxGridDataColumn Caption="@L["SalesChannelProduct:SyncState"]" Width="130px" AllowSort="false">
+                        <CellDisplayTemplate>
+                            @{
+                                var syncRow = (ChannelReadinessRowDto)context.DataItem;
+                            }
+                            <span style="@SyncBadgeStyle(syncRow)">@SyncBadgeText(syncRow)</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="@nameof(ChannelReadinessRowDto.LastPushedAt)" Caption="@L["SalesChannelProduct:LastPushed"]" Width="150px" AllowSort="false">
+                        <CellDisplayTemplate>
+                            <UtcLocalText Value="@(((ChannelReadinessRowDto)context.DataItem).LastPushedAt)" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="@nameof(ChannelReadinessRowDto.LastError)" Caption="@L["N11Product:LastError"]" MinWidth="180" AllowSort="false">
+                        <CellDisplayTemplate>
+                            @{
+                                var errorRow = (ChannelReadinessRowDto)context.DataItem;
+                            }
+                            @* Pazaryeri engeli (karaliste/kilit) hata değildir ama aynı soruya cevaptır: "neden satılmıyor". *@
+                            @if (!string.IsNullOrWhiteSpace(errorRow.Obstacle))
+                            {
+                                <div style="color:#b91c1c; font-size:0.85em;">@errorRow.Obstacle</div>
+                            }
+                            <span>@errorRow.LastError</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn Caption="@L["SalesChannelProduct:Actions"]" Width="360px" AllowSort="false" TextAlignment="GridTextAlignment.Center">
+                        <CellDisplayTemplate>
+                            <ChannelProductActions Subject="@ChannelProductActionContext.From((ChannelReadinessRowDto)context.DataItem)"
+                                                   OnChanged="@OnChannelActionCompletedAsync" />
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        }
+    }
+}

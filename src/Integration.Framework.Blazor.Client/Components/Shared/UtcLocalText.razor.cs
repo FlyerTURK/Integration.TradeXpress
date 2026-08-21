@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.Framework.Blazor.Client.Components.Shared;
 
 /// <summary>
-/// Yeniden-kullanılabilir gösterim bileşeni: UTC bir zaman damgasını (<see cref="Value"/>) kullanıcının
+/// Yeniden-kullanılabilir gösterim bileşeni: UTC bir timestamp'i (<see cref="Value"/>) kullanıcının
 /// yerel saatine (<see cref="IDisplayTimeConverter"/>) çevirip <see cref="Format"/> ile formatlar.
 /// <para><b>Yalnız timestamp (an) alanları için</b> — CreationTime, LastModificationTime, RateDate gibi.
 /// Date-only iş tarihleri (VoucherDate/DueDate/AsOfDate/ProfitResetDate) wall-clock'tur, ÇEVRİLMEZ →
@@ -16,7 +16,7 @@ public partial class UtcLocalText : ComponentBase
 {
     [Inject] private IDisplayTimeConverter Converter { get; set; } = default!;
 
-    /// <summary>Çevrilecek UTC zaman damgası. <c>null</c> → <see cref="EmptyText"/> gösterilir.</summary>
+    /// <summary>Çevrilecek UTC timestamp. <c>null</c> → <see cref="EmptyText"/> gösterilir.</summary>
     [Parameter] public DateTime? Value { get; set; }
 
     /// <summary>.NET tarih-saat format dizesi (varsayılan gün.ay.yıl saat:dakika).</summary>

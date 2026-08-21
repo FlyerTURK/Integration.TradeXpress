@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Http;
 namespace Integration.TradeXpress.Blazor.Components;
 
 /// <summary>
-/// İlk boyama (statik SSR) tema/boyut/dil çözümü: "son oturum açan kullanıcı" ayna cookie'leri
+/// İlk boyama (statik SSR) tema/boyut/dil çözümü: "son oturum açan kullanıcı" cookie'leri
 /// (tx.last_theme / tx.last_size — kimlikli akışta ThemeService/SizeModeService yazar) okunur ve
 /// DevExpress teması + &lt;html&gt; attribute'ları DOĞRUDAN doğru değerlerle render edilir → login
 /// ekranı son kullanıcının temasında FLAŞSIZ açılır (eskiden sabit Blazing Berry Light'tı).

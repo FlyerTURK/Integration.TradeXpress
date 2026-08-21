@@ -16,7 +16,7 @@ using Volo.Abp;
 namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannelProducts;
 
 /// <summary>
-/// Kanal ürünleri paneli — kanal-ürün kayıtlarının TEK listeleme yüzeyi (kanal edit formu sekmesi +
+/// Kanal ürünleri paneli — kanal-ürün kayıtlarının TEK listeleme bileşeni (kanal edit formu sekmesi +
 /// standalone sayfa). PERSISTENT <see cref="DrillList{TItem}"/>: standart araç çubuğu, satır tıkla →
 /// düzenleme popup'ı, kolon düzeni kalıcılığı uygulamanın geri kalanıyla aynı.
 ///
@@ -37,12 +37,13 @@ public partial class ChannelProductsPanel
     /// <summary>Kanal TÜRÜNE daralt (opsiyonel; standalone listede tür süzgeci için).</summary>
     [Parameter] public SalesChannelType? ChannelType { get; set; }
 
-    /// <summary>Grid kolon düzeni kalıcılık anahtarı — iki yüzey farklı kolon setleri gösterdiğinden
+    /// <summary>Grid kolon düzeni kalıcılık anahtarı — iki ekran farklı kolon setleri gösterdiğinden
     /// (kanal kolonu) ayrı anahtar kullanır; aksi halde formda gizlenen kolon standalone listede de
     /// gizli kalırdı.</summary>
     // v6: kolon seti değişti (Kanal Engeli + Kampanya eklendi, indeksler kaydı). Kaydedilmiş eski düzen
     // yeni kolonları bilmediği için onları gizli/yanlış yerde çizerdi — anahtar sürümlenerek düzen sıfırlanır.
-    [Parameter] public string StateKey { get; set; } = "sales-channel-products:list:v6";
+    // v7 (2026-08-19): İşlemler kolonu eklendi (ChannelProductActions) — aynı gerekçe.
+    [Parameter] public string StateKey { get; set; } = "sales-channel-products:list:v7";
 
     /// <summary>Kanal kolonu görünür mü. Varsayılan: tek kanala daraltılmadıysa görünür — tek kanalda
     /// her satırda aynı değeri tekrarlamak yer israfıdır.</summary>
@@ -62,14 +63,14 @@ public partial class ChannelProductsPanel
     [Inject] private ISalesChannelEtsyProductAppService EtsyAppService { get; set; } = default!;
     [Inject] private IUiInteractionService Ui { get; set; } = default!;
 
-    // Ürün formunu MERKEZÎ yoldan açar (ham DxPopup YASAK — tahtayla aynı desen).
+    // Ürün formunu MERKEZÎ yoldan açar (ham DxPopup YASAK — boardyla aynı desen).
     [Inject] private IViewOpener ViewOpener { get; set; } = default!;
     [Inject] private IPopupService PopupService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<SalesChannelProductListDto>? _drill;
 
-    /// <summary>Açık düzenleme gövdesi — kaydetme buna delege edilir (tipli model orada yaşar).</summary>
+    /// <summary>Açık düzenleme bileşeni — kaydetme buna delege edilir (tipli model orada yaşar).</summary>
     private ChannelProductEditFields? _editFields;
 
     private ChannelProductPushHistoryPopup? _historyPopup;
@@ -148,10 +149,10 @@ public partial class ChannelProductsPanel
         StateHasChanged();
     }
 
-    // ── Kalıcılık kancaları ──────────────────────────────────────────────────────────────────────────
+    // ── Kalıcılık callback'leri ──────────────────────────────────────────────────────────────────────
 
-    /// <summary>Kaydetme, açık düzenleme gövdesine DELEGE edilir: tipli model orada yaşar ve doğrulama da
-    /// orada yapılır. Gövde yoksa (ulaşılamaz olmalı) sessizce "kaydedildi" DENMEZ — istisna fırlatılır,
+    /// <summary>Kaydetme, açık düzenleme bileşenine DELEGE edilir: tipli model orada yaşar ve doğrulama da
+    /// orada yapılır. Bileşen yoksa (ulaşılamaz olmalı) sessizce "kaydedildi" DENMEZ — istisna fırlatılır,
     /// drill popup'ı açık bırakıp mesajı gösterir.</summary>
     private async Task<SalesChannelProductListDto> PersistUpdateAsync(SalesChannelProductListDto row)
     {
@@ -228,7 +229,7 @@ public partial class ChannelProductsPanel
                 Template = SyncStateFilterTemplate,
             },
 
-            // GÖNDERİM GEÇMİŞİ — seçili satırın delil defteri. Satır seçilmeden anlamsız olduğu için
+            // GÖNDERİM GEÇMİŞİ — seçili satırın PushHistory. Satır seçilmeden anlamsız olduğu için
             // gizlenmez, DEVRE DIŞI bırakılır: görünmeyen düğme "böyle bir şey yok" der, soluk düğme
             // "bir satır seç" der. İkincisi doğru bilgi.
             new()
@@ -345,7 +346,7 @@ public partial class ChannelProductsPanel
         _selected = row;
     }
 
-    /// <summary>Kod sütunundan ÜRÜN formunu popup'ta açar (fiyatlandırma tahtasının deseni).
+    /// <summary>Kod sütunundan ÜRÜN formunu popup'ta açar (fiyatlandırma board'unın deseni).
     ///
     /// <para>Ürün formu zaten hem ERP reçetesini hem kanal ürünleri grid'ini içerdiğinden, "popup üstü popup"
     /// yığını yeni bir host yazmadan mevcut parçalardan kurulur ve reçete DOĞRU yerde düzenlenir: emtia
@@ -398,7 +399,7 @@ public partial class ChannelProductsPanel
         return L[$"Enum:ChannelProductSyncState:{state}"].Value;
     }
 
-    /// <summary>Grup satırının gövdesini çizen şablon (razor'da atanır — inline template C#'a taşınamaz).</summary>
+    /// <summary>Grup satırının içeriğini çizen şablon (razor'da atanır — inline template C#'a taşınamaz).</summary>
     private RenderFragment<GridDataColumnGroupRowTemplateContext>? GroupRowTemplate { get; set; }
 
     /// <summary>

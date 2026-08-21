@@ -1,8 +1,8 @@
 @using Integration.TradeXpress.N11Products
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* N11 ÇALIŞMA TAHTASI — Trendyol tahtasının N11 ikizi. Sıralama KARAR BEKLEYENİ öne alır (aynı kural:
-   reçetesizler başta, satışa çıkamayanlar sonra) — iki tahtanın farklı sıralanması kullanıcıyı şaşırtırdı.
+@* N11 ÇALIŞMA TAHTASI — Trendyol board'unın N11 ikizi. Sıralama KARAR BEKLEYENİ öne alır (aynı kural:
+   reçetesizler başta, satışa çıkamayanlar sonra) — iki board'un farklı sıralanması kullanıcıyı şaşırtırdı.
    PAZARYERİNE SIFIR YAZMA: panel N11'e hiçbir istek göndermez. "Sil" yalnız YEREL kaydı kaldırır —
    N11'deki listeleme yerinde kalır (etiket bu yüzden "Kanaldan kaldır").
    Pazaryeri fiyatı/adedi kolonu YOK: N11 kanal-ürünü o veriyi saklamıyor; yerine N11'in döndürdüğü
@@ -59,7 +59,7 @@
             <DxGridDataColumn FieldName="@nameof(N11PricingBoardItemDto.VariantCount)"
                               Caption="@L["Variants"]" Width="90px" />
 
-            @* KARAR SÜTUNU — tahtanın asıl sebebi. Renk durumu ANLATIR, yalnız süslemez. *@
+            @* KARAR SÜTUNU — board'un asıl sebebi. Renk durumu ANLATIR, yalnız süslemez. *@
             <DxGridDataColumn Caption="@L["TrendyolProduct:PricingBoard:Status"]" Width="170px">
                 <CellDisplayTemplate>
                     @{ var row = (N11PricingBoardItemDto)context.DataItem; }

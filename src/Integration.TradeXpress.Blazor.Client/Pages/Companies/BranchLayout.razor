@@ -18,7 +18,7 @@
 *@
 @* YENİ → merkez kasa GÖMÜLÜ (CompanyLayout/TenantLayout ile aynı onboarding deseni): kullanıcıyı drill'e
    gönderip "kasa ekle" dedirtmek zorunlu adımı isteğe bağlı gösterirdi; üstelik kasa arka planda sessizce
-   kuruluyordu (2026-08-03 Hakan). GÜNCELLE → Kasalar drill'i (çok kasayı yönetmenin tek makul yüzeyi).
+   kuruluyordu (2026-08-03 Hakan). GÜNCELLE → Kasalar drill'i (çok kasayı yönetmenin tek makul yeri).
    İkisi BİRDEN çizilmez: aynı kasayı iki yerde düzenlemek çakışma olurdu. *@
 <BranchEditFields Model="@Model" Units="@Units" HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew"
                   EmbeddedVault="@(IsNew ? Model.Vaults.FirstOrDefault(v => !v.IsDeleted) : null)" />

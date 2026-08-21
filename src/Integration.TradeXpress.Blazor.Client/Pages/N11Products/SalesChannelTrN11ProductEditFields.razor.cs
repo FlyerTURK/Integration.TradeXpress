@@ -20,6 +20,7 @@ using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Blazor.Client.Pages.Products;
+using Integration.TradeXpress.Blazor.Client.Pages.SalesChannelProducts;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
@@ -64,13 +65,65 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     /// (create'te otomatik atanır, set-once); seçici yok.</summary>
     [Parameter] public IReadOnlyList<SalesChannelListDto> Channels { get; set; } = Array.Empty<SalesChannelListDto>();
 
-    /// <summary>Çekirdek ürünün CANLI varyant grafı (ProductLayout.Model.Variants — kaydedilmemiş değişiklikler
+    /// <summary>Core (ERP) ürünün CANLI varyant grafı (ProductLayout.Model.Variants — kaydedilmemiş değişiklikler
     /// dahil). Varyantlar sekmesi, kayıtlı stok kalemlerinde HENÜZ karşılığı olmayan varyantları buradan
-    /// salt-okunur önizler: kullanıcı çekirdekte ne değiştirdiyse kanal formunda ANINDA görür, ürünün
+    /// salt-okunur önizler: kullanıcı core tarafta ne değiştirdiyse kanal formunda ANINDA görür, ürünün
     /// kaydedilmesini beklemez (2026-07-28 Hakan).</summary>
     [Parameter] public List<ProductVariantGraphDto> CoreVariants { get; set; } = new();
 
-    /// <summary>Kayıtlı stok kalemi karşılığı OLMAYAN canlı çekirdek varyantları — salt-okunur önizleme satırları.
+    /// <summary>Bu kanal ürününün kimliği — issue kapsamı (<see cref="SaleReadinessScope"/>) bununla kurulur.
+    /// Sahip bileşen vermezse <see cref="Model"/>.Id kullanılır; ikisi de boşsa kayıt henüz sunucuda yoktur ve
+    /// hakkında issue da olamaz → işaret çizilmez.</summary>
+    [Parameter] public Guid ChannelProductId { get; set; }
+
+    /// <summary>Ürün formunun cascade ettiği satışa-hazırlık issue endeksi. Form kanal board'undan da açıldığı
+    /// için OPSİYONELDİR: endeks yoksa sekme/satır/bölüm işaretleri hiç çizilmez.</summary>
+    [CascadingParameter(Name = "SaleReadinessIndex")] private SaleReadinessIssueIndex? Readiness { get; set; }
+
+    /// <summary>Kapsam kurmakta kullanılacak kanal ürünü kimliği (parametre → model sırasıyla).</summary>
+    private Guid EffectiveChannelProductId
+    {
+        get
+        {
+            if (ChannelProductId != Guid.Empty)
+            {
+                return ChannelProductId;
+            }
+
+            if (Model is null)
+            {
+                return Guid.Empty;
+            }
+
+            return Model.Id;
+        }
+    }
+
+    // Kapsam yolları ORTAK sınıftan gelir (ChannelReadinessScopes): "kaydedilmemiş kayıt = kapsam yok" ve
+    // "kanal-özel satırın core varyantı yok = kapsam yok" kuralları Trendyol formunda da geçerli; iki forma
+    // kopyalanan kural birinde güncellenip diğerinde unutulur.
+
+    /// <summary>Kombinasyon (varyant) sekmesinin kapsamı; kanal ürünü henüz kaydedilmemişse null.</summary>
+    private string? ChannelVariantsScope
+    {
+        get { return ChannelReadinessScopes.VariantsOf(EffectiveChannelProductId); }
+    }
+
+    /// <summary>Bir kombinasyon SATIRININ kapsamı. ERP karşılığı olmayan (N11-özel) satırda core varyant
+    /// kimliği yoktur → kapsam da yoktur; sunucunun ürettiği issue core varyanta bağlıdır.</summary>
+    private string? ChannelVariantScopeOf(Guid? productVariantId)
+    {
+        return ChannelReadinessScopes.VariantOf(EffectiveChannelProductId, productVariantId);
+    }
+
+    /// <summary>Kombinasyon satırının reçete/emtia bölümünün kapsamı — "temel emtia eklenmedi" issue'sunun en
+    /// derin yeri.</summary>
+    private string? ChannelVariantRecipeScopeOf(Guid? productVariantId)
+    {
+        return ChannelReadinessScopes.VariantRecipeOf(EffectiveChannelProductId, productVariantId);
+    }
+
+    /// <summary>Kayıtlı stok kalemi karşılığı OLMAYAN canlı core varyantları — salt-okunur önizleme satırları.
     ///
     /// <para><b>Neden gerçek satır değil:</b> stok kalemi kimlikleri (Id/ProductVariantId çıpası) SUNUCU üretimi;
     /// kaydedilmemiş varyanta istemcide satır uydurmak, kayıtta yanlış çıpaya ya da çakışan anahtara dönerdi.
@@ -95,7 +148,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
-    // "Üründen emtia yarat" akışının popup kapısı (lookup → popup → tazele → odaklan deseni).
+    // "Üründen emtia yarat" akışının popup açıcısı (lookup → popup → tazele → odaklan deseni).
     [Inject] private IViewOpener ViewOpener { get; set; } = default!;
 
     // Reçete drill'inin katalog lookup beslemesi + persistsiz maliyet motoru (ERP ile ORTAK: aynı entity-agnostik
@@ -127,7 +180,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private DrillList<SalesChannelTrN11ProductStockItemGraphDto>? _stockItemDrill;
     private IReadOnlyList<MetalListDto> _metals = Array.Empty<MetalListDto>();
     // Varyant-farkındalıklı MADEN lookup'ı (ProductRecipePanel.MetalVariants) — beslenmezse combo BOŞ kalır
-    // (varyant geçişi sancısı: çekirdek host güncellendi, kanal formları unutulmuştu).
+    // (varyant geçişi sancısı: core host güncellendi, kanal formları unutulmuştu).
     private IReadOnlyList<MetalVariantLookupDto> _metalVariants = Array.Empty<MetalVariantLookupDto>();
     private IReadOnlyList<ScrapListDto> _scraps = Array.Empty<ScrapListDto>();
     private IReadOnlyList<FutureListDto> _futures = Array.Empty<FutureListDto>();
@@ -140,12 +193,12 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private IReadOnlyList<CommodityVariantLookupDto> _jewelryVariants = Array.Empty<CommodityVariantLookupDto>();
     private bool _catalogsLoaded;
 
-    // Çekirdek varyant listesinin sunucu geri-dönüşü — CoreVariants yalnız ürün-formu yüzeyinde besleniyor;
-    // standalone/tahta yüzeylerinde "Üründen" anahtarının görünürlük kapısı (fail-closed) için buradan çekilir.
+    // Core varyant listesinin sunucu geri-dönüşü — CoreVariants yalnız ürün formunda besleniyor;
+    // standalone/board ekranlarında "Üründen" anahtarının AllowCreateFromProduct koşulu (fail-closed) için buradan çekilir.
     private IReadOnlyList<ProductVariantGraphDto> _coreVariantsFallback = Array.Empty<ProductVariantGraphDto>();
     private Guid _loadedCoreVariantsProductId;
 
-    /// <summary>Panelin AllVariants beslemesi — canlı graf (ürün formu yüzeyi) varsa o, yoksa sunucudan
+    /// <summary>Panelin AllVariants beslemesi — canlı graf (ürün formu) varsa o, yoksa sunucudan
     /// çekilen kopya. Canlı graf ÖNCELİKLİ: kaydedilmemiş varyant değişikliklerini de bilir.</summary>
     private IReadOnlyList<ProductVariantGraphDto> EffectiveCoreVariants
     {
@@ -155,7 +208,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // Kategori attribute grid satırları (def + o anki değerler) — hücre-içi düzenleme, paging yok.
     private List<N11AttributeCellRow> _attributeRows = new();
 
-    // GPSR gürültüsü: N11 REST /cdn kategori-attribute yüzeyi, 3 gerçek zorunlu (Marka/Toplam Gram/Maden Ayarı)
+    // GPSR gürültüsü: N11 REST /cdn kategori-attribute endpoint'i, 3 gerçek zorunlu (Marka/Toplam Gram/Maden Ayarı)
     // yanına ~32 platform-geneli "Ürün Güvenliği/GPSR" opsiyonel alanı ekliyor. Zorunlular üstte HEP açık; opsiyoneller
     // sayaçlı KATLANMIŞ grupta (form kalabalıklaşmasın, kabiliyet kaybolmasın). İki grid aynı EditCell mantığını paylaşır.
     //
@@ -222,8 +275,8 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         await EnsurePreviewAsync();
     }
 
-    // Çekirdek varyant listesini bir kez yükler — yalnız CoreVariants parametresi BOŞKEN (standalone yüzeyler);
-    // ürün-formu yüzeyi canlı grafı zaten veriyor, ikinci bir sunucu okuması gürültü olurdu.
+    // Core varyant listesini bir kez yükler — yalnız CoreVariants parametresi BOŞKEN (standalone ekranlar);
+    // ürün formu canlı grafı zaten veriyor, ikinci bir sunucu okuması gürültü olurdu.
     private async Task EnsureCoreVariantsAsync()
     {
         if (CoreVariants.Count > 0
@@ -275,7 +328,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     }
 
     // Katalog lookup'ı "Ekle/Düzelt" ile kayıt yapınca listeler ZORLA tazelenir (bayrak tek-seferlik — sıfırlanmazsa
-    // yeni kayıt combo'da görünmez; 2026-08-15 Hakan bulgusu, çekirdek formla aynı düzeltme).
+    // yeni kayıt combo'da görünmez; 2026-08-15 Hakan bulgusu, core (ürün) formuyla aynı düzeltme).
     private async Task ReloadRecipeCatalogsAsync()
     {
         _catalogsLoaded = false;
@@ -347,7 +400,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     ///
     /// <para>Nitelik tanımları henüz YÜKLENMEMİŞSE (kategori seçilmemiş/liste gelmedi) nitelik kontrolü SUSAR —
     /// yükleme gecikmesini "eksik" diye raporlamak yanlış alarm olurdu; kategori kontrolü zaten önce çalışır ve
-    /// push validator son kapı olarak durur.</para>
+    /// push validator son guard olarak durur.</para>
     /// </summary>
     public string? ValidateMandatoryInputs()
     {
@@ -585,11 +638,11 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 
     /// <summary>
     /// Panelin "Üründen" akışı — <c>ProductEditHost.CreateCommodityFromProductAsync</c>'in kanal-form eşi,
-    /// bir farkla: çekirdek formda satır panelin draft'ıyla çekirdek grafına girer; burada draft KANAL
-    /// grafına gireceğinden emtia satırı ÇEKİRDEK varyanta AYRICA yazılmalıdır (otorite orada — stok zinciri
-    /// ve rezervasyon yalnız çekirdek reçeteyi okur). Yayılım sihirbazın mevcut ucuyla yapılır
+    /// bir farkla: ürün formunda satır panelin draft'ıyla core grafına girer; burada draft KANAL
+    /// grafına gireceğinden emtia satırı CORE varyanta AYRICA yazılmalıdır (otorite orada — stok zinciri
+    /// ve rezervasyon yalnız core reçeteyi okur). Yayılım sihirbazın mevcut ucuyla yapılır
     /// (<c>ProvisionCommoditiesAsync</c> · UseExisting): reçete satırı + StockPolicy + otorite devri +
-    /// stok senkronu tek kapıdan, ikinci bir yazım yolu açılmadan. Trendyol EditFields simetriği.
+    /// stok senkronu tek yoldan, ikinci bir yazım yolu açılmadan. Trendyol EditFields simetriği.
     /// </summary>
     private async Task<Guid?> CreateCommodityFromProductAsync(ProcessType family)
     {
@@ -642,7 +695,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
             UiService.ShowWarningToast(string.Join(" · ", result.Issues));
         }
 
-        // Otorite devri kanal aynasını (Override*) sunucuda temizledi — AÇIK formdaki kopya da hizalanır;
+        // Otorite devri kanal yansımasını (Override*) sunucuda temizledi — AÇIK formdaki kopya da hizalanır;
         // aksi hâlde sonraki Kaydet, devrin sildiği pazaryeri stok/fiyatını sessizce geri diriltirdi.
         if (result.ClearedChannelOverrides > 0)
         {

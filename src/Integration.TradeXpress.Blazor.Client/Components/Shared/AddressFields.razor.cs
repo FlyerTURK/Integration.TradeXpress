@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components.Forms;
 namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 
 /// <summary>Yeniden-kullanılabilir TEMİZ adres formu — herhangi bir <see cref="IAddressEditModel"/>'e bind eder.
-/// Üstte <see cref="GeographyCascadePicker"/> (İl/İlçe/Mahalle + kodlar + id-only köprüler + CountryCode'u tek
+/// Üstte <see cref="GeographyCascadePicker"/> (İl/İlçe/Mahalle + kodlar + id-only alanlar + CountryCode'u tek
 /// kaynaktan DOLDURUR); serbest-metin: Line + UBL zenginleştirme alanları (BuildingName/BuildingNumber/Room/Floor/
 /// PostalCode/Postbox/AdditionalStreetName/Title). <see cref="FixedCountryId"/> ile ülke kilidi (picker'a geçer).</summary>
 public partial class AddressFields : CrudComponentBase
@@ -35,7 +35,7 @@ public partial class AddressFields : CrudComponentBase
     [CascadingParameter] private EditContext? EditContext { get; set; }
 
     // Coğrafya cascade seçimi → adres modelini doldur (il → City + CityCode, ilçe → District + DistrictCode,
-    // mahalle → Neighborhood; ülke → CountryCode) + additive geo-ref'ler (id-only köprü + ISO 3166-2 kodu).
+    // mahalle → Neighborhood; ülke → CountryCode) + additive geo-ref'ler (id-only alan + ISO 3166-2 kodu).
     // Serbest-metin (Line/PostalCode/Title) ETKİLENMEZ. Sembolik ana alanlı ülkede City null gelir; mahalle
     // seviyesi kullanılmayan ülkede Neighborhood korunur (yalnız seçilince doldurulur).
     private void OnGeographySelected(GeographySelection selection)

@@ -68,9 +68,9 @@ public partial class ProductEditHost
     private bool _ready;
     private bool _verifyBusy;
 
-    /// <summary>"Satışa Doğrula" — push kapısını açan İNSAN yolu.
+    /// <summary>"Satışa Doğrula" — push guard'ını açan İNSAN yolu.
     ///
-    /// <para>Kapı fail-closed çalışıyordu ama açacak yol yoktu: canlıda 165/165 varyant <c>Draft</c>'tı ve
+    /// <para>Guard fail-closed çalışıyordu ama açacak yol yoktu: canlıda 165/165 varyant <c>Draft</c>'tı ve
     /// hiçbir ürün pazaryerine çıkamıyordu. Kullanıcı hatayı göremiyordu bile — push "aday bulunamadı" diyordu,
     /// sebebini hiçbir ekran söylemiyordu.</para>
     ///
@@ -216,7 +216,7 @@ public partial class ProductEditHost
     }
 
     /// <summary>
-    /// "ÜRÜNDEN EMTİA YARAT" — reçete panelindeki anahtarın gövdesi (2026-08-11 Hakan tasarımı).
+    /// "ÜRÜNDEN EMTİA YARAT" — reçete panelindeki anahtarı UYGULAYAN metot (2026-08-11 Hakan tasarımı).
     ///
     /// <para><b>Neden host'ta:</b> katalogların sahibi burasıdır. Yeni kayıt açıldıktan sonra lookup'lar
     /// tazelenmezse panel yeni emtiayı GÖREMEZ ve satır boş seçimle açılırdı. Panel bilinçli olarak
@@ -224,7 +224,7 @@ public partial class ProductEditHost
     ///
     /// <para><b>Sessiz yaratım YOK — form açılır.</b> Maden/Hurda/Vadeli ailelerinde takip birimi
     /// (<c>FollowingUnitId</c>) ZORUNLUDUR ve bir iş kararıdır; uydurulamaz. Mamül tam projeksiyonla,
-    /// diğerleri kod/ad ile tohumlanır, kalanını kullanıcı doldurur ("sınıflandırma manueldir, yazılım
+    /// diğerleri kod/ad ile seed'lenir, kalanını kullanıcı doldurur ("sınıflandırma manueldir, yazılım
     /// tahmin etmez"). Aile → form eşlemesi <see cref="ProductCommoditySeed"/>'de, sihirbazın sınıflandırma
     /// paneliyle ORTAK.</para>
     ///
@@ -233,14 +233,21 @@ public partial class ProductEditHost
     /// iki durumu da doğru cevaplar (vazgeçince boş küme → <c>null</c>).</para>
     /// </summary>
     /// <summary>
-    /// <paramref name="draftCode"/>/<paramref name="draftName"/>: AÇIK FORMUN kod/adı — ürün henüz KAYITSIZKEN
-    /// (Id boş) tohum buradan gelir; kayıtlıysa sunucudan okunur (kaydedilmemiş kod değişikliği tohuma taşınmaz).
-    /// <para><b>Neden:</b> ilk sürüm kayıtsız üründe sessizce <c>null</c> dönüyor, combo "+" hiçbir şey açmıyordu
-    /// (2026-08-15 Hakan: "popup artık hiç açılmıyor") — "Yeni ▾" anahtarı zaten yalnız kayıtlı üründe göründüğü
-    /// için o yol bunu hiç yaşamamıştı; "+" her zaman görünür, kayıtsız üründe de çalışmalı. Kayıtsız üründe
-    /// çekirdek yayılımı (reçete satırı) yapılamaz — o satır panel draft'ı olarak forma girer, kayıtla yazılır.</para>
+    /// <paramref name="model"/>: AÇIK ürün formunun CANLI modeli. Ürün KAYITLIYSA seed sunucudan kimlikle
+    /// okunur (kaydedilmemiş kod değişikliği seed'e taşınmaz); KAYITSIZSA bu modelden taslak seed kurulur.
+    ///
+    /// <para><b>Neden model, iki dize değil</b> (2026-08-20): imza eskiden yalnız kod/ad taşıyordu ve kayıtsız
+    /// üründe ürün→emtia seed'i fiilen "yalnız kimlik" şekline iniyordu — kullanıcının formda kurduğu nitelik ekseni,
+    /// varyantlar ve görseller emtia formuna HİÇ geçmiyor, aynı bilgi ikinci kez giriliyordu. Kayıp verinin
+    /// olmamasından değil, imzanın taşımamasından kaynaklanıyordu: graf tam olarak burada, elimizdeydi.</para>
+    ///
+    /// <para><b>Neden ilk sürüm kayıtsızda hiç açılmıyordu</b> (2026-08-15 Hakan: "popup artık hiç açılmıyor"):
+    /// metot kayıtsız üründe sessizce <c>null</c> dönüyordu — "Yeni ▾" anahtarı zaten yalnız kayıtlı üründe
+    /// göründüğü için o yol bunu yaşamamıştı; "+" her zaman görünür. Kayıtsız üründe reçete satırının core
+    /// varyantlara YAYILIMI hâlâ yapılamaz — o satır panel draft'ı olarak forma girer ve ürün kaydıyla
+    /// yazılır.</para>
     /// </summary>
-    private async Task<Guid?> CreateCommodityFromProductAsync(ProcessType family, string? draftCode, string? draftName)
+    private async Task<Guid?> CreateCommodityFromProductAsync(ProcessType family, ProductGetDto model)
     {
         if (ProductCommoditySeed.EditComponentOf(family) is not { } editComponent)
         {
@@ -252,23 +259,25 @@ public partial class ProductEditHost
 
         string? seedCode;
         string? seedName;
+        ProductDraftSeedDto? draft = null;
         if (isSaved)
         {
-            // Kod/ad SUNUCUDAN: emtia, kayıtlı ürünün kimliğinden doğar (kaydedilmemiş düzenleme tohuma taşınmaz).
+            // Kod/ad SUNUCUDAN: emtia, kayıtlı ürünün kimliğinden doğar (kaydedilmemiş düzenleme seed'e taşınmaz).
             var product = await ProductAppService.GetAsync(productId);
             seedCode = product.Code;
             seedName = product.Name;
         }
         else
         {
-            seedCode = draftCode;
-            seedName = draftName;
+            seedCode = model.Code;
+            seedName = model.Name;
+            draft = ProductCommoditySeed.BuildDraft(model);
         }
 
         var before = CommodityIdsOf(family);
 
         var extra = await ProductCommoditySeed.BuildExtraParamsAsync(
-            family, productId, seedCode, seedName, ProductAppService);
+            family, productId, seedCode, seedName, ProductAppService, draft);
 
         await ViewOpener.OpenAsync(
             editComponent, null, L[$"Enum:ProcessType:{family}"].Value, iconCssClass: null, extraParams: extra);
@@ -524,7 +533,7 @@ public partial class ProductEditHost
     }
 
     /// <summary>Seçilen BAŞARILI kombinasyonu ana varyantın reçetesine uygular — kombinasyon reçetenin SAHİBİDİR
-    /// (kanal köprüsü ReplaceChannelRecipeLinesAsync semantiği): mevcut satırlar temizlenir (DB'liler IsDeleted —
+    /// (kanal tarafındaki ReplaceChannelRecipeLinesAsync semantiği): mevcut satırlar temizlenir (DB'liler IsDeleted —
     /// graf-save siler), kombinasyon satırları TAZE eklenir. Persist ürün Kaydet'iyle (SaveRecipeLinesAsync yolu);
     /// satır kurulumu sunucu BuildRecipeLineDtos'un lookup'lı istemci karşılığıdır (aynı alan kümesi).</summary>
     private async Task ApplySubstitutionTrialAsync(ProductGetDto model, SubstitutionTrialDto trial)
@@ -536,12 +545,17 @@ public partial class ProductEditHost
             return;
         }
 
-        // ŞABLONDAN gelen satırlar (paketleme/kargo/sigorta) KORUNUR — yalnız kombinasyonun kendi ürettiği
+        // ŞABLON KAYNAKLI satırlar (paketleme/kargo/sigorta) KORUNUR — yalnız kombinasyonun kendi ürettiği
         // satırlar tazelenir. Hepsini silmek, muadil hedefi her değiştiğinde ara masrafları sessizce düşürüyordu:
         // kombinasyon yeniden kuruluyor, şablon satırları geri gelmiyor ve fiyat eksik çıkıyordu — kullanıcının
         // "şablon etki etmiyor" dediği durum tam olarak buydu (2026-07-28 Hakan).
+        // Muafiyet DÜZENLENMİŞ şablon satırını da kapsar (Origin = TemplateEdited): yalnız Template'e baksaydı, kullanıcının
+        // düzelttiği satır aşağıdaki replaceable kümesine girip KALICI silinirdi — üstelik onu korumak için
+        // kurulan sahiplenme kuralının kendisi yüzünden (2026-08-20 inceleme bulgusu).
         var replaceable = variant.RecipeLines
-            .Where(l => !l.IsDeleted && l.Origin != RecipeLineOrigin.Template)
+            .Where(l => !l.IsDeleted
+                && l.Origin != RecipeLineOrigin.Template
+                && l.Origin != RecipeLineOrigin.TemplateEdited)
             .ToList();
         foreach (var line in replaceable)
         {
@@ -564,7 +578,8 @@ public partial class ProductEditHost
         // Korunan şablon satırları kombinasyon satırlarının ARDINDA sıralanır: ara masraflar (yüzde/brütleştirme
         // dahil) kendinden ÖNCEKİ satırların toplamına uygulanır — önde kalsalardı taban eksik hesaplanırdı.
         foreach (var templateLine in variant.RecipeLines
-                     .Where(l => !l.IsDeleted && l.Origin == RecipeLineOrigin.Template)
+                     .Where(l => !l.IsDeleted
+                         && (l.Origin == RecipeLineOrigin.Template || l.Origin == RecipeLineOrigin.TemplateEdited))
                      .OrderBy(l => l.LineOrder)
                      .ToList())
         {
@@ -638,7 +653,7 @@ public partial class ProductEditHost
     // Varyant; ProductConsts SSOT). Bu satır kaydedince sunucunun ProductVariantManager ile yarattığı DB main'e
     // eşlenir (AppService ResolveTargetVariant: Id yok + IsMain + kombinasyon yok → DB main) → Yeni'de girilen
     // reçete ana varyanta yazılır. Attribute'lu üretimde bu satır synchronizer tarafından kombinasyonlarla değişir.
-    /// <summary>MAMÜLÜN ÜRÜN AYNASI — <c>GoodToProductProjector</c> çıktısı (2026-08-10). Kod/ad/KDV'nin
+    /// <summary>MAMÜLÜN ÜRÜN PROJEKSİYONU — <c>GoodToProductProjector</c> çıktısı (2026-08-10). Kod/ad/KDV'nin
     /// yanında NİTELİK ve VARYANT grafını, kayıt-geneli ve varyant medyasını da taşır; kullanıcı aynı bilgiyi
     /// ikinci kez girmez. <c>GoodEditHost.SeedModel</c>'in birebir simetriği.
     /// <para><b>Fiyat taşımaz</b> — mamülde fiyat varyantta yaşar, üründe reçeteden türetilir (gerekçe
@@ -649,7 +664,7 @@ public partial class ProductEditHost
     {
         m.IsActive = true;
 
-        // ZENGİN TOHUM önce: mamülün ürün aynası varsa kimlik + KDV + nitelik + varyant + medya olduğu gibi
+        // ZENGİN SEED önce: mamülün ürün projeksiyonu varsa kimlik + KDV + nitelik + varyant + medya olduğu gibi
         // gelir. Bu dalda stok ana varyant EKLENMEZ — projeksiyon ana varyantı zaten üretiyor (varyantsız
         // mamülde bile, kaydın koduyla) ve ikincisini eklemek çift ana varyant demekti.
         if (SeedModel is { } s)
@@ -679,7 +694,7 @@ public partial class ProductEditHost
         });
 
         // Şirket-türevli varsayılanlar ASENKRON (para birimi şirket kaydından okunur) — ApplyNewDefaults
-        // senkron bir kanca olduğundan iş arka planda başlatılır ve bittiğinde form tazelenir. Kullanıcı
+        // senkron olduğundan iş arka planda başlatılır ve bittiğinde form tazelenir. Kullanıcı
         // o ana kadar alanı zaten değiştirmişse DOKUNULMAZ (aşağıdaki ??= kontrolleri).
         _ = InvokeAsync(() => ApplyCompanyDefaultsAsync(m));
     }
@@ -725,8 +740,8 @@ public partial class ProductEditHost
     // sunucu nitelik grafından kartezyeni hesaplar, dönen graf Model.Variants'a yazılır (kalıcılaşma Save'de).
     private async Task GenerateVariantsAsync(ProductGetDto model)
     {
-        // Mod kapısı (Dilim-3): SingleVariant/Muadil'de nitelik-tabanlı üretim BYPASS — host guard (buton zaten
-        // görünmez; savunma). Sunucu kapısı AYRICA ŞART (client güven sınırı değildir — SaveVariantGraphAsync).
+        // Mod guard'ı (Dilim-3): SingleVariant/Muadil'de nitelik-tabanlı üretim BYPASS — host guard (buton zaten
+        // görünmez; savunma). Sunucu guard'ı AYRICA ŞART (client güven sınırı değildir — SaveVariantGraphAsync).
         if (model.VariantMode is not (ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog))
         {
             return;
@@ -835,11 +850,52 @@ public partial class ProductEditHost
         StateHasChanged();
     }
 
+    /// <summary>
+    /// İLK KAYITTA şablonu BİR KEZ uygular (2026-08-20 Hakan: "Şablonu kullanıcı seçsin… zorunlu olsun ama
+    /// bu zorunluluk veritabanı seviyesinde olmasın").
+    ///
+    /// <para><b>Neden create anında <c>CrudEditHost.OnAfterCreate</c>'e bağlandı:</b> şablon combo'su artık
+    /// YENİ ürün formunda da çizilir, ama kaydedilmemiş üründe uygulanacak varyant YOKTUR — varyantlar ancak
+    /// sunucu kaydı yazınca doğar. Seçim kaydedilir ama hiç uygulanmasaydı kullanıcı formu kapatır, reçetenin
+    /// boş kaldığını çok sonra (satışa doğrulamada) görürdü.</para>
+    ///
+    /// <para><b>Yalnız CREATE:</b> mevcut üründe otomatik uygulama YOKTUR — combo değişse bile satırlar
+    /// ancak "Uygula" düğmesiyle tazelenir (Hakan: "değer değişince kolayca silinmesin"). <c>OnAfterCreate</c>
+    /// zaten <c>CrudEditHost</c> tarafından yalnız yeni kaydın commit'inde çağrılır, update'te asla.</para>
+    ///
+    /// <para><b>Hata KAYDI GERİ ALMAZ:</b> ürün ve varyantları o an sunucuya YAZILMIŞTIR; buradaki
+    /// başarısızlık yalnız şablonun serilmesine aittir. İstisnayı yukarı bırakmak commit'in catch'ine düşer,
+    /// "kaydedildi" bildirimi ile cross-tab liste tazelemesi hiç çalışmaz ve kullanıcı kaydı kaybettiğini
+    /// sanırdı — üstelik geri alınacak bir şey de yok, kayıt zaten kalıcı. Hata toast'la söylenir; kullanıcı
+    /// "Uygula" düğmesiyle (artık görünür — ürün kayıtlı) tekrar dener.</para>
+    /// </summary>
+    private async Task ApplyRecipeTemplateOnCreateAsync(ProductGetDto model)
+    {
+        if (model.RecipeTemplateId is not { } templateId || templateId == Guid.Empty)
+        {
+            return;
+        }
+
+        try
+        {
+            // Uygulama yolunun TEK kopyası — "Uygula" düğmesinin çağırdığı metodun ta kendisi. İkinci bir
+            // kopya yazmak, graf tazeleme ve hata çevirisinin iki yerde ayrışmasına yol açardı.
+            await ApplyRecipeTemplateAsync(model, templateId);
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(
+                CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
     private async Task ApplyRecipeTemplateAsync(ProductGetDto model, Guid templateId)
     {
+        // Kaydedilmemiş üründe varyant yok → uygulanacak yer de yok. YENİ üründe combo çizilse bile "Uygula"
+        // düğmesi gizli olduğundan bu dala yalnız beklenmedik bir çağrı düşer; erken çıkış savunma amaçlıdır.
         if (model.Id == Guid.Empty)
         {
-            return;   // kaydedilmemiş üründe varyant yok → uygulanacak yer de yok (UI da göstermiyor)
+            return;
         }
 
         try
@@ -855,6 +911,16 @@ public partial class ProductEditHost
 
             UiService.ShowSuccessToast(L["RecipeTemplate:Applied",
                 result.AffectedVariantCount, result.AppliedLineCount].Value);
+
+            // DÜZENLENMİŞ satır korundu → aynı kalem artık iki kez var (kullanıcının sürümü + şablonun yeniden
+            // kurulan sürümü). Sunucu hiçbirini SEÇMEZ: silmek kullanıcının emeğini, atlamak da şablonun
+            // güncel hâlini yok ederdi. Sessiz bırakmak ise paketleme/kargo/komisyonu fark edilmeden iki kez
+            // fiyatlatırdı — bu yüzden ayrı bir UYARI (başarı toast'ının içine gömmek gözden kaçardı).
+            if (result.PreservedEditedLineCount > 0)
+            {
+                UiService.ShowWarningToast(
+                    L["RecipeTemplate:AppliedWithEditedLines", result.PreservedEditedLineCount].Value);
+            }
         }
         catch (BusinessException bex)
         {

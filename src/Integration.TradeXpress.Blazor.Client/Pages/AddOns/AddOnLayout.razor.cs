@@ -20,7 +20,7 @@ public partial class AddOnLayout
     /// <summary>Inline döviz ekle/düzelt sonrası lookup listesini host tazeler (EntityChange tetikler).</summary>
     [Parameter] public EventCallback OnReloadCurrencyUnits { get; set; }
 
-    // Zorunlu Guid alanı ile TValue="Guid?" combo arasında köprü (boş = Guid.Empty).
+    // Zorunlu Guid alanı ile TValue="Guid?" combo arasındaki uyarlama (boş = Guid.Empty).
     private Guid? CurrencyUnitIdNullable
     {
         get

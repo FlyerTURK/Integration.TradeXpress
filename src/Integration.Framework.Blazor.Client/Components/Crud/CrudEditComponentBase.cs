@@ -146,10 +146,10 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     Task ISplitEditActions.UndoAsync() { Undo(); return Task.CompletedTask; }
     Task ISplitEditActions.RedoAsync() { Redo(); return Task.CompletedTask; }
 
-    // ── Sayfa-aşırı gezinme: TEK KÖPRÜ = paylaşılan StateService (split ile aynı CANLI-index prensibi) ──
+    // ── Sayfa-aşırı gezinme: TEK NOKTA = paylaşılan StateService (split ile aynı CANLI-index prensibi) ──
     // "Neredeyiz" StateService.CurrentGlobalIndex'ten (kayıtlı grid'in canlı GridVisibleKeys + PageSkip'inden,
-    // CurrentKeyProvider=()=>Id ile); ayrı stale sayaç YOK. Prev/Next köprünün GoNext/PreviousGlobalAsync'ine
-    // delege eder; köprü guard + grid taşıma/odak + OnRecordActivated (Id=Key; LoadDataAsync) işini yürütür.
+    // CurrentKeyProvider=()=>Id ile); ayrı stale sayaç YOK. Prev/Next StateService'in GoNext/PreviousGlobalAsync'ine
+    // delege eder; StateService guard + grid taşıma/odak + OnRecordActivated (Id=Key; LoadDataAsync) işini yürütür.
     bool ISplitEditActions.CanGoPrevious => StateService?.CanGoPreviousGlobal ?? false;
     bool ISplitEditActions.CanGoNext     => StateService?.CanGoNextGlobal ?? false;
 
@@ -356,9 +356,9 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
 
     protected override async Task OnInitializedAsync()
     {
-        // Popup/standalone: köprüyü bu edit'e bağla. "Neredeyiz" canlı Id'den (CurrentKeyProvider), ayrılma
+        // Popup/standalone: StateService'i bu edit'e bağla. "Neredeyiz" canlı Id'den (CurrentKeyProvider), ayrılma
         // onayı dirty guard'dan (CanLeaveGuard), hedef kayda geçiş forma yüklemeden (OnRecordActivated).
-        // Split'te SplitHost devrede; köprü bağlanmaz (StateService.GoGlobal split panelinden tetiklenmez).
+        // Split'te SplitHost devrede; StateService bağlanmaz (StateService.GoGlobal split panelinden tetiklenmez).
         if (SplitHost == null && StateService != null)
         {
             StateService.CurrentKeyProvider = () => Id;
@@ -384,7 +384,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         if (EditContext != null)
             EditContext.OnFieldChanged -= OnEditFieldChanged;
         SplitHost?.UnregisterEdit(this);
-        // Köprü delegeleri bu edit'i (closure ile) yakalar; StateService scoped → popup'tan uzun yaşar.
+        // StateService delegeleri bu edit'i (closure ile) yakalar; StateService scoped → popup'tan uzun yaşar.
         // Kapanışta temizle ki disposed edit'e referans (stale closure) kalmasın. Split'te bağlanmadı.
         if (SplitHost == null && StateService != null)
         {
@@ -458,7 +458,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         if (SplitHost != null || StateService == null || IsNewMode || Id == null) return;
         var match = System.Linq.Enumerable.FirstOrDefault(
             StateService.ListDataSource, x => x != null && Equals(x.Id, Id));
-        // Not: "neredeyiz" artık köprünün CurrentKeyProvider'ından (()=>Id) canlı gelir; burada yalnız liste
+        // Not: "neredeyiz" artık StateService'in CurrentKeyProvider'ından (()=>Id) canlı gelir; burada yalnız liste
         // grid'inin highlight'ı için açık kayıt SelectedItem'a hizalanır (ilk açılış / Prev/Next sonrası).
         if (match != null && !ReferenceEquals(StateService.SelectedItem, match))
             StateService.SelectedItem = match;
@@ -535,7 +535,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     /// <summary>
     /// Hatayı işler: kullanıcı-dostu mesaj varsa (validation / iş kuralı) toast'ta gösterir; YOKSA
     /// (teknik hata) genel mesaj gösterir ve TAM detayı (<see cref="IClientErrorReporter"/>) geliştirici
-    /// tanılama yüzeyine (Developer Error Panel) iletir — Blazor Server'da ILogger tarayıcıya gitmez.
+    /// tanılama paneline (Developer Error Panel) iletir — Blazor Server'da ILogger tarayıcıya gitmez.
     /// </summary>
     protected void ShowError(Exception ex)
     {

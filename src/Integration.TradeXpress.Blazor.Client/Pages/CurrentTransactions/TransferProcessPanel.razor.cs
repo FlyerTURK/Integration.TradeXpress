@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Virman paneli (Transfer=11): çift bacak — bu satır kaydedilince sunucu karşı hesabın KENDİ fişinde
+/// Virman paneli (Transfer=11): çift leg — bu satır kaydedilince sunucu karşı hesabın KENDİ fişinde
 /// zıt yönlü ikiz satırı (aynı LinkId, aynı tutar/birim) açar/günceller. Yön etiketi ALACAK/BORÇ —
 /// DB'de Inbound/Outbound saklanır (legacy quirk paritesi). Karşı hesap lookup'ı kendi hesabını ve
 /// pasifleri dışlar; Miktar alanı YOK (0 gider — tip bazlı muafiyet). Açıklama sunucuda legacy
@@ -139,7 +139,7 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
         await InvokeAsync(StateHasChanged);
     }
 
-    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
+    /// <summary>Popup EventCallback'leri: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
     private Dictionary<string, object> CounterPopupExtra()
     {
         return new()
@@ -151,7 +151,7 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
 
     private void OnAmountChanged(decimal value)
     {
-        // Tutar = karşılık bacağı (PayTotal); CashBalancePoster ailesiyle aynı alan.
+        // Tutar = karşılık leg'i (PayTotal); CashBalancePoster ailesiyle aynı alan.
         _model.PayFactor = value;
         _model.PayTotal  = value;
     }
@@ -177,7 +177,7 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
     private string CounterGroupStyle()
     {
         // Karşı hesap combo'su kod+ad gösterdiğinden geniş tutulur (LookupComboBox içte w-100 →
-        // genişliği bu sarmalayıcı belirler; ekle/düzelt editor butonları için ekstra pay).
+        // genişliği bu CounterGroupStyle belirler; ekle/düzelt editor butonları için ekstra pay).
         return "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:280px; flex-shrink:0;");
     }
 
@@ -210,7 +210,7 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
         _model.VoucherDescription = VoucherDescription;
         _model.Type               = ProcessType.Transfer;
         _model.PaymentType        = ProcessPaymentType.Normal;   // kısaltma kodu VGN/VCN'in "N"i
-        // Ana bacak boş: Miktar alanı YOK (legacy 0 gider), parasal etki pay-leg'de.
+        // Ana leg boş: Miktar alanı YOK (legacy 0 gider), parasal etki pay-leg'de.
         _model.MainUnitId = Guid.Empty;
         _model.Quantity   = 0m;
         _model.Amount     = 0m;

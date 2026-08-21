@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.Framework.Blazor.Client.Services.Base;
 
 /// <summary>
-/// Popup chrome'una (GlobalPopupHost) başlık içeriği sağlama köprüsü — cascade ile verilir.
-/// Hosted edit form, POPUP modunda kendi yapısal başlığını GÖVDEDE çizmek yerine buraya verir →
+/// Popup chrome'una (GlobalPopupHost) başlık içeriği sağlama sözleşmesi — cascade ile verilir.
+/// Hosted edit form, POPUP modunda kendi yapısal başlığını BODY'DE çizmek yerine buraya verir →
 /// chrome header'ı dolar (boş band + çift başlık olmaz), DevExpress'in NATIVE close X'i korunur.
-/// Tab/standalone modda bu cascade YOKTUR → form başlığı gövdede çizer (DrillList'in kendi popup'ı
+/// Tab/standalone modda bu cascade YOKTUR → form başlığı body'de çizer (DrillList'in kendi popup'ı
 /// zaten kendi HeaderContentTemplate'ini kullanır; bu yalnız GlobalPopupHost yolu içindir).
 /// </summary>
 public interface IPopupChrome

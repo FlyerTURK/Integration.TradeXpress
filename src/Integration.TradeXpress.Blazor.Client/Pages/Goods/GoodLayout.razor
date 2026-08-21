@@ -102,7 +102,7 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    @* ANA VARYANT KİMLİĞİ — çekirdek formdan ÇİFT YÖNLÜ (2026-08-08 Hakan). Alanlar varyantın KENDİ nesnesine
+    @* ANA VARYANT KİMLİĞİ — kayıt formundan ÇİFT YÖNLÜ (2026-08-08 Hakan). Alanlar varyantın KENDİ nesnesine
        bağlı: buradan da varyant gridinden de aynı yere yazılır, tek Kaydet ile persist olur. *@
     <MainVariantIdentityFields TVariant="GoodVariantGraphDto" Variants="@Model.Variants" />
 </DxFormLayout>
@@ -222,7 +222,7 @@
     @* Dokümanlar — agnostik EntityDocument ("Good" bağlamı); yüklenen blob dosya ekleri (PDF/Word/Excel…). *@
     @* KAYIT-GENELİ medya (2026-08-06 Hakan kuralı: her medya tipi İKİ bağlamı da taşır). Varyanta ÖZEL
        görseller Varyantlar sekmesinde ayrı durur; burası mamülün genel görselleridir. ProductLayout'taki
-       panelin aynısı — iki taraf simetrik olmalı ki "ürünün aynası" gerçekten ayna olsun. *@
+       panelin aynısı — iki taraf simetrik olmalı ki "ürünün projeksiyonu" gerçekten projeksiyon olsun. *@
     <DxTabPage Text="@L["Good:Media"]" TabIconCssClass="@TradeXpressIcons.Good">
         <span style="color:#6c757d; font-size:0.85rem;">@L["Good:MediaHint"]</span>
         <EntityMediaPanel Media="@Model.Media" />

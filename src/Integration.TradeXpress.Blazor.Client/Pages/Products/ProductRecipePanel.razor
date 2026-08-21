@@ -19,7 +19,7 @@
     <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain"
                AdaptivityAutoCollapseItemsToIcons="false" AdaptivityAutoHideRootItems="false">
         @* "ÜRÜNDEN" ANAHTARI (2026-08-11 Hakan) — "Yeni"nin hemen SOLUNDA, çünkü onun ne yapacağını
-           değiştiriyor: işaretliyken aile seçimi mevcut kataloğu seçmez, üründen tohumlanmış YENİ emtia
+           değiştiriyor: işaretliyken aile seçimi mevcut kataloğu seçmez, üründen seed'lenmiş YENİ emtia
            formunu açar. Ayrı bir aksiyon düğmesi yapmak aynı işi ikinci bir kavram gibi gösterirdi.
 
            @if ile SARILMAZ: DxToolbarItem nested-settings öğesidir, sonradan eklenince araç çubuğunun
@@ -147,16 +147,29 @@
                         }
                         else if (d.CommodityProcessType == ProcessType.Scrap)
                         {
+                            @* "+" ÜRÜNDEN SEED ALIR (2026-08-20). Bağlı DEĞİLKEN düğme yine çiziliyordu
+                               (LookupComboBox, TradeXpressLookupEditComponents kaydından düz "yeni kayıt"
+                               formunu çözüyor) ama form BOMBOŞ açılıyor, kullanıcı ürüne bakıp aynı kodu/adı
+                               ikinci kez giriyordu — istisna yok, log yok, düğme "çalışıyor" görünüyor:
+                               sessiz hata.
+
+                               KİMLİK: Hurda VARYANTSIZDIR (§6) → combo'nun değeri EMTİA kimliğidir ve
+                               AddCommodityFromProductAsync'in "diğerleri" dalı (commodityId) tam onu döner.
+                               Varyant kimliği yazmak satırı sessizce boş seçime düşürürdü. *@
                             <LookupComboBox TItem="ScrapListDto" TValue="Guid?" Data="@Scraps"
                                             ValueFieldName="@nameof(ScrapListDto.Id)" TextFieldName="@nameof(ScrapListDto.Code)"
                                             Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnScrapSelected(v))" AllowClear="false"
+                                            OnAddRequested="@(OnCreateCommodityFromProduct is null ? null : () => AddCommodityFromProductAsync(ProcessType.Scrap))"
                                             OnLookupReloadRequested="@OnCatalogReloadRequested" />
                         }
                         else if (d.CommodityProcessType == ProcessType.Future)
                         {
+                            @* "+" üründen seed alır — Hurda dalındaki gerekçenin aynısı. Vadeli de VARYANTSIZDIR
+                               ("vadeli varyant barındırmaz", §6) → combo değeri emtia kimliği, dönen kimlik de o. *@
                             <LookupComboBox TItem="FutureListDto" TValue="Guid?" Data="@Futures"
                                             ValueFieldName="@nameof(FutureListDto.Id)" TextFieldName="@nameof(FutureListDto.Code)"
                                             Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnFutureSelected(v))" AllowClear="false"
+                                            OnAddRequested="@(OnCreateCommodityFromProduct is null ? null : () => AddCommodityFromProductAsync(ProcessType.Future))"
                                             OnLookupReloadRequested="@OnCatalogReloadRequested" />
                         }
                         else if (d.CommodityProcessType == ProcessType.Jewelry)
@@ -182,9 +195,13 @@
                         }
                         else if (d.CommodityProcessType == ProcessType.Stone)
                         {
+                            @* "+" üründen seed alır — Hurda dalındaki gerekçenin aynısı. Taş 2026-08-09'dan beri
+                               VARYANTSIZDIR ("her taşın parmak izi ayrıdır", §6) → combo değeri emtia kimliği;
+                               burada varyant çözmeye kalkmak KONUSUZ olurdu (kayıtta ana varyant bile açılmaz). *@
                             <LookupComboBox TItem="StoneListDto" TValue="Guid?" Data="@Stones"
                                             ValueFieldName="@nameof(StoneListDto.Id)" TextFieldName="@nameof(StoneListDto.Code)"
                                             Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnStoneSelected(v))" AllowClear="false"
+                                            OnAddRequested="@(OnCreateCommodityFromProduct is null ? null : () => AddCommodityFromProductAsync(ProcessType.Stone))"
                                             OnLookupReloadRequested="@OnCatalogReloadRequested" />
                         }
                         else if (d.CommodityProcessType == ProcessType.Good)

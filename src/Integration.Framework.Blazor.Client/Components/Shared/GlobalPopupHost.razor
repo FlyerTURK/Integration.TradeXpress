@@ -12,9 +12,9 @@
 @* NATIVE close X korunur (ShowCloseButton). Boş chrome bandı yerine: hosted edit form, başlığını
    IPopupChrome.SetHeader ile buraya verir → HeaderContentTemplate'i DOLDURUR (band boş kalmaz, çift
    başlık olmaz). HeaderContentTemplate yalnız content alanını etkiler; native X bağımsız (DevExpress).
-   IPopupChrome cascade ile gövdeye verilir; form vermezse Title'a düşer (eski davranış). *@
+   IPopupChrome cascade ile ChildContent'e verilir; form vermezse Title'a düşer (eski davranış). *@
 @* Popup chrome ARTIK TEK KAYNAK: EditShell (3 kabuk kopyası yerine). Başlık/butonlar/pencere-durumu EditShell'de;
-   IPopupChrome köprüsü, DockToTab, RenderParameters (_TabUrl filtresi), OnShow/OnHide GlobalPopupHost'ta KALIR. *@
+   IPopupChrome cascade'i, DockToTab, RenderParameters (_TabUrl filtresi), OnShow/OnHide GlobalPopupHost'ta KALIR. *@
 <EditShell Mode="EditShellMode.Popup"
            Buttons="EditShellButtons.Minimize | EditShellButtons.Fullscreen | EditShellButtons.Modal | EditShellButtons.Dock"
            Visible="@PopupService.IsVisible"
@@ -28,7 +28,7 @@
            OnClosedConfirmed="OnClosed"
            OnShownRequested="OnShown"
            OnDockRequested="DockToTab">
-    @* Gövde: form başlığını IPopupChrome.SetHeader ile iter (ChromeHeader); EntityEditForm kendi flex+scroll'unu taşır. *@
+    @* Body: form başlığını IPopupChrome.SetHeader ile iter (ChromeHeader); EntityEditForm kendi flex+scroll'unu taşır. *@
     <CascadingValue Value="@((IPopupChrome)this)" IsFixed="true">
         @if (PopupService.ComponentType != null)
         {

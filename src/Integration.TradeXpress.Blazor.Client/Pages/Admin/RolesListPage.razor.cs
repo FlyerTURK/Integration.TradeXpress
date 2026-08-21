@@ -58,7 +58,7 @@ public partial class RolesListPage
         await TabManager.OpenOrActivateAsync($"/admin/permissions/R/{Uri.EscapeDataString(r.Name)}", header);
     }
 
-        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator + izin paneli kancaları (eski RoleEditPage kaldırıldı).
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator + izin paneli bağları (eski RoleEditPage kaldırıldı).
         public override System.Type EditComponentType => typeof(RoleEditHost);
     }
 

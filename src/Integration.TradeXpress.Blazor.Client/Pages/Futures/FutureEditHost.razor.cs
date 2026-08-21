@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Futures;
 
-/// <summary>Vadeli edit host — ince sarmal (coordinator + birim listesi kurar, geri kalan CrudEditHost'ta).
+/// <summary>Vadeli edit host — ince host (coordinator + birim listesi kurar, geri kalan CrudEditHost'ta).
 /// (@code bloğu 2026-08-07'de code-behind'a taşındı — dosyaya dokunma kuralı.)</summary>
 public partial class FutureEditHost
 {
@@ -24,11 +24,17 @@ public partial class FutureEditHost
 
     [Parameter] public bool SupportsDelete { get; set; } = true;
 
-    /// <summary>Sınıflandırma panelinden ÖN-DOLDURMA (2026-08-07 U1 — gerekçe MetalEditHost'ta). Tohum yazımı
+    /// <summary>Sınıflandırma panelinden ÖN-DOLDURMA (2026-08-07 U1 — gerekçe MetalEditHost'ta). Seed yazımı
     /// razor'daki <c>ApplyNewDefaults</c> lambda'sında.</summary>
     [Parameter] public string? SeedCode { get; set; }
 
     [Parameter] public string? SeedName { get; set; }
+
+    /// <summary>ÜRÜNÜN VADELİ PROJEKSİYONU — <c>ProductToCommodityProjector</c> çıktısı (2026-08-20). "Vadeli
+    /// varyant barındırmaz" (Hakan, 2026-08-08) ve DTO'sunda medya/nitelik alanı yoktur → seed yalnız
+    /// KİMLİK taşır. Takip katsayısı/birimi teknik alanlardır.
+    /// <para>Verilirse <see cref="SeedCode"/>/<see cref="SeedName"/>'i EZER.</para></summary>
+    [Parameter] public FutureGetDto? SeedModel { get; set; }
 
     private List<CurrencyUnitListDto> _units = new();
     private ICommitCoordinator<FutureGetDto, FutureListDto, Guid, FutureListRequestDto>? _coordinator;
@@ -50,7 +56,16 @@ public partial class FutureEditHost
         m.IsActive = true;
         m.FollowingFactor = 1m;
 
-        // Panel tohumu (U1 — gerekçe MetalEditHost'ta).
+        // ZENGİN SEED önce (gerekçe MetalEditHost'ta) — vadelide "zengin" = kimlik + açıklama.
+        if (SeedModel is { } s)
+        {
+            m.Code        = s.Code;
+            m.Name        = s.Name;
+            m.Description = s.Description;
+            return;
+        }
+
+        // Panel seed'i (U1 — gerekçe MetalEditHost'ta).
         if (!string.IsNullOrWhiteSpace(SeedCode))
         {
             m.Code = SeedCode!;

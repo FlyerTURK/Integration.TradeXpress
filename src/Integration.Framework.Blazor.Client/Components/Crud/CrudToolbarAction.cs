@@ -27,7 +27,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         public bool BeginGroup { get; init; } = true;
         public ToolbarItemAlignment Alignment { get; init; } = ToolbarItemAlignment.Left;
-        /// <summary>Primary (dolu) yüzey — ör. Kaydet.</summary>
+        /// <summary>Primary (dolu) buton stili — ör. Kaydet.</summary>
         public bool Primary { get; init; }
 
         public bool Visible { get; init; } = true;

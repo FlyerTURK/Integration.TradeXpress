@@ -299,7 +299,7 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         if (BuildEditUrl(id) is { } tabUrl)
             extra["_TabUrl"] = tabUrl;
 
-        // Chrome başlığı boş — yapısal başlık popup gövdesinde gösterilir.
+        // Chrome başlığı boş — yapısal başlık popup body'sinde gösterilir.
         return ViewOpener.OpenAsync(EditComponentType, id, string.Empty, EditIconCssClass, extra);
     }
 

@@ -532,7 +532,7 @@ public partial class AccountSelectionPanel
         await InvokeAsync(StateHasChanged);
     }
 
-    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).
+    /// <summary>Popup EventCallback'leri: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).
     /// Üst comboda hesap seçiliyse yeni alt hesaba ÖNSEÇİLİ gider (formda Account lookup hazır gelir).</summary>
     private Dictionary<string, object> AccountPopupExtra()
     {

@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Çevir (Convert) fiş satırı paneli — ortak iskelet ProcessPanelHostBase'te; burada birim çifti seçimi,
+/// Çevir (Convert) fiş satırı paneli — ortak taban ProcessPanelHostBase'te; burada birim çifti seçimi,
 /// bakiyeden Amount auto-fill ve parite hesabı var.
 /// </summary>
 public partial class ConvertProcessPanel
@@ -88,7 +88,7 @@ public partial class ConvertProcessPanel
         if (auto > 0m) Model.Amount = auto;
     }
 
-    // ── hesap motoru köprüsü ──
+    // ── hesap motoru yardımcıları ──
     private decimal BuyOf(Guid id) => _buyByUnit.GetValueOrDefault(id);
     private Guid? ParityMainOf(Guid a, Guid b)
         => ParityResolver.ResolveBaseId(
@@ -165,7 +165,7 @@ public partial class ConvertProcessPanel
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
+    // ── Base override'ları (HandleSave / LoadForEditAsync ortak akışı ProcessPanelHostBase'te) ──
 
     protected override bool CanSave()
         => Model.MainUnitId != Guid.Empty && Model.PayUnitId is not null; // ana/karşı birim seçili değilse çık

@@ -693,7 +693,7 @@ public partial class CurrentTransactionForm
     private string GridStyle()
     {
         // ── MOBİL SATIRLAR NEDEN AÇIKÇA max-content (2026-08-05: Hakan "p2 ve p3 hesap panelini eziyor" dedi) ──
-        // Bu grid'in kabı, MdiTabPane'in "height:100%; display:flex; flex-direction:column" sarmalayıcısının
+        // Bu grid'in kabı, MdiTabPane'in "height:100%; display:flex; flex-direction:column" kök div.inin
         // FLEX ÖĞESİDİR (Components/Mdi/MdiTabPane.razor). Kap overflow-y:auto taşıdığı için asgari boyutu 0'dır
         // ve flex-shrink ile sekme yüksekliğine KISILIR → grid KESİN bir alanla boyutlanır, boş alan NEGATİF olur.
         // Negatif boş alanda 'auto' satırlar TABAN boyutlarında donar (grid asla tabanın altına inmez, ama üstüne
@@ -722,7 +722,7 @@ public partial class CurrentTransactionForm
                 : "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
         }
 
-        // Mobil satırlar max-content — gerekçe metodun başında (kap, MdiTabPane'in flex sarmalayıcısında kısılıyor).
+        // Mobil satırlar max-content — gerekçe metodun başında (kap, MdiTabPane'in flex kök div'inde kısılıyor).
         if (_isMobile)
             return _listMode && !_processActive
                 ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-rows:max-content max-content; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"

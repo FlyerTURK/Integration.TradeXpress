@@ -1,7 +1,7 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
-   KANAL ÜRÜNLERİ — kanal-ürün kayıtlarının TEK listeleme yüzeyi (PERSISTENT DrillList).
+   KANAL ÜRÜNLERİ — kanal-ürün kayıtlarının TEK listeleme bileşeni (PERSISTENT DrillList).
 
    İKİ YERDE AYNI BİLEŞEN: kanal edit formunun sekmesinde (SalesChannelId dolu → tek kanal) ve standalone
    "Kanal Ürünleri" sayfasında (SalesChannelId boş → tüm kanallar, "Kanal" kolonu görünür). Ayrı iki grid
@@ -10,7 +10,7 @@
    SENKRON OLMUŞ/OLMAMIŞ AYRIMI YOK: liste kanala bağlı TÜM kayıtları gösterir. Gönderilmemiş kayıt bu
    ekranın hatası değil KONUSUDUR; durum süzgeci isteyene onu ayrı verir.
 
-   DrillList (TxGrid değil) çünkü uygulamanın liste yüzeyi budur: standart araç çubuğu (arama · aktif/pasif ·
+   DrillList (TxGrid değil) çünkü uygulamanın liste bileşeni budur: standart araç çubuğu (arama · aktif/pasif ·
    dışa aktarma · yenile · sil), satır tıkla → düzenleme popup'ı, kolon düzeni kalıcılığı, kirlilik uyarısı.
 
    YENİ EKLEME KAPALI: kanal-ürün bağı buradan kurulmaz — ürün formundan ya da pazaryeri içe aktarımından
@@ -22,7 +22,7 @@
     // araç çubuğu demek olurdu. Razor inline template C# dosyasına taşınamaz (DrillList'in arama kutusu/aktif
     // filtresi ile aynı gerekçe) → her render başında alana atanır, kullanımı aşağıda CustomActions'ta.
     SyncStateFilterTemplate = _ => @<text>
-        @* ASGARİ GENİŞLİK SARMALAYICISI (2026-08-10 Hakan kuralı: "toolbardaki combo öğesi her zaman minimum
+        @* ASGARİ GENİŞLİK KABI — min-width'li div (2026-08-10 Hakan kuralı: "toolbardaki combo öğesi her zaman minimum
            genişliğe sahip olmalı"). Paylaşılan ToolbarRenderer'da AdaptivityAutoCollapseItemsToIcons AÇIK →
            dar alanda DevExpress şablon öğesini eziyor ve combo "T..▾"ye düşüyordu; editörün kendi Width'i
            bunu TUTMUYOR çünkü sıkıştıran şey flex kabıdır. flex-shrink:0 + min-width kabın küçültmesini
@@ -97,7 +97,7 @@
                     @ChannelLabel((SalesChannelProductListDto)context.DataItem)
                 </CellDisplayTemplate>
             </DxGridDataColumn>
-            @* GÖRSEL — fiyatlandırma tahtasıyla aynı yapı. Görselsizlik de bir BİLGİDİR: boş hücre yerine
+            @* GÖRSEL — fiyatlandırma board'uyla aynı yapı. Görselsizlik de bir BİLGİDİR: boş hücre yerine
                görünür bir işaret konur, aksi halde "yüklenmedi mi yoksa yok mu" ayırt edilemez. *@
             <DxGridDataColumn FieldName="HasImage" Caption="@L["Image"]" Width="80px" VisibleIndex="1">
                 <CellDisplayTemplate>
@@ -115,9 +115,9 @@
                 </CellDisplayTemplate>
             </DxGridDataColumn>
 
-            @* KOD TIKLANABİLİR → ÜRÜN formunu popup'ta açar (tahtanın deseni). Satır tıklaması KANAL-ürün
+            @* KOD TIKLANABİLİR → ÜRÜN formunu popup'ta açar (board'un deseni). Satır tıklaması KANAL-ürün
                formunu açıyor; ikisi farklı yerler ve ikisine de ihtiyaç var: emtia/reçete ÜRÜNDE, kanal-özel
-               alanlar KANAL kaydında düzenlenir. Kod sütunu bu yüzden ayrı bir kapı. *@
+               alanlar KANAL kaydında düzenlenir. Kod sütunu bu yüzden ayrı bir giriş noktasıdır. *@
             <GridLinkColumn FieldName="ProductCode" Caption="@L["Code"]" Width="130px" VisibleIndex="2"
                             TextSelector="@(item => ((SalesChannelProductListDto)item).ProductCode)"
                             OnClick="@(item => OpenProductAsync((SalesChannelProductListDto)item))" />
@@ -218,7 +218,7 @@
                     <span style="@SyncBadgeStyle(stateRow.SyncState)">@SyncStateLabel(stateRow.SyncState)</span>
                 </CellDisplayTemplate>
             </DxGridDataColumn>
-            @* KARAR SÜTUNU — tahtanın asıl sebebi, buraya da taşındı. Renk durumu ANLATIR, süslemez.
+            @* KARAR SÜTUNU — board'un asıl sebebi, buraya da taşındı. Renk durumu ANLATIR, süslemez.
                Senkron rozetinden FARKLI bir soruya cevap verir: senkron "kanala ulaştı mı", bu sütun
                "ulaşacak hâlde mi" der. Reçetesiz ürün senkron olsa bile satılabilir değildir. *@
             <DxGridDataColumn FieldName="Readiness" Caption="@L["SalesChannelProduct:Readiness"]" Width="170px" VisibleIndex="11">
@@ -244,7 +244,7 @@
                kusursuz olsa bile pazaryeri onu karalisteye almış, kilitlemiş ya da reddetmiş olabilir.
                Bu bayraklar Trendyol yanıtında hep vardı ve hiç okunmuyordu; reddedilen bir gönderimin
                sebebi hiçbir ekranda görünmüyordu. Engel gönderimi DURDURMAZ — son içe aktarım anının
-               fotoğrafıdır ve bayat bir bayrağa dayanıp gönderimi kesmek çözülmüş bir sorunu kalıcı kılardı. *@
+               snapshot'ıdır ve bayat bir bayrağa dayanıp gönderimi kesmek çözülmüş bir sorunu kalıcı kılardı. *@
             <DxGridDataColumn FieldName="Obstacle" Caption="@L["SalesChannelProduct:Obstacle"]" Width="160px" VisibleIndex="12">
                 <CellDisplayTemplate>
                     @{
@@ -300,8 +300,19 @@
                 </CellDisplayTemplate>
             </DxGridDataColumn>
             <DxGridDataColumn FieldName="SkuCount" Caption="@L["SalesChannelProduct:ChannelSkuCount"]" Width="90px" VisibleIndex="16" />
+            @* İŞLEMLER (2026-08-19) — kanal ürünleri listesine İLK KEZ push/stok-fiyat/durum yenile/kuyruk sorgusu
+               geliyor; mantık TEK bileşende (ChannelProductActions), hücre yalnız onu çizer. Liste satırı hafif olduğu
+               için düğme uygunluğu senkron durumundan türetilir (ChannelProductActionContext.From(liste satırı)).
+               Aksiyon bitince liste yeniden çekilir: satırın durum/son senkron alanları sunucudan gelir. *@
+            <DxGridDataColumn Caption="@L["SalesChannelProduct:Actions"]" Width="360px" VisibleIndex="18"
+                              AllowSort="false" AllowGroup="false" TextAlignment="GridTextAlignment.Center">
+                <CellDisplayTemplate>
+                    <ChannelProductActions Subject="@ChannelProductActionContext.From((SalesChannelProductListDto)context.DataItem)"
+                                           OnChanged="@(() => ReloadAsync())" />
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
             @* Zaman UTC saklanır → merkezî UtcLocalText kullanıcının yerel saatine çevirir. Kanalın kendi
-               güncelleme damgası bizimkinden YENİYSE ikinci satır olarak yazılır: kanalda bize ait olmayan
+               güncelleme timestamp'i bizimkinden YENİYSE ikinci satır olarak yazılır: kanalda bize ait olmayan
                bir müdahale olduğunun tek kanıtı budur ve ancak yan yana görülünce anlaşılır. *@
             <DxGridDataColumn FieldName="LastSyncedAt" Caption="@L["SalesChannelProduct:LastSynced"]" Width="160px" VisibleIndex="17">
                 <CellDisplayTemplate>
@@ -339,6 +350,6 @@
     }
 </div>
 
-@* GÖNDERİM GEÇMİŞİ — araç çubuğundan açılır, salt okuma. Delil defteri append-only olduğu için bu yüzey
+@* GÖNDERİM GEÇMİŞİ — araç çubuğundan açılır, salt okuma. PushHistory append-only olduğu için bu popup
    hiçbir şey yazmaz; düzeltilebilir bir delil delil olmazdı. *@
 <ChannelProductPushHistoryPopup @ref="_historyPopup" />
