@@ -66,9 +66,9 @@ public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggre
     /// <summary>Katalog kaydı (FK'sız snapshot). Manuel/hizmet etiketinde null olabilir.</summary>
     public virtual Guid? CommodityId { get; protected set; }
 
-    /// <summary>Seçili katalog varyantı (id-only snapshot, nav yok) — A6: çekirdek reçeteden klon ve muadil
-    /// köprüsü seçilen metal varyantını KORUR; RecipeCostPopulator işçiliği bu varyanttan çözer
-    /// (null = ana-varyant fallback'i, legacy satır).</summary>
+    /// <summary>Seçili katalog varyantı (id-only snapshot, nav yok) — A6: core reçeteden klon ve muadil
+    /// planlayıcısı (<c>SubstitutionStockItemPlanner</c>) seçilen metal varyantını KORUR; RecipeCostPopulator
+    /// işçiliği bu varyanttan çözer (null = ana-varyant fallback'i, legacy satır).</summary>
     public virtual Guid? CommodityVariantId { get; protected set; }
 
     /// <summary>Adet. Adet→gram: <c>Amount = Quantity × StableQuantity</c> (katalogtan canlı).</summary>

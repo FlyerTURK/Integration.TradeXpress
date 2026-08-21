@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.N11Products;
 /// <para><b>Davranış-nötr:</b> varsayılan bugünkü adres. Config'te bölüm yoksa hiçbir şey değişmez —
 /// üretimde davranış birebir aynı kalır.</para>
 ///
-/// <para><b>Sınır:</b> burası yalnız ADRESİ taşır. Sahte sunucunun açık olup olmadığı ayrı bir kapıdır
+/// <para><b>Sınır:</b> burası yalnız ADRESİ taşır. Sahte sunucunun açık olup olmadığı ayrı bir koşuldur
 /// (<c>N11:Mock:Enabled</c> + <c>IsDevelopment</c>); taban adresi mock'u göstermedikçe hiçbir istek oraya gitmez.</para>
 /// </summary>
 public sealed class N11EndpointOptions
@@ -78,7 +78,7 @@ public sealed class N11EndpointOptions
         get { return Soap("ShipmentCompanyService"); }
     }
 
-    /// <summary>Taban adresi mock'u mu gösteriyor — UI rozeti ve worker kapısı bunu okur. Ölçüt: varsayılan
+    /// <summary>Taban adresi mock'u mu gösteriyor — UI rozeti ve worker'ın çalışma koşulu bunu okur. Ölçüt: varsayılan
     /// N11 konağından FARKLI olması. "Mock" kelimesini aramıyoruz; adres neresi olursa olsun, gerçek N11
     /// değilse kullanıcı bunu görmelidir.</summary>
     public bool IsRedirected

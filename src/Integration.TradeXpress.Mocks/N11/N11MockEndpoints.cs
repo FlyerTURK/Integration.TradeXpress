@@ -24,7 +24,8 @@ namespace Integration.TradeXpress.Mocks.N11;
 /// </summary>
 public static class N11MockEndpoints
 {
-    /// <summary>N11 sahte uçlarını haritalar. Çağıran, ortam ve config kapılarını ZATEN geçmiş olmalıdır.</summary>
+    /// <summary>N11 sahte uçlarını haritalar. Çağıran, ortam ve config koşullarını (<c>IsN11MockActive</c>)
+    /// ZATEN geçmiş olmalıdır.</summary>
     public static IEndpointRouteBuilder MapN11MockEndpoints(
         this IEndpointRouteBuilder endpoints, N11MockStore store, N11MockOptions options)
     {
@@ -37,7 +38,7 @@ public static class N11MockEndpoints
         // `MapPost("/x", (HttpContext ctx) => HandlerAsync(ctx))` yazılırsa lambda, MapPost'un RequestDelegate
         // aşırı yüklemesine bağlanır (Task<IResult> → Task dönüşümü geçerlidir). ASP.NET o durumda "yanıtı
         // handler kendisi yazdı" varsayar ve dönen IResult'ı SESSİZCE ATAR: derleme hatası yok, uç eşleşir,
-        // log "Executed endpoint" der, istemciye HTTP 200 + BOŞ GÖVDE gider. Canlıda yaşandı (2026-08-05);
+        // log "Executed endpoint" der, istemciye HTTP 200 + BOŞ BODY gider. Canlıda yaşandı (2026-08-05);
         // teşhisi ancak istek log'unda "200 0 null" görülünce mümkün oldu.
         Func<HttpContext, Task<IResult>> create = ctx => SubmitAsync(ctx, store, options, "PRODUCT_CREATE");
         Func<HttpContext, Task<IResult>> update = ctx => SubmitAsync(ctx, store, options, "PRODUCT_UPDATE");
@@ -91,7 +92,7 @@ public static class N11MockEndpoints
         });
     }
 
-    /// <summary>Gövdeden SKU satırlarını okur: <c>{"payload":{"integrator":…,"skus":[…]}}</c>.
+    /// <summary>İstek body'sinden SKU satırlarını okur: <c>{"payload":{"integrator":…,"skus":[…]}}</c>.
     /// Alanlar SAVUNMACI okunur — üç yazma ucu farklı alan setleri gönderir (create tam, price-stock dar).</summary>
     private static List<N11MockProduct> ReadSkus(JsonElement root)
     {

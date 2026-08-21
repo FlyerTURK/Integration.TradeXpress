@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.N11Shipments;
 
 /// <summary>
 /// <see cref="IN11ShipmentCompanyClient"/> — N11 SOAP ShipmentCompanyService.GetShipmentCompanies (~68 firma).
-/// Auth SOAP gövdesinde + header hedge. Namespace-agnostik parse. Sınıf adı arayüzle eşleştiğinden ABP auto-expose.
+/// Auth SOAP body'sinde + header hedge. Namespace-agnostik parse. Sınıf adı arayüzle eşleştiğinden ABP auto-expose.
 /// </summary>
 public sealed class N11ShipmentCompanyClient : IN11ShipmentCompanyClient, ITransientDependency
 {

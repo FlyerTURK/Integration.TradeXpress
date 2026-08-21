@@ -50,8 +50,8 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
     /// <summary>Sahip satış kanalı (id-only, set-once).</summary>
     public virtual Guid SalesChannelId { get; protected set; }
 
-    // K1 KÖPRÜSÜ KALKTI (2026-07-26): çekirdek ShipmentTemplate silindi — kargo artık YALNIZ kanal
-    // seviyesinde yaşıyor. Şablon zaten push için self-contained'dı; kopyalanacak bir çekirdek kalmadı.
+    // K1 BAĞI KALKTI (2026-07-26): core ShipmentTemplate silindi — kargo artık YALNIZ kanal
+    // seviyesinde yaşıyor. Şablon zaten push için self-contained'dı; kopyalanacak bir core kayıt kalmadı.
 
     /// <summary>Şablon adı = N11 kimliği. (SalesChannelId, TemplateName) benzersiz.</summary>
     public virtual string TemplateName { get; protected set; } = null!;

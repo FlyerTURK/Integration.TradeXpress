@@ -12,7 +12,7 @@ using Volo.Abp.Linq;
 
 namespace Integration.TradeXpress.SalesChannelProducts;
 
-/// <summary>Kategori ağacının TEK düğümü — üç pazaryerinin ortak yüzeyi (id · üst id · ad).</summary>
+/// <summary>Kategori ağacının TEK düğümü — üç pazaryerinin ortak tipi (id · üst id · ad).</summary>
 public sealed record ChannelCategoryNode(string ExternalId, string? ParentExternalId, string Name);
 
 /// <summary>

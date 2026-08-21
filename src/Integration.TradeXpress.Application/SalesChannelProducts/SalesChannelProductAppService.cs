@@ -34,7 +34,7 @@ namespace Integration.TradeXpress.SalesChannelProducts;
 ///
 /// <para><b>FAIL-CLOSED şirket kapsamı</b> (Order/ChannelQuestion deseni): global company filtresi
 /// <c>CurrentCompanyId</c> null iken PERMISSIVE'dir — working company olmayan bir bağlamda (HTTP
-/// yüzeyi/Swagger, arka plan işi) liste tenant'ın TÜM şirketlerinin kayıtlarını döndürürdü. Şirket
+/// API'si/Swagger, arka plan işi) liste tenant'ın TÜM şirketlerinin kayıtlarını döndürürdü. Şirket
 /// bağlamı yoksa BOŞ sayfa döner ve sorgular ayrıca <c>CompanyId</c> ile açıkça daraltılır.</para>
 ///
 /// <para><b>Yazma UCU YOKTUR</b> — gerekçesi <see cref="ISalesChannelProductAppService"/> özetinde.</para>
@@ -130,7 +130,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
         var hasExplicitSort = (input.Sorts is { Count: > 0 }) || !string.IsNullOrWhiteSpace(input.Sorting);
         if (!hasExplicitSort)
         {
-            // VARSAYILAN: KARAR BEKLEYEN ÖNDE (fiyatlandırma tahtasıyla aynı ilke) — reçetesizler başta,
+            // VARSAYILAN: KARAR BEKLEYEN ÖNDE (fiyatlandırma board'uyla aynı ilke) — reçetesizler başta,
             // satışa çıkamayanlar sonra, hazır olanlar en altta. Ekranın işi "şimdi ne yapmam gerekiyor"u
             // göstermek; alfabetik sıra en acil satırı listenin ortasına gömerdi. Eşitlikte kanal → ürün kodu.
             //
@@ -151,7 +151,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             ordered.ApplyPaging(input).ToList());
     }
 
-    // ── Gönderim geçmişi (append-only delil defterinin okunuşu) ───────────────────────────────────────
+    // ── Gönderim geçmişi (append-only PushHistory'nin okunuşu) ───────────────────────────────────────
 
     public virtual async Task<List<SalesChannelProductPushHistoryDto>> GetPushHistoryAsync(
         Guid channelProductId,
@@ -281,7 +281,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             ChannelPrice = p.Skus.Where(s => s.LastSentOptionPrice != null).Min(s => s.LastSentOptionPrice),
             ChannelPriceMax = p.Skus.Where(s => s.LastSentOptionPrice != null).Max(s => s.LastSentOptionPrice),
             // Sum BOŞ kümede 0 döner → "hiç göndermedik" ekranda "tükendi" diye okunurdu (bilgisizlik ≠ beyan).
-            // Bu yüzden önce VARLIK sorulur; testle çivili (Channel_price_and_quantity_are_null_when_...).
+            // Bu yüzden önce VARLIK sorulur; testle sabit (Channel_price_and_quantity_are_null_when_...).
             ChannelQuantity = p.Skus.Any(s => s.LastSentQuantity != null)
                 ? p.Skus.Where(s => s.LastSentQuantity != null).Sum(s => s.LastSentQuantity)
                 : null,
@@ -327,7 +327,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             // belirsizdir. Eski ölçüt "uzak kimlik yok" idi — o kimlik yalnız İMPORT'la dolar; kendi push'umuzla
             // açılan ürün batch COMPLETED olsa bile import edilmedikçe sonsuza dek "Bekliyor" görünüyordu
             // (2026-08-16 ilk canlı gönderim: DB COMPLETED, liste Bekliyor — Hakan tespiti).
-            IsPending = p.BatchRequestId != null && p.Status == "PROCESSING",
+            IsPending = p.BatchRequestId != null && p.Status == TrendyolProductConsts.ProcessingBatchStatus,
             HasOurPush = p.LastSyncedAt != null,
             RemotePrice = p.ListPrice,
             RemoteOnSale = p.RemoteOnSale,
@@ -357,7 +357,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             // yazma işlemidir; ama hiç push edilmemiş kayıtta (canlıda 224/224 böyle) tek cevap import'tur
             // ve o cevabı atmak, elimizde dururken kolonu boş bırakmak olurdu.
             // ⚠ Bilinen sınır: push'tan SONRA yapılan bir import Remote*'u tazeler ama LastSent* öncelikli
-            // kaldığı için görünmez. SKU başına zaman damgası olmadan hangisinin yeni olduğu bilinemez;
+            // kaldığı için görünmez. SKU başına timestamp olmadan hangisinin yeni olduğu bilinemez;
             // tahmin etmektense sabit ve açıklanabilir bir öncelik seçildi.
             // SIFIR FIYAT = FIYAT DEGIL (2026-08-10): Trendyol pasif/onaysiz kalemlerde salePrice 0 dondurur.
             // Sifiri gecerli fiyat saymak kolonu "0,00" ile doldurup gercek fiyati GIZLERDI; bu yuzden yalniz
@@ -374,7 +374,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
                     ? p.Skus.Where(s => s.RemoteSalePrice > 0m).Max(s => s.RemoteSalePrice)
                     : p.ListPrice),
             // Sum BOŞ kümede 0 döner → "hiç göndermedik" ekranda "tükendi" diye okunurdu (bilgisizlik ≠ beyan).
-            // Bu yüzden her iki kaynakta da önce VARLIK sorulur; testle çivili.
+            // Bu yüzden her iki kaynakta da önce VARLIK sorulur; testle sabit.
             ChannelQuantity = p.Skus.Any(s => s.LastSentQuantity != null)
                 ? p.Skus.Where(s => s.LastSentQuantity != null).Sum(s => s.LastSentQuantity)
                 : (p.Skus.Any(s => s.RemoteQuantity != null)
@@ -418,7 +418,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             ChannelPrice = p.Skus.Where(s => s.LastSentPrice != null).Min(s => s.LastSentPrice),
             ChannelPriceMax = p.Skus.Where(s => s.LastSentPrice != null).Max(s => s.LastSentPrice),
             // Sum BOŞ kümede 0 döner → "hiç göndermedik" ekranda "tükendi" diye okunurdu (bilgisizlik ≠ beyan).
-            // Bu yüzden önce VARLIK sorulur; testle çivili (Channel_price_and_quantity_are_null_when_...).
+            // Bu yüzden önce VARLIK sorulur; testle sabit (Channel_price_and_quantity_are_null_when_...).
             ChannelQuantity = p.Skus.Any(s => s.LastSentQuantity != null)
                 ? p.Skus.Where(s => s.LastSentQuantity != null).Sum(s => s.LastSentQuantity)
                 : null,
@@ -553,7 +553,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
         // "GÖNDERİLDİ" ANCAK BİZİM GÖNDERDİĞİMİZİN KANITI VARSA (2026-08-10 düzeltmesi). Eskiden ölçüt
         // uzak kimliğin varlığıydı; oysa içe aktarılan kaydın kimliği ithal anında dolduğundan hiç
         // göndermediğimiz ürünler "Gönderildi" görünüyordu — canlıda 5 Trendyol kaydının tamamı öyleydi
-        // (RemoteProductMainId dolu, LastSyncedAt NULL). Kimlik "orada var" der, damga "biz yazdık" der.
+        // (RemoteProductMainId dolu, LastSyncedAt NULL). Kimlik "orada var" der, LastSyncedAt "biz yazdık" der.
         if (source.HasOurPush)
         {
             return ChannelProductSyncState.Sent;
@@ -593,9 +593,9 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
     }
 
     /// <summary>Ürün kimliği + TAHTA sinyalleri (görsel, varyant sayısı, reçete, satışa hazır) — hepsi
-    /// fiyatlandırma tahtasının kullandığı <see cref="ChannelProductBoardBuilder"/>'dan.
+    /// fiyatlandırma board'unın kullandığı <see cref="ChannelProductBoardBuilder"/>'dan.
     ///
-    /// <para><b>Neden ayrı sorgu değil:</b> tahta bu dört sinyali dört TOPLU sorguyla üretiyor ve
+    /// <para><b>Neden ayrı sorgu değil:</b> board bu dört sinyali dört TOPLU sorguyla üretiyor ve
     /// satılabilirlik kuralını tek yerde tutuyor. Burada ürün kodu/adını ayrıca çekip sinyalleri başka
     /// türlü hesaplamak, aynı kuralın ikinci bir kopyasını doğururdu: kural değişince biri güncellenir,
     /// diğeri sessizce eski kalırdı — ve fark ancak "bu ürün neden push edilmiyor?" diye sorulunca görülürdü.</para>
@@ -632,16 +632,11 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
         }
     }
 
-    /// <summary>Hazırlık kademesini TEK yerde karar verir — hem kolon hem varsayılan sıralama bunu okur.
-    /// Kural iki yerde yaşasaydı biri değişince diğeri sessizce eskirdi.</summary>
+    /// <summary>Hazırlık kademesi — kural <see cref="ChannelProductReadinessRule"/>'da (ürünün satışa hazırlık paneli de aynı
+    /// kuralı okur; 2026-08-19'da oraya çıkarıldı). Burada yalnız <c>Resolve</c>'a yönlendirme.</summary>
     private static ChannelProductReadiness ResolveReadiness(bool hasRecipe, int readyVariantCount)
     {
-        if (!hasRecipe)
-        {
-            return ChannelProductReadiness.NoRecipe;
-        }
-
-        return readyVariantCount == 0 ? ChannelProductReadiness.NotReady : ChannelProductReadiness.Ready;
+        return ChannelProductReadinessRule.Resolve(hasRecipe, readyVariantCount);
     }
 
     /// <summary>
@@ -720,7 +715,7 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
         /// <summary>Gönderim yolda ve akıbeti belirsiz.</summary>
         public bool IsPending { get; set; }
 
-        /// <summary>BİZİM başarılı gönderimimizin kanıtı (senkron damgası). Uzak kimlikten AYRI tutulur:
+        /// <summary>BİZİM başarılı gönderimimizin kanıtı (<c>LastSyncedAt</c>). Uzak kimlikten AYRI tutulur:
         /// kimlik içe aktarımda da dolar, bu yalnız gerçekten gönderdiğimizde.</summary>
         public bool HasOurPush { get; set; }
 

@@ -27,6 +27,8 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
 
     private const int MaxPageLoops = 500;   // offset döngüsü güvenlik tavanı (bozuk count → sonsuz döngü olmasın)
 
+    private const int NotFoundStatus = 404; // varyasyon fotoğrafı ucunda MEŞRU cevap ("bağ yok"), hata değil
+
     private readonly IEtsyTokenProvider _tokenProvider;
 
     public EtsyProductClient(IEtsyTokenProvider tokenProvider)
@@ -72,15 +74,15 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
                 catch (BusinessException) { offerings = listing.Offerings; }
             }
 
-            var imageUrls = listing.ImageUrls;
-            if (imageUrls.Count == 0)
+            var images = listing.Images;
+            if (images.Count == 0)
             {
                 // GÖRSEL OPSİYONEL — alt-çağrı başarısızsa boş; TÜM import bu yüzden DÜŞMEZ (round-trip'in çekirdeği ürün/varyant).
-                try { imageUrls = await GetListingImagesAsync(credentials, accessToken, listing.ListingId, cancellationToken); }
-                catch (BusinessException) { imageUrls = listing.ImageUrls; }
+                try { images = await GetListingImagesAsync(credentials, accessToken, listing.ListingId, cancellationToken); }
+                catch (BusinessException) { images = listing.Images; }
             }
 
-            all[i] = listing with { Offerings = offerings, ImageUrls = imageUrls };
+            all[i] = listing with { Offerings = offerings, Images = images };
         }
 
         return all;
@@ -155,7 +157,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         return ParseReturnPolicy(payload);
     }
 
-    // İade politikası form-urlencoded gövdesi — Etsy accepts_returns/accepts_exchanges'i bool string (lowercase) bekler;
+    // İade politikası form-urlencoded body'si — Etsy accepts_returns/accepts_exchanges'i bool string (lowercase) bekler;
     // return_deadline yalnız KABUL varsa (iade ya da değişim) + değer verildiyse gönderilir (aksi halde Etsy reddeder).
     private static Dictionary<string, string> BuildReturnPolicyForm(bool acceptsReturns, bool acceptsExchanges, int? returnDeadlineDays)
     {
@@ -180,6 +182,27 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         var url = $"{EtsyOAuthConsts.ApiBaseUrl}/application/users/me";
         var payload = await SendGetAsync(url, credentials.ApiKeyHeader, accessToken, cancellationToken, "TradeXpress:Etsy:Product:IdentityFailed");
         return ParseIdentity(payload);
+    }
+
+    public async Task<IReadOnlyList<EtsyVariationImage>> GetVariationImagesAsync(
+        EtsyCredentials credentials, long listingId, CancellationToken cancellationToken = default)
+    {
+        var accessToken = await _tokenProvider.GetAccessTokenAsync(credentials.ChannelId, cancellationToken);
+        // Varyasyon fotoğrafı ucu shop segmenti ALIR (getListingImages'ın aksine) — mağaza kimliği kanal kaydından
+        // gelen kimlik demetindedir; ayrı bir parametre almak aynı bilginin ikinci bir kopyasını üretirdi.
+        var url = $"{EtsyOAuthConsts.ApiBaseUrl}/application/shops/{Uri.EscapeDataString(credentials.ShopId)}" +
+                  $"/listings/{listingId}/variation-images";
+
+        var (status, payload) = await SendGetCoreAsync(url, credentials.ApiKeyHeader, accessToken, cancellationToken);
+        if (status == NotFoundStatus)
+        {
+            // 404 = "bu listelemede varyasyon fotoğrafı yok" — HATA DEĞİL. Fotoğraflarını yalnız kayıt geneli
+            // galeride tutan listeleme mağazaların çoğunluğudur; bunu istisna saymak import'u gürültüye boğardı.
+            return Array.Empty<EtsyVariationImage>();
+        }
+
+        EnsureSuccessStatus(status, payload, "TradeXpress:Etsy:Product:VariationImagesFailed");
+        return ParseVariationImages(payload);
     }
 
     // ── Sayfa çekimi ────────────────────────────────────────────────────────────────────────────────
@@ -209,7 +232,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         }
     }
 
-    private async Task<IReadOnlyList<string>> GetListingImagesAsync(
+    private async Task<IReadOnlyList<EtsyRemoteImage>> GetListingImagesAsync(
         EtsyCredentials credentials, string accessToken, long listingId, CancellationToken cancellationToken)
     {
         // Etsy getListingImages shop segmenti ALMAZ (shop-path'te 404 "Resource not found" — canlı doğrulandı 2026-07-19).
@@ -218,15 +241,17 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         try
         {
             using var doc = JsonDocument.Parse(payload);
-            var result = new List<string>();
+            var result = new List<EtsyRemoteImage>();
             if (doc.RootElement.TryGetProperty("results", out var results) && results.ValueKind == JsonValueKind.Array)
             {
                 foreach (var img in results.EnumerateArray())
                 {
-                    var imgUrl = ReadImageUrl(img);
-                    if (!string.IsNullOrWhiteSpace(imgUrl))
+                    // Fallback yolu da KİMLİK okur: gömülü (includes=Images) ve fallback görselleri farklı şekilde
+                    // okusaydık, includes'ın gelmediği mağazalarda varyasyon fotoğrafı eşleşmesi sessizce ölürdü.
+                    var image = ReadImage(img);
+                    if (image is not null)
                     {
-                        result.Add(imgUrl!);
+                        result.Add(image);
                     }
                 }
             }
@@ -242,6 +267,18 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
     private static async Task<string> SendGetAsync(
         string url, string apiKeyHeader, string accessToken, CancellationToken cancellationToken, string failureCode)
     {
+        var (status, payload) = await SendGetCoreAsync(url, apiKeyHeader, accessToken, cancellationToken);
+        EnsureSuccessStatus(status, payload, failureCode);
+        return payload;
+    }
+
+    /// <summary>GET'in HAM sonucu (durum + body) — başarısızlık kararı ÇAĞIRANA bırakılır. Ayrı bir "core"
+    /// gerekti çünkü varyasyon fotoğrafı ucunda 404 meşru bir CEVAPTIR (fotoğraf bağı yok), hata değil; kimlik/
+    /// başlık kurulumunu ikinci bir gönderim metoduna kopyalamak ise iki yolun zamanla ayrışmasına açık kapı
+    /// bırakırdı.</summary>
+    private static async Task<(int Status, string Payload)> SendGetCoreAsync(
+        string url, string apiKeyHeader, string accessToken, CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         // Etsy v3 HER istekte x-api-key (app keystring) İSTER — Bearer'a EK. Eksikse 401/403 (order client ile aynı desen).
         request.Headers.TryAddWithoutValidation("x-api-key", apiKeyHeader);
@@ -249,18 +286,24 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
 
         using var response = await HttpClient.SendAsync(request, cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new BusinessException(failureCode, $"Etsy {failureCode} → HTTP {(int)response.StatusCode}: {Truncate(payload)}")
-                .WithData("status", (int)response.StatusCode)
-                .WithData("body", Truncate(payload));
-        }
-
-        return payload;
+        return ((int)response.StatusCode, payload);
     }
 
-    // Etsy write ucu (POST/PUT) — gövde application/x-www-form-urlencoded (Etsy v3 write'ları JSON DEĞİL form bekler).
-    // GET ile AYNI kimlik: her istekte x-api-key + Bearer. Başarısız → dostane BusinessException (gövde kırpılı; UI toast).
+    // Başarı dışı durum → dostane BusinessException (body kırpılı; UI toast). 2xx başarı sayılır (HttpClient ile aynı).
+    private static void EnsureSuccessStatus(int status, string payload, string failureCode)
+    {
+        if (status is >= 200 and <= 299)
+        {
+            return;
+        }
+
+        throw new BusinessException(failureCode, $"Etsy {failureCode} → HTTP {status}: {Truncate(payload)}")
+            .WithData("status", status)
+            .WithData("body", Truncate(payload));
+    }
+
+    // Etsy write ucu (POST/PUT) — body application/x-www-form-urlencoded (Etsy v3 write'ları JSON DEĞİL form bekler).
+    // GET ile AYNI kimlik: her istekte x-api-key + Bearer. Başarısız → dostane BusinessException (body kırpılı; UI toast).
     private static async Task<string> SendFormAsync(
         HttpMethod method, string url, IReadOnlyDictionary<string, string> form, string apiKeyHeader, string accessToken,
         CancellationToken cancellationToken, string failureCode)
@@ -287,7 +330,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
     // ── Parse ───────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Listeleme sayfa yanıtını parse eder (public static — birim testli): <c>count</c> + <c>results[]</c>.
-    /// Bozuk JSON gövdesi dostane hatayla ÇEKİMİ DURDURUR (sessizce boş sayfa dönmek sayfaları raporsuz kaybettirirdi).</summary>
+    /// Bozuk JSON body'si dostane hatayla ÇEKİMİ DURDURUR (sessizce boş sayfa dönmek sayfaları raporsuz kaybettirirdi).</summary>
     public static (List<EtsyRemoteListing> Items, int Count) ParseListingsPage(string payload)
     {
         var items = new List<EtsyRemoteListing>();
@@ -317,7 +360,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
     }
 
     /// <summary>Kargo profili yanıtını parse eder (public static — birim testli): <c>results[]</c> → (shipping_profile_id,
-    /// title). Silinmiş profil (<c>is_deleted=true</c>) + kimliksiz/başlıksız öğe elenir. Bozuk JSON gövdesi dostane
+    /// title). Silinmiş profil (<c>is_deleted=true</c>) + kimliksiz/başlıksız öğe elenir. Bozuk JSON body'si dostane
     /// hatayla DURDURUR (sessizce boş dönmek "mağazada profil yok" ile karışırdı).</summary>
     public static IReadOnlyList<EtsyShippingProfileSummary> ParseShippingProfiles(string payload)
     {
@@ -353,7 +396,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
 
     /// <summary>İade politikası yanıtını parse eder (public static — birim testli): <c>results[]</c> → (return_policy_id,
     /// return_deadline, accepts_returns, accepts_exchanges). Etsy iade politikasının BAŞLIĞI YOKTUR → yalnız ham alanlar
-    /// döner, görüntü etiketi AppService'te lokalize türetilir. Kimliksiz öğe elenir. Bozuk JSON gövdesi dostane hatayla
+    /// döner, görüntü etiketi AppService'te lokalize türetilir. Kimliksiz öğe elenir. Bozuk JSON body'si dostane hatayla
     /// DURDURUR (sessizce boş dönmek "mağazada politika yok" ile karışırdı — kargo profili deseniyle aynı).</summary>
     public static IReadOnlyList<EtsyReturnPolicySummary> ParseReturnPolicies(string payload)
     {
@@ -386,7 +429,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
     }
 
     /// <summary>Dükkân bölümü yanıtını parse eder (public static — birim testli): <c>results[]</c> → (shop_section_id,
-    /// title). Kimliksiz/başlıksız öğe elenir. Bozuk JSON gövdesi dostane hatayla DURDURUR (kargo profili deseniyle
+    /// title). Kimliksiz/başlıksız öğe elenir. Bozuk JSON body'si dostane hatayla DURDURUR (kargo profili deseniyle
     /// aynı).</summary>
     public static IReadOnlyList<EtsyShopSectionSummary> ParseShopSections(string payload)
     {
@@ -415,7 +458,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         return result;
     }
 
-    /// <summary>Dükkân bölümü create/update TEK-öğe yanıtını parse eder (public static — birim testli): kök gövde
+    /// <summary>Dükkân bölümü create/update TEK-öğe yanıtını parse eder (public static — birim testli): kök body
     /// (<c>results[]</c> DEĞİL) → (shop_section_id, title). Kimliksiz/başlıksız yanıt dostane hatayla DURDURUR (sessizce
     /// boş dönmek "yazıldı ama seçilemiyor" ile karışırdı).</summary>
     public static EtsyShopSectionSummary ParseShopSection(string payload)
@@ -438,7 +481,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         }
     }
 
-    /// <summary>İade politikası create/update TEK-öğe yanıtını parse eder (public static — birim testli): kök gövde →
+    /// <summary>İade politikası create/update TEK-öğe yanıtını parse eder (public static — birim testli): kök body →
     /// (return_policy_id, return_deadline, accepts_returns, accepts_exchanges). Kimliksiz yanıt dostane hatayla
     /// DURDURUR.</summary>
     public static EtsyReturnPolicySummary ParseReturnPolicy(string payload)
@@ -464,8 +507,63 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         }
     }
 
+    /// <summary>Varyasyon fotoğrafı yanıtını parse eder (public static — birim testli) → (property_id, value_id,
+    /// image_id) üçlüleri.
+    ///
+    /// <para><b>İKİ kap adı da okunur:</b> Hakan'ın doğruladığı v3 spec'i diziyi <c>variation_images</c> altında
+    /// verirken Etsy'nin genel liste sözleşmesi <c>results</c> kullanır. Hangisinin geldiği CANLI DOĞRULANMADI →
+    /// tek bir ada bağlanmak, yanlış tahminde varyasyon fotoğraflarını sessizce "hiç yok" göstermek olurdu
+    /// (hatasız, izsiz kayıp). İkisini de kabul etmenin bedeli yok: adlar çakışmaz.</para>
+    ///
+    /// <para>Kimliklerden herhangi biri eksik/sıfır olan öğe ELENİR — eksik kimlikle eşleştirme yapmak fotoğrafı
+    /// yanlış varyanta bağlama riskidir; bağlamamak geri alınabilirdir. Bozuk JSON body'si dostane hatayla DURDURUR
+    /// (kardeş parser'larla aynı politika).</para></summary>
+    public static IReadOnlyList<EtsyVariationImage> ParseVariationImages(string payload)
+    {
+        var result = new List<EtsyVariationImage>();
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+            if (!TryGetArray(root, "variation_images", out var items) && !TryGetArray(root, "results", out items))
+            {
+                return result;
+            }
+
+            foreach (var el in items.EnumerateArray())
+            {
+                var propertyId = ReadLong(el, "property_id");
+                var valueId = ReadLong(el, "value_id");
+                var imageId = ReadLong(el, "image_id");
+                if (propertyId is > 0 && valueId is > 0 && imageId is > 0)
+                {
+                    result.Add(new EtsyVariationImage(propertyId.Value, valueId.Value, imageId.Value));
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            throw new BusinessException("TradeXpress:Etsy:Product:VariationImagesParseFailed");
+        }
+
+        return result;
+    }
+
+    private static bool TryGetArray(JsonElement obj, string property, out JsonElement array)
+    {
+        if (obj.ValueKind == JsonValueKind.Object
+            && obj.TryGetProperty(property, out var el) && el.ValueKind == JsonValueKind.Array)
+        {
+            array = el;
+            return true;
+        }
+
+        array = default;
+        return false;
+    }
+
     /// <summary>Kimlik yanıtını parse eder (public static — birim testli): <c>user_id</c> (+ opsiyonel <c>shop_id</c>).
-    /// Kimliksiz gövde → null (token geçersiz sayılır). Bozuk JSON gövdesi dostane hatayla DURDURUR.</summary>
+    /// Kimliksiz body → null (token geçersiz sayılır). Bozuk JSON body'si dostane hatayla DURDURUR.</summary>
     public static EtsyIdentity? ParseIdentity(string payload)
     {
         try
@@ -488,7 +586,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
     private static EtsyRemoteListing ReadListing(JsonElement el)
     {
         var offerings = ReadInventory(el, out var inventoryCurrency);
-        var imageUrls = ReadInlineImages(el);
+        var images = ReadInlineImages(el);
         var (_, listingCurrency) = ReadMoney(el, "price");
 
         return new EtsyRemoteListing(
@@ -501,12 +599,12 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
             WhoMade: MapWhoMade(ReadString(el, "who_made")),
             WhenMade: MapWhenMade(ReadString(el, "when_made")),
             ListingType: MapListingType(ReadString(el, "type")),
-            ImageUrls: imageUrls,
+            Images: images,
             CurrencyCode: listingCurrency ?? inventoryCurrency,
             Offerings: offerings);
     }
 
-    // Listeleme gövdesindeki gömülü inventory (includes=Inventory) → offering listesi. Yoksa boş (fallback tamamlar).
+    // Listeleme body'sindeki gömülü inventory (includes=Inventory) → offering listesi. Yoksa boş (fallback tamamlar).
     private static IReadOnlyList<EtsyRemoteOffering> ReadInventory(JsonElement listing, out string? currencyCode)
     {
         currencyCode = null;
@@ -568,7 +666,12 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         return (null, 0, true, null);
     }
 
-    // product.property_values[] → (name, value) çiftleri (varyant ekseni seçimi). value = values[0].
+    /// <summary><c>product.property_values[]</c> → (name, value) çiftleri (varyant ekseni seçimi; value = values[0])
+    /// + YANINDA Etsy'nin sayısal kimlikleri (<c>property_id</c>, <c>value_ids[0]</c>).
+    ///
+    /// <para>Kimlik ZENGİNLEŞTİRMEDİR: metin çifti eskisi gibi ZORUNLUDUR ve graf kurulumu metinle sürer — kimlik
+    /// gelmezse null kalır, hiçbir mevcut davranış değişmez. Kimliğe yalnız varyasyon fotoğrafı eşleşmesi bakar
+    /// (Etsy o bağı adla değil kimlikle verir).</para></summary>
     private static IReadOnlyList<EtsyRemoteProperty> ReadPropertyValues(JsonElement product)
     {
         var result = new List<EtsyRemoteProperty>();
@@ -585,32 +688,51 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
             var value = ReadFirstArrayString(pv, "values");
             if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(value))
             {
-                result.Add(new EtsyRemoteProperty(name!.Trim(), value!.Trim()));
+                result.Add(new EtsyRemoteProperty(
+                    name!.Trim(),
+                    value!.Trim(),
+                    ReadLong(pv, "property_id"),
+                    ReadFirstArrayLong(pv, "value_ids")));
             }
         }
 
         return result;
     }
 
-    // Listeleme gövdesindeki gömülü images (includes=Images) → URL listesi. Yoksa boş (fallback tamamlar).
-    private static IReadOnlyList<string> ReadInlineImages(JsonElement listing)
+    // Listeleme body'sindeki gömülü images (includes=Images) → KİMLİKLİ görsel listesi. Yoksa boş (fallback tamamlar).
+    private static IReadOnlyList<EtsyRemoteImage> ReadInlineImages(JsonElement listing)
     {
-        var result = new List<string>();
+        var result = new List<EtsyRemoteImage>();
         if (listing.ValueKind == JsonValueKind.Object
             && listing.TryGetProperty("images", out var images)
             && images.ValueKind == JsonValueKind.Array)
         {
             foreach (var img in images.EnumerateArray())
             {
-                var url = ReadImageUrl(img);
-                if (!string.IsNullOrWhiteSpace(url))
+                var image = ReadImage(img);
+                if (image is not null)
                 {
-                    result.Add(url!);
+                    result.Add(image);
                 }
             }
         }
 
         return result;
+    }
+
+    /// <summary>Etsy görsel öğesi → (listing_image_id, url). Adres ZORUNLUDUR (adressiz görsel indirilemez → öğe
+    /// elenir); kimlik OPSİYONELDİR ve gelmezse 0 kalır: görsel kayıt geneli galeriye yine iner, yalnız varyasyon
+    /// eşleşmesine katılamaz. Kimliği zorunlu tutmak, kimliksiz yanıt döndüren bir mağazada ürün galerisini
+    /// tamamen boşaltırdı.</summary>
+    private static EtsyRemoteImage? ReadImage(JsonElement image)
+    {
+        var url = ReadImageUrl(image);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        return new EtsyRemoteImage(ReadLong(image, "listing_image_id") ?? 0, url!);
     }
 
     // Etsy görsel öğesi çok boyut döner — en büyük tercih edilir, sonra makul boyutlara düşülür.
@@ -742,6 +864,30 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
                 if (el.ValueKind == JsonValueKind.String && el.GetString() is { Length: > 0 } value)
                 {
                     return value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // İlk sayısal dizi öğesi (ör. property_values[].value_ids[0]) — yoksa/tipi farklıysa null (defansif okuma).
+    private static long? ReadFirstArrayLong(JsonElement obj, string property)
+    {
+        if (obj.ValueKind == JsonValueKind.Object
+            && obj.TryGetProperty(property, out var arr) && arr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var el in arr.EnumerateArray())
+            {
+                if (el.ValueKind == JsonValueKind.Number && el.TryGetInt64(out var value))
+                {
+                    return value;
+                }
+
+                if (el.ValueKind == JsonValueKind.String
+                    && long.TryParse(el.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                {
+                    return parsed;
                 }
             }
         }

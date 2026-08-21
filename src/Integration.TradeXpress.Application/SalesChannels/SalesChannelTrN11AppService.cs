@@ -152,7 +152,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
     }
 
     /// <summary>Sızıntı önleme: sir alanları client'a ASLA gitmez — GetDto her zaman boş kimlikle döner.</summary>
-    /// <summary>Sırları siler + uç adresinin YÖNÜNÜ işaretler. İkisi de "kullanıcıya ne gösteriliyor"
+    /// <summary>Sırları siler + endpoint adresinin YÖNÜNÜ işaretler. İkisi de "kullanıcıya ne gösteriliyor"
     /// sorusunun parçası: sır SIZMAMALI, sahte sunucu ise GİZLENMEMELİ.</summary>
     private SalesChannelTrN11GetDto Redact(SalesChannelTrN11GetDto dto)
     {

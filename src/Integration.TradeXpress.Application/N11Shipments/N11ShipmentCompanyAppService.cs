@@ -42,7 +42,7 @@ public class N11ShipmentCompanyAppService : TradeXpressAppService, IN11ShipmentC
     /// <para>Gerekçe (2026-07-26 canlı API testi): N11 firmayı <c>shortName</c>'den çözer; kısa kodu boş olan
     /// firmalar (Asil/DHL/Fillo Kargo) şablona EKLENEMEZ — boş kod da uydurma kod da
     /// <i>"shipmentCompanyShortName alanı boş olamaz"</i> ile reddedilir. Listede bırakmak kullanıcıyı
-    /// anlaşılmaz bir push hatasına sürükler; ayna verisi ise N11 gerçeği olarak DOKUNULMADAN durur.</para></summary>
+    /// anlaşılmaz bir push hatasına sürükler; yansıma verisi ise N11 gerçeği olarak DOKUNULMADAN durur.</para></summary>
     public virtual async Task<List<N11ShipmentCompanyDto>> GetListAsync()
     {
         // Host-global okuma → host'a sabitle (tenant ayrı DB'ye geçse bile merkezî host verisi okunur).

@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.N11Categories;
 ///
 /// <para><see cref="AbpAsyncTimer.RunOnStart"/>=true → ilk tur uygulama ayağa kalkar kalkmaz çalışır; host
 /// açılışını BLOKLAMAZ (timer thread'inde). Gerçek çekim yalnız
-/// <see cref="N11CategorySyncManager.SyncIfStaleAsync"/> kapısı "bayat/boş" derse yapılır — taze bir DB ile
+/// <see cref="N11CategorySyncManager.SyncIfStaleAsync"/> "bayat/boş" derse yapılır — taze bir DB ile
 /// arka arkaya açılışlarda N11'e hiç istek gitmez.</para>
 ///
 /// <para>Hata YUTULUR + <c>LogWarning</c>: kimlik yoksa ya da N11 erişilemezse döngü ölmemeli. YALNIZ Blazor

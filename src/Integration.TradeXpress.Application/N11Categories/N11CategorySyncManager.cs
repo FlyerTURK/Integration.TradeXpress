@@ -18,18 +18,18 @@ namespace Integration.TradeXpress.N11Categories;
 /// çağırır. <b>AppService DEĞİL</b> çünkü <c>[Authorize]</c> interceptor'ı kullanıcısız worker'da patlardı
 /// (<see cref="EtsyTaxonomies.EtsyTaxonomySyncManager"/> ikizi).
 ///
-/// <para><b>Akış (2026-07-28 Hakan tasarımı):</b> (1) DB'deki en son senkron damgası 1 günden yeniyse HİÇBİR ŞEY
+/// <para><b>Akış (2026-07-28 Hakan tasarımı):</b> (1) DB'deki en son <c>MAX(LastSyncedAt)</c> 1 günden yeniyse HİÇBİR ŞEY
 /// yapılmaz — N11'e istek bile gitmez, test açılışları boşuna ağaç çekmez. (2) Bayatsa ağaç KOMPLE çekilir.
 /// (3) Çekilen kategori sayısı DB'dekiyle (MEGA HARİÇ) karşılaştırılıp loglanır. (4) Gerçek fark varsa yazılır.
 /// (5) Komisyonlar aynı turda uygulanır — kullanıcı hiçbir düğmeye basmaz. (6) Tur BAŞARIYLA bitince mega
-/// satırlarına damga atılır.</para>
+/// satırlarına LastSyncedAt yazılır.</para>
 ///
-/// <para><b>Damga neden mega satırlarında:</b> mega'lar N11'den GELMEZ (sentetik üst katman), her zaman vardır ve
-/// dış veriyle çakışmaz — "son mutabakat anı"nı taşımak için doğal yer. Damga, veri DEĞİŞMESE de atılır: amaç
+/// <para><b>LastSyncedAt neden mega satırlarında:</b> mega'lar N11'den GELMEZ (sentetik üst katman), her zaman vardır ve
+/// dış veriyle çakışmaz — "son mutabakat anı"nı taşımak için doğal yer. LastSyncedAt, veri DEĞİŞMESE de yazılır: amaç
 /// "veri değişti" demek değil, "N11 ile konuştuk" demektir. Atılmazsa sistem her açılışta yeniden çeker.</para>
 ///
-/// <para><b>UoW:</b> worker'da ambient UoW yoktur → yönetim tamamen burada. Kısa read UoW (kapı) → HTTP çekimi
-/// UoW DIŞINDA (uzun süren istek DbContext'i tutmasın) → write UoW (upsert + komisyon + damga).</para>
+/// <para><b>UoW:</b> worker'da ambient UoW yoktur → yönetim tamamen burada. Kısa read UoW (bayatlık kontrolü) → HTTP çekimi
+/// UoW DIŞINDA (uzun süren istek DbContext'i tutmasın) → write UoW (upsert + komisyon + LastSyncedAt).</para>
 ///
 /// <para><b>Tenant:</b> <see cref="N11Category"/> multi-tenant DEĞİL ve kimlik config'ten gelir; host bağlamına
 /// sabitlemek (<c>CurrentTenant.Change(null)</c>) yeterlidir — tenant döngüsü/filtre kapatma gerekmez.</para>
@@ -80,11 +80,11 @@ public class N11CategorySyncManager : DomainService
         return TimeSpan.FromHours(hours);
     }
 
-    /// <summary>Tablo boşsa ya da son senkron damgası <paramref name="threshold"/>'dan eskiyse mutabakatı çalıştırır
+    /// <summary>Tablo boşsa ya da son <c>MAX(LastSyncedAt)</c> <paramref name="threshold"/>'dan eskiyse mutabakatı çalıştırır
     /// (true); aksi halde N11'e HİÇ gitmeden atlar (false).
     ///
-    /// <para>Damga hiç atılmamışsa (<c>MAX(LastSyncedAt)</c> null — bu alan eklenmeden önce senkronlanmış DB)
-    /// bayat sayılır: bir kez daha mutabakat yapılır ve damga oturur.</para></summary>
+    /// <para>LastSyncedAt hiç yazılmamışsa (<c>MAX(LastSyncedAt)</c> null — bu alan eklenmeden önce senkronlanmış DB)
+    /// bayat sayılır: bir kez daha mutabakat yapılır ve LastSyncedAt oturur.</para></summary>
     public virtual async Task<bool> SyncIfStaleAsync(TimeSpan threshold, CancellationToken cancellationToken = default)
     {
         bool shouldSync;
@@ -114,7 +114,7 @@ public class N11CategorySyncManager : DomainService
         return true;
     }
 
-    /// <summary>Ağacı komple çeker, farkı yazar, komisyonları uygular, turu damgalar. Değişen satır sayısını döner.
+    /// <summary>Ağacı komple çeker, farkı yazar, komisyonları uygular, turun LastSyncedAt'ini yazar. Değişen satır sayısını döner.
     /// Kimlik yoksa dostane <see cref="BusinessException"/> (worker yutar + loglar).</summary>
     public virtual async Task<int> ReconcileAsync(CancellationToken cancellationToken = default)
     {
@@ -257,9 +257,9 @@ public class N11CategorySyncManager : DomainService
             string.Join(" | ", issues.Take(LoggedIssueSampleSize)));
     }
 
-    /// <summary>Turu damgalar: mega satırlarına bu turun saatini yazar.
+    /// <summary>Tur sonu LastSyncedAt: mega satırlarına bu turun saatini yazar.
     ///
-    /// <para>Damga, tek satır bile değişmemiş olsa ATILIR — kapının kapanma koşulu budur. Yalnız çekim/yazım
+    /// <para>LastSyncedAt, tek satır bile değişmemiş olsa YAZILIR — bayatlık kontrolünün kapanma koşulu budur. Yalnız çekim/yazım
     /// hata verirse atılmaz (istisna UoW'u geri alır) ve bir sonraki tur yeniden dener.</para></summary>
     private async Task StampSyncAsync(CancellationToken cancellationToken)
     {
@@ -267,7 +267,7 @@ public class N11CategorySyncManager : DomainService
         var megas = all.Where(c => N11MegaCategories.IsMega(c.ExternalId)).ToList();
         if (megas.Count == 0)
         {
-            // Damgalanacak satır yoksa kapı bir daha asla kapanmaz → sessiz kalmak yerine fail-fast.
+            // LastSyncedAt yazılacak satır yoksa bayatlık kontrolü bir daha asla kapanmaz → sessiz kalmak yerine fail-fast.
             throw new BusinessException("TradeXpress:N11:CategoryStampTargetMissing");
         }
 

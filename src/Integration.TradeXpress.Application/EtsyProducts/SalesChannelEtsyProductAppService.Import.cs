@@ -27,8 +27,8 @@ namespace Integration.TradeXpress.EtsyProducts;
 /// Etsy inventory <c>product_id</c> → <see cref="SalesChannelEtsyProductSku.EtsyProductId"/>. YENİ ALAN/MIGRATION YOK.
 /// İkinci import dublike üretmez; mevcut kaydı bulur, kanal alanlarını tazeler + Sku kimliklerini yeniden bağlar
 /// (ekleme-only — mevcut şablon/varyant grafına DOKUNMAZ; Trendyol minimal-güncelleme kuralıyla hizalı). Uzak STOK
-/// K12 politikasına tabidir (2026-07-23 kesin karar): çekirdek <c>StockQuantity</c> yalnız İLK import'ta tohumlanır;
-/// re-import'ta remote stok çekirdeği EZMEZ — fark <see cref="SalesChannelEtsyProductStockItem.OverrideStock"/>'a
+/// K12 politikasına tabidir (2026-07-23 kesin karar): core <c>StockQuantity</c> yalnız İLK import'ta seed'lenir;
+/// re-import'ta remote stok core'u EZMEZ — fark <see cref="SalesChannelEtsyProductStockItem.OverrideStock"/>'a
 /// yazılır (kanal gerçeği) + LogWarning + rapor sayacı (<see cref="ApplyImportStockPolicyAsync"/>).</para>
 ///
 /// <para><b>Varyant grafı doğrudan repo insert ile kurulur</b> (Trendyol gibi; <c>IEntityVariantGraphService</c>/
@@ -95,7 +95,8 @@ public partial class SalesChannelEtsyProductAppService
                 if (listing.ImageUrls.Count > 0
                     && (await _entityMedia.GetForAsync(MediaEntityNames.Product, product.Id)).Count == 0)
                 {
-                    await _imageDownloader.ImportToProductAsync(product, listing.ImageUrls);
+                    report.SkippedImages += (await _imageDownloader.ImportToProductAsync(product, listing.ImageUrls))
+                        .SkippedForCapacityCount;
                 }
 
                 variantByEtsyProductId = existing.Skus
@@ -115,18 +116,223 @@ public partial class SalesChannelEtsyProductAppService
             }
             else
             {
-                // K12 stok politikası (2026-07-23 kesin karar): çekirdek kayıt ZATEN VARDI (update yolu) →
-                // remote stok çekirdek StockQuantity'yi EZMEZ; fark kanal OverrideStock'una yazılır (kanal
+                // K12 stok politikası (2026-07-23 kesin karar): core kayıt ZATEN VARDI (update yolu) →
+                // remote stok core StockQuantity'yi EZMEZ; fark kanal OverrideStock'una yazılır (kanal
                 // gerçeği) + görünür kılınır (LogWarning + rapor sayacı). Create yolunda gereksiz: varyantlar
-                // az önce remote stokla tohumlandı (CreateTemplateProductAsync), fark tanım gereği yok.
+                // az önce remote stokla seed'lendi (CreateTemplateProductAsync), fark tanım gereği yok.
                 await ApplyImportStockPolicyAsync(channel, entity, listing, product, variantByEtsyProductId, report);
             }
+
+            // Varyasyon fotoğrafları EN SONA bırakılır: eşleştirmenin girdisi offering→ERP varyantı haritasıdır ve
+            // o harita ancak Sku kimlikleri yazıldıktan sonra (her iki yolda da) tamamlanmış olur.
+            await ImportVariationImagesAsync(credentials, listing, product, variantByEtsyProductId, report);
         }
 
+        ReportSkippedImages(report);
+        ReportUnmappedVariationImages(report);
         return report;
     }
 
-    /// <summary>Re-import stok politikası (K12): offering'in remote stoğu (negatif → 0 clamp'li) eşlenen çekirdek
+    /// <summary>Eşleştirilemeyen VARYASYON fotoğraflarını rapora taşır — import-başı TEK satır (görsel sınırı
+    /// satırıyla aynı gerekçe: ürün başına uyarı kalabalık mağazada raporu okunmaz kılar).
+    ///
+    /// <para><b>Neden ayrı bir satır:</b> "sınıra takıldı" ile "hangi varyanta ait olduğu çözülemedi" farklı
+    /// sorunlardır ve farklı çözümleri vardır (biri galeriyi boşaltmayı, diğeri Etsy tarafındaki varyasyon
+    /// kurulumunu ilgilendirir). İkisini tek sayaçta toplamak kullanıcıyı yanlış tarafa bakmaya iterdi.</para></summary>
+    private void ReportUnmappedVariationImages(EtsyImportResultDto report)
+    {
+        if (report.UnmappedVariationImages > 0)
+        {
+            report.Warnings.Add(L["EtsyImport:VariationImagesUnmapped", report.UnmappedVariationImages].Value);
+        }
+    }
+
+    /// <summary>Görsel sınırına takılıp hiç bağlanmayan pazaryeri görsellerini RAPORA taşır (N11/Trendyol ikizi).
+    ///
+    /// <para><b>Neden gerekli:</b> sınır aşımı indiricide yalnız server-log'a düşüyordu; kullanıcı "içe aktarım
+    /// başarılı" raporunu görüp fotoğrafın neden gelmediğini hiçbir ekranda bulamıyordu. Sayı ürün-başı değil
+    /// import-başı TEK satırda verilir — kalabalık mağazada ürün başına uyarı raporu okunmaz hâle
+    /// getirirdi.</para></summary>
+    private void ReportSkippedImages(EtsyImportResultDto report)
+    {
+        if (report.SkippedImages > 0)
+        {
+            report.Warnings.Add(
+                L["EtsyImport:ImagesSkippedForLimit", report.SkippedImages, ProductConsts.MaxImageCount].Value);
+        }
+    }
+
+    /// <summary>Listelemenin VARYASYON fotoğraflarını ilgili ERP varyantlarının kendi medya bağlamına indirir
+    /// ("ProductVariant" + varyant Id'si) — N11/Trendyol'un kalem-başına görsel yolunun Etsy karşılığı.
+    ///
+    /// <para><b>Eşleştirme zinciri:</b> <c>variation_images[].{property_id, value_id}</c> → o değeri TAŞIYAN
+    /// offering'ler → offering'in bağlandığı ERP varyantı → <c>image_id</c> → listelemenin görsel setinden URL →
+    /// indirici. Zincirin her halkası KİMLİKTİR.</para>
+    ///
+    /// <para><b>ETSY'NİN MODELİ: fotoğraf DEĞERE bağlanır, kombinasyona değil.</b> Etsy bir listelemede yalnız TEK
+    /// varyasyon grubuna (ör. Renk) fotoğraf bağlanmasına izin verir; bizim varyantlarımız ise KOMBİNASYON başınadır
+    /// (Renk×Beden). Dolayısıyla "Renk=Kırmızı" fotoğrafı, kırmızının TÜM bedenlerine — yani birden çok ERP
+    /// varyantına — iner. Bu çoğaltma hata değil, iki modelin doğru çevirisidir: kırmızı-S ile kırmızı-M gerçekten
+    /// aynı fotoğrafı paylaşır ve indirici içerik-hash dedup'ıyla dosyayı bir kez saklar.</para>
+    ///
+    /// <para><b>Kimlik yoksa UYDURMA EŞLEŞME YOK:</b> offering'in property'si <c>property_id</c>/<c>value_id</c>
+    /// taşımıyorsa metin (ad/değer) eşleşmesine DÜŞÜLMEZ — Etsy'de aynı görünen iki değer farklı eksenlere ait
+    /// olabilir ve fotoğrafı yanlış varyanta bağlamak, hiç bağlamamaktan çok daha zor fark edilir. Eşleşmeyen bağ
+    /// sessizce yutulmaz, rapora sayılır.</para>
+    ///
+    /// <para><b>Hata izolasyonu:</b> uç patlarsa içe aktarım DURMAZ (görsel dalının mevcut sözleşmesi) — uyarı
+    /// loglanır ve yalnız bu listelemenin varyant görselleri atlanır. İzolasyon <b>her</b> istisnayı kapsar,
+    /// yalnız <see cref="BusinessException"/>'ı değil: bu, kardeşlerinin (Trendyol/N11 varyant görselini listeleme
+    /// yanıtının İÇİNDE alır) aksine, DB yazımlarının ORTASINDA ve listeleme BAŞINA yapılan tek ağ çağrısıdır;
+    /// gerçek hayattaki en olası arıza (zaman aşımı → <c>TaskCanceledException</c>, ağ/DNS/TLS →
+    /// <c>HttpRequestException</c>, token yenileme hatası) <see cref="BusinessException"/> DEĞİLDİR ve dar bir
+    /// catch onları dışarı bırakıp UoW'u rollback ederek mağazanın o ana kadar işlenmiş TÜM listelemelerini
+    /// kaybettirirdi. Bu kök-neden-gizleyen boş bir <c>catch</c> değil, görsel dalında zaten kabul edilmiş
+    /// gerekçesi loglanan izolasyondur (<c>MarketplaceImageDownloader.TryImportAsync</c> aynı desen).</para></summary>
+    private async Task ImportVariationImagesAsync(
+        EtsyCredentials credentials,
+        EtsyRemoteListing listing,
+        Product product,
+        Dictionary<long, Guid> variantByEtsyProductId,
+        EtsyImportResultDto report)
+    {
+        if (listing.Images.Count == 0 || variantByEtsyProductId.Count == 0)
+        {
+            return;   // indirilecek adres ya da bağlanacak varyant yok — uç boşuna çağrılmaz
+        }
+
+        IReadOnlyList<EtsyVariationImage> variationImages;
+        try
+        {
+            variationImages = await _etsyProductClient.GetVariationImagesAsync(credentials, listing.ListingId);
+        }
+        catch (Exception ex) when (!IsGenuineCancellation(ex))
+        {
+            Logger.LogWarning(
+                ex,
+                "Etsy varyasyon fotoğrafları okunamadı (listing {ListingId}) — bu listelemenin varyant görselleri atlandı, içe aktarım sürüyor.",
+                listing.ListingId);
+            return;
+        }
+
+        if (variationImages.Count == 0)
+        {
+            return;   // varyasyon fotoğrafı olmayan listeleme NORMALDİR (fotoğraflar kayıt geneli galeride durur)
+        }
+
+        var urlByImageId = BuildImageUrlIndex(listing);
+        var urlsByVariantId = new Dictionary<Guid, List<string>>();
+        foreach (var variationImage in variationImages)
+        {
+            if (!urlByImageId.TryGetValue(variationImage.ImageId, out var url))
+            {
+                report.UnmappedVariationImages++;   // bağın işaret ettiği fotoğraf listelemenin setinde yok
+                continue;
+            }
+
+            var matched = false;
+            foreach (var offering in listing.Offerings)
+            {
+                if (offering.EtsyProductId <= 0
+                    || !CarriesVariationValue(offering, variationImage)
+                    || !variantByEtsyProductId.TryGetValue(offering.EtsyProductId, out var variantId))
+                {
+                    continue;
+                }
+
+                matched = true;
+                if (!urlsByVariantId.TryGetValue(variantId, out var urls))
+                {
+                    urls = new List<string>();
+                    urlsByVariantId[variantId] = urls;
+                }
+
+                if (!urls.Contains(url, StringComparer.OrdinalIgnoreCase))
+                {
+                    urls.Add(url);   // aynı fotoğraf aynı varyanta iki kez yazılmasın (aynı değeri taşıyan offering'ler)
+                }
+            }
+
+            if (!matched)
+            {
+                report.UnmappedVariationImages++;
+            }
+        }
+
+        if (urlsByVariantId.Count == 0)
+        {
+            return;
+        }
+
+        // Varyant KODU indiricinin kütüphane adlandırması için gerekir (hangi görsel hangi varyantın — addan okunur).
+        var variantIds = urlsByVariantId.Keys.ToList();
+        var variants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync()).Where(v => variantIds.Contains(v.Id)));
+
+        foreach (var variant in variants)
+        {
+            if (!urlsByVariantId.TryGetValue(variant.Id, out var urls))
+            {
+                continue;
+            }
+
+            // İndirici URL-başına dayanıklıdır (bozuk görsel atlanır + loglanır) ve EKLEMELİDİR: kullanıcının
+            // varyanta elle bağladığı görseller bu çağrıyla EZİLMEZ. Sınıra takılan görsel rapora taşınır.
+            report.SkippedImages += (await _imageDownloader.ImportToVariantAsync(
+                    variant.Id,
+                    product.CompanyId,
+                    product.Code,
+                    variant.Code,
+                    urls))
+                .SkippedForCapacityCount;
+        }
+    }
+
+    /// <summary>İstisna GERÇEK bir iptal mi (çağıran/host durdurdu) — yoksa yalnız arıza mı? Geniş izolasyon bile
+    /// iptali YUTMAMALIDIR: iptal "bu işi bırak" emridir, atlanacak bir görsel arızası değil.
+    ///
+    /// <para><b>Ayrımın inceliği:</b> <c>HttpClient</c> zaman aşımı da <c>TaskCanceledException</c> fırlatır (yani
+    /// tipe bakmak yetmez), ama .NET zaman aşımını iç istisna olarak <see cref="TimeoutException"/> ile
+    /// işaretler. Zaman aşımı = arıza (izole edilir), iç istisnasız iptal = emir (yeniden fırlatılır).</para></summary>
+    private static bool IsGenuineCancellation(Exception ex)
+    {
+        return ex is OperationCanceledException && ex.InnerException is not TimeoutException;
+    }
+
+    /// <summary>Listelemenin görsellerini <c>listing_image_id</c> → URL olarak indeksler. Kimliksiz görsel (id 0)
+    /// indekse GİRMEZ: 0 gerçek bir kimlik değil "Etsy kimliği vermedi"nin karşılığıdır, indekse alınsaydı ilk
+    /// kimliksiz fotoğraf tüm eşleşmeleri kendine çekerdi.</summary>
+    private static Dictionary<long, string> BuildImageUrlIndex(EtsyRemoteListing listing)
+    {
+        var index = new Dictionary<long, string>();
+        foreach (var image in listing.Images)
+        {
+            if (image.ImageId > 0 && !index.ContainsKey(image.ImageId))
+            {
+                index[image.ImageId] = image.Url;
+            }
+        }
+
+        return index;
+    }
+
+    /// <summary>Offering, varyasyon fotoğrafının bağlandığı (eksen, değer) çiftini taşıyor mu? YALNIZ KİMLİK
+    /// karşılaştırılır — kimliği okunamamış property (null) hiçbir bağla eşleşmez ve metne düşülmez.</summary>
+    private static bool CarriesVariationValue(EtsyRemoteOffering offering, EtsyVariationImage variationImage)
+    {
+        foreach (var property in offering.Properties)
+        {
+            if (property.PropertyId is { } propertyId && property.ValueId is { } valueId
+                && propertyId == variationImage.PropertyId && valueId == variationImage.ValueId)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Re-import stok politikası (K12): offering'in remote stoğu (negatif → 0 clamp'li) eşlenen core
     /// varyantın <see cref="EntityVariant.StockQuantity"/>'siyle karşılaştırılır. AYNIYSA mevcut başlıktaki bayat
     /// <see cref="SalesChannelEtsyProductStockItem.OverrideStock"/> temizlenir (null = ERP'den devral; başlık yoksa
     /// KURULMAZ — gürültü üretme). FARKLIYSA remote değer kanal override'ı olur (başlık yoksa kurulur; YENİ başlığa
@@ -162,8 +368,8 @@ public partial class SalesChannelEtsyProductAppService
             .ToDictionary(h => h.ProductVariantId!.Value);
 
         // OTORİTE DEVRİ (2026-08-05 Hakan kararı): ürün sınıflandırıldıysa (Calculated) pazaryerinde duran
-        // stok GEÇERSİZDİR — sistem belirler. Aynası yazılırsa her import devri geri alır (push zinciri
-        // OverrideStock'u ÖNCELER). Varsa bayat ayna temizlenir; yenisi YAZILMAZ.
+        // stok GEÇERSİZDİR — sistem belirler. Yansıması yazılırsa her import devri geri alır (push zinciri
+        // OverrideStock'u ÖNCELER). Varsa bayat yansıma temizlenir; yenisi YAZILMAZ.
         var authorityTransferred = product.StockPolicy == ProductStockPolicy.Calculated;
 
         SideCostPlan? sideCostPlan = null;   // tembel — yalnız YENİ başlık kurulursa gerekir
@@ -173,15 +379,15 @@ public partial class SalesChannelEtsyProductAppService
                 || !variantByEtsyProductId.TryGetValue(offering.EtsyProductId, out var variantId)
                 || !variantsById.TryGetValue(variantId, out var variant))
             {
-                continue;   // çekirdek varyant çözülemedi — Sku bağı sonraki import'ta kurulur
+                continue;   // core varyant çözülemedi — Sku bağı sonraki import'ta kurulur
             }
 
             var remoteStock = Math.Max(0, offering.Quantity);
             if (remoteStock == variant.StockQuantity || authorityTransferred)
             {
                 // Fark yok → varsa bayat override temizlenir (null = ERP'den devral); başlık yoksa kurulmaz.
-                // TASARIM NOTU: OverrideStock kullanıcının rezerv alanı DEĞİL, pazaryerinin AYNASIDIR (K12 yönü:
-                // çekirdek ezilmez, uzak gerçek kanal katmanına yazılır) → remote çekirdeğe eşitlendiğinde ayna
+                // TASARIM NOTU: OverrideStock kullanıcının rezerv alanı DEĞİL, pazaryerinin YANSIMASIDIR (K12 yönü:
+                // core ezilmez, uzak gerçek kanal katmanına yazılır) → remote core'a eşitlendiğinde yansıma
                 // değerinin sürmesi için sebep kalmaz. Trendyol ikizi de her import'ta remote ile tazeler.
                 if (headers.TryGetValue(variantId, out var cleanHeader) && cleanHeader.OverrideStock is not null)
                 {
@@ -271,7 +477,7 @@ public partial class SalesChannelEtsyProductAppService
     /// birimi shop currency; menşe alanları (who_made/when_made) listelemeden. Graf: offering'lerin DISTINCT
     /// property'lerinden <see cref="EntityAttribute"/>/<see cref="EntityAttributeValue"/>, her offering → bir
     /// <see cref="EntityVariant"/> (ilk offering MAIN) + seçili değer bağları (<see cref="EntityVariantAttributeValue"/>) +
-    /// fiyat (<see cref="ProductVariantDetail"/>). Ana-varyant değişmezi merkezî kapıdan
+    /// fiyat (<see cref="ProductVariantDetail"/>). Ana-varyant değişmezi merkezî metottan
     /// (<see cref="EntityVariantManager.EnsureMainVariantAsync"/>). Döner: ürün + offering.EtsyProductId → varyant.Id.</summary>
     private async Task<(Product Product, Dictionary<long, Guid> VariantByEtsyProductId)> CreateTemplateProductAsync(
         SalesChannelEtsy channel, EtsyRemoteListing listing, Guid? currencyUnitId, EtsyImportResultDto report)
@@ -298,8 +504,9 @@ public partial class SalesChannelEtsyProductAppService
         await _productRepository.InsertAsync(product, autoSave: true);
         report.CreatedProducts++;
 
-        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA (dedup + ilk görsel kapak).
-        await _imageDownloader.ImportToProductAsync(product, listing.ImageUrls);
+        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA (dedup + ilk görsel cover).
+        report.SkippedImages += (await _imageDownloader.ImportToProductAsync(product, listing.ImageUrls))
+            .SkippedForCapacityCount;
 
         var (attributeByName, valueByKey) = await BuildAttributeGraphAsync(companyId, product.Id, offerings);
 
@@ -347,7 +554,7 @@ public partial class SalesChannelEtsyProductAppService
             }
         }
 
-        // Ana-varyant değişmezi merkezî kapıdan (tekil main garanti; idempotent) — agnostik EntityVariantManager.
+        // Ana-varyant değişmezi merkezî EnsureMainVariantAsync'ten (tekil main garanti; idempotent) — agnostik EntityVariantManager.
         await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, companyId, product.Code, product.Name);
         return (product, variantByEtsyProductId);
     }
@@ -547,7 +754,7 @@ public partial class SalesChannelEtsyProductAppService
         return candidate;
     }
 
-    /// <summary>Import kod normalizasyonu — Code konvansiyonuyla aynı çekirdek (<c>NormalizeAsCode</c>), üstüne import
+    /// <summary>Import kod normalizasyonu — Code konvansiyonuyla aynı taban (<c>NormalizeAsCode</c>), üstüne import
     /// dayanıklılığı: boş → "ETSY", kısa (&lt;3) → "ETSY-" ön eki, uzun → kırp. Fail-fast yerine onarım BİLİNÇLİ:
     /// uzak veri bizim kontrolümüzde değil, kalem kaybetmek daha kötü (Trendyol NormalizeImportCode ile aynı felsefe).</summary>
     private static string NormalizeImportCode(string rawCode, int maxLength)

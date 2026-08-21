@@ -68,7 +68,7 @@ public sealed class N11MockTaskItem
     public string? Reason { get; set; }
 }
 
-/// <summary>Task durum sabitleri — uygulamadaki <c>N11TaskStates</c>'in AYNADAKİ kopyası.
+/// <summary>Task durum sabitleri — uygulamadaki <c>N11TaskStates</c>'in birebir kopyası.
 /// <b>Kasıtlı kopya:</b> mock projesi Application'a referans VERMEZ (bağımlılık yönü tersine dönerdi);
 /// bu değerler N11'in tel sözleşmesidir, bizim iç sabitimiz değil.</summary>
 public static class N11MockTaskStates

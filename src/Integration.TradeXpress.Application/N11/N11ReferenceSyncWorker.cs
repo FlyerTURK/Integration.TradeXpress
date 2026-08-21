@@ -29,7 +29,7 @@ public class N11ReferenceSyncWorker : AsyncPeriodicBackgroundWorkerBase
 
         // AÇILIŞTA DA KOŞ — yoksa ilk senkron 24 saat SONRA olurdu ve temiz kurulumda il/ilçe kataloğu
         // bir gün boyunca BOŞ kalırdı (adres formunda ilçe combosu doldurulamaz). Kurulum günü işe yaramayan
-        // bir "gecelik tazeleme" anlamsızdı. Senkron upsert (idempotent) + RunSafe sarmalı → tekrar koşması
+        // bir "gecelik tazeleme" anlamsızdı. Senkron upsert (idempotent) + RunSafe → tekrar koşması
         // zararsız, düşerse worker çökmez. Arka plan işçisi olduğu için host açılışını BLOKLAMAZ.
         Timer.RunOnStart = true;
     }
@@ -39,17 +39,17 @@ public class N11ReferenceSyncWorker : AsyncPeriodicBackgroundWorkerBase
         // İZİNSİZ manager'lar tüketilir (2026-08-07 G1): app service uçları artık [Authorize]'lı — worker'ın
         // kullanıcı kimliği yok, yetkili uçtan geçemez (CLAUDE.md §6 materyalizer deseni).
         await RunSafe(workerContext, "il/ilçe", sp => sp.GetRequiredService<N11Cities.N11CitySyncManager>().SyncCitiesAndDistrictsAsync());
-        // İl/ilçe re-sync'inden SONRA çekirdek coğrafyayı tazeler (N11 aynası → AdministrativeArea/Locality köprüsü).
-        // Kargo tarafındaki "sync → çekirdek eşleme" deseninin birebir aynısı. Bu adım OLMADAN N11'in eklediği yeni
-        // ilçe ayna tablosunda kalır, adres picker'ına DÜŞMEZ — köprü yalnız DbMigrator'da koşuyordu ve biri elle
+        // İl/ilçe re-sync'inden SONRA core coğrafyayı tazeler (N11 yansıması → AdministrativeArea/Locality id-only bağı).
+        // Kargo tarafındaki "sync → core eşleme" deseninin birebir aynısı. Bu adım OLMADAN N11'in eklediği yeni
+        // ilçe yansıma tablosunda kalır, adres picker'ına DÜŞMEZ — eşleme yalnız DbMigrator'da koşuyordu ve biri elle
         // çalıştırana kadar katalog bayat kalırdı. Bağımsız try/catch → düşse N11 sync'ini etkilemez.
         await RunSafe(workerContext, "coğrafya çekirdek eşleme", ReconcileCoreGeographyAsync);
         await RunSafe(workerContext, "kargo firması", sp => sp.GetRequiredService<N11Shipments.N11ShipmentCompanySyncManager>().SyncAsync());
     }
 
-    /// <summary>Çekirdek coğrafya eşlemesini (GeographySeeder) çalıştırır — N11 il/ilçe aynasından
-    /// AdministrativeArea/Locality köprüsünü kurar. TrCarrier eşlemesiyle aynı UoW gerekçesi (aşağıya bkz.).
-    /// Seeder idempotent: mevcut satırı yeniden eklemez, yalnız eksik köprüyü tamamlar.</summary>
+    /// <summary>core coğrafya eşlemesini (GeographySeeder) çalıştırır — N11 il/ilçe yansımasından
+    /// AdministrativeArea/Locality id-only bağını kurar. TrCarrier eşlemesiyle aynı UoW gerekçesi (aşağıya bkz.).
+    /// Seeder idempotent: mevcut satırı yeniden eklemez, yalnız eksik eşlemeyi tamamlar.</summary>
     private static async Task<int> ReconcileCoreGeographyAsync(IServiceProvider serviceProvider)
     {
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();

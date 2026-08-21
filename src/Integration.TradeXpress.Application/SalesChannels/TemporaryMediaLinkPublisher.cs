@@ -52,7 +52,7 @@ public class TemporaryMediaLinkPublisher : ITransientDependency
     }
 
     /// <summary>Medyayı geçici barındırmaya yükler ve dış URL döner; okunamayan/yüklenemeyen medyada <c>null</c>.
-    /// KAPALIYKEN de <c>null</c> — dış ağa çıkılmaz. Bu kapı YAPISALDIR (çağıranın <see cref="IsEnabled"/>
+    /// KAPALIYKEN de <c>null</c> — dış ağa çıkılmaz. Bu guard YAPISALDIR (çağıranın <see cref="IsEnabled"/>
     /// kontrolüne ek): ikinci bir çağıran (N11 portu, worker) eklendiğinde koruma sessizce kaybolmasın.</summary>
     public virtual async Task<string?> PublishAsync(Guid mediaId)
     {

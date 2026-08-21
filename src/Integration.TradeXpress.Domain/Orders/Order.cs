@@ -58,7 +58,7 @@ public class Order : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
     /// <summary>İnsan-okunur sipariş numarası (kanal orderNumber).</summary>
     public virtual string OrderNumber { get; protected set; } = null!;
 
-    /// <summary>Sipariş tarihi — UTC saklanır (zaman damgası; iş-tarihi DEĞİL → normalizasyon-muafiyeti gerekmez).
+    /// <summary>Sipariş tarihi — UTC saklanır (timestamp; iş-tarihi DEĞİL → normalizasyon-muafiyeti gerekmez).
     /// Görüntü katmanı kullanıcı yerel saatine çevirir.</summary>
     public virtual DateTime OrderDate { get; protected set; }
 

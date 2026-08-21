@@ -57,10 +57,10 @@ public class SalesChannelTrTrendyol : SalesChannelBase
     /// <para><b>Neden id-only ve neden Guid:</b> <c>TrendyolCargoProvider</c> ayrı bir aggregate root'tur →
     /// navigasyon değil kimlik tutulur (NavigationConventionTests). Trendyol'un sayısal
     /// <c>cargoCompanyId</c>'si DEĞİL bizim kaydımızın kimliği saklanır: firma listesi bizde yaşayan bir
-    /// referanstır, sayı damgalama anında o kayıttan okunur.</para>
+    /// referanstır, sayı gönderim anında o kayıttan okunur.</para>
     ///
     /// <para><b>null = seçilmedi</b> (fail-open değil): kanal ürünü de kargosuz kalır ve eksiklik ürün
-    /// formunda görünür — uydurma bir firma damgalamaktansa boş bırakmak dürüsttür.</para>
+    /// formunda görünür — uydurma bir firma yazmaktansa boş bırakmak dürüsttür.</para>
     /// </summary>
     public virtual Guid? DefaultCargoProviderId { get; protected set; }
 

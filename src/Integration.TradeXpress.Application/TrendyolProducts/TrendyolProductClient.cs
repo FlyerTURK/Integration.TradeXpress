@@ -22,9 +22,9 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// listeleme ucu (<c>GET /integration/product/sellers/{sellerId}/products</c>) kimlik doğrulayıcıda status-probe
 /// olarak KANITLI. Gerekirse bu tek dosyadaki sabitleri güncellemek yeterlidir (model/AppService değişmeden):</para>
 /// <list type="bullet">
-/// <item>Create: <c>POST /integration/product/sellers/{sellerId}/products</c> · gövde <c>{ "items": [ ... ] }</c> → <c>{ "batchRequestId": "..." }</c>.</item>
+/// <item>Create: <c>POST /integration/product/sellers/{sellerId}/products</c> · body <c>{ "items": [ ... ] }</c> → <c>{ "batchRequestId": "..." }</c>.</item>
 /// <item>Fiyat/stok: <c>POST /integration/inventory/sellers/{sellerId}/products/price-and-inventory</c> ·
-/// gövde <c>{ "items": [ { barcode, quantity?, listPrice?, salePrice? } ] }</c> → <c>{ "batchRequestId": "..." }</c>.
+/// body <c>{ "items": [ { barcode, quantity?, listPrice?, salePrice? } ] }</c> → <c>{ "batchRequestId": "..." }</c>.
 /// <b>URL AİLESİ FARKLI</b> (<c>/inventory/</c>, create'teki <c>/product/</c> değil) → create URL'inden türetilmez.
 /// <b>Bu batch'te kök <c>status</c> alanı DÖNMEYEBİLİR</b> — sonuç item-bazlı statülerden okunur.</item>
 /// <item>Durum: <c>GET /integration/product/sellers/{sellerId}/products/batch-requests/{batchRequestId}</c>.</item>
@@ -67,7 +67,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
     public async Task<TrendyolSubmitResult> UpdatePriceAndInventoryAsync(
         IReadOnlyList<TrendyolPriceInventoryItem> items, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
     {
-        // Guard'lar gövde kurucusunda, yani AĞA ÇIKMADAN önce koşar: bozuk satır Trendyol'a hiç gitmez.
+        // Guard'lar body kurucusunda, yani AĞA ÇIKMADAN önce koşar: bozuk satır Trendyol'a hiç gitmez.
         var body = BuildPriceInventoryBody(items);
 
         // ⚠ URL ailesi create'ten FARKLI: /integration/inventory/... (create /integration/product/...).
@@ -77,7 +77,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         var request = CreateRequest(HttpMethod.Post, url, credentials);
         request.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
-        // Yazma ucu → GET-retry KULLANILMAZ (idempotent değil; ayrıca aynı gövde 15 dk içinde tekrarlanamıyor).
+        // Yazma ucu → GET-retry KULLANILMAZ (idempotent değil; ayrıca aynı body 15 dk içinde tekrarlanamıyor).
         var (ok, status, payload) = await SendAsync(request, cancellationToken);
         if (!ok)
         {
@@ -148,11 +148,11 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
                 .WithData("body", Truncate(payload));
         }
 
-        // Doküman başarı gövdesi örneği vermiyor; batch id varsa okunur (create yolu gibi makbuzsuz yanıta toleranslı).
+        // Doküman başarı body'si örneği vermiyor; batch id varsa okunur (create yolu gibi makbuzsuz yanıta toleranslı).
         return new TrendyolSubmitResult(ReadString(payload, "batchRequestId"));
     }
 
-    // internal — gövde ağa çıkmadan birim test edilebilsin (create/price gövdeleriyle aynı desen).
+    // internal — body ağa çıkmadan birim test edilebilsin (create/price body'leriyle aynı desen).
     internal static string BuildArchiveBody(IReadOnlyList<string> barcodes, bool archived)
     {
         var root = new Dictionary<string, object?>
@@ -162,7 +162,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         return JsonSerializer.Serialize(root);
     }
 
-    // internal — gövde ağa çıkmadan birim test edilebilsin (create/price gövdeleriyle aynı desen).
+    // internal — body ağa çıkmadan birim test edilebilsin (create/price body'leriyle aynı desen).
     internal static string BuildDeleteBody(IReadOnlyList<string> barcodes)
     {
         var root = new Dictionary<string, object?>
@@ -243,7 +243,16 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
     }
 
     /// <summary>DÜZ kalemleri (barcode başına) Trendyol grup anahtarına (<c>productMainId</c>) göre birleştirir:
-    /// ortak alanlar İLK kalemden, varyantlar geliş sırasıyla. productMainId boş kalem KENDİ BAŞINA üründür.</summary>
+    /// ortak alanlar İLK kalemden, varyantlar geliş sırasıyla. productMainId boş kalem KENDİ BAŞINA üründür.
+    /// <para><b>Görseller de İLK kalemden</b> — 2..N'inci kalemin fotoğrafları havuza KATILMAZ ve bu bir kayıp
+    /// DEĞİLDİR: parse her kalemin <c>images</c> dizisini KENDİ varyantına da yazar
+    /// (<see cref="TrendyolRemoteVariant.ImageUrls"/>) ve import onları varyant bağlamına indirir. Havuzu
+    /// birleşime çevirmek varyant-farkı fotoğraflarını KAYIT GENELİ medya bağlamına doldururdu — CLAUDE.md §6
+    /// yerleşim kuralı ("genel görsel kayıt seviyesinde, farklılık görselleri varyantta") ve kayıt başına
+    /// görsel bütçesi (<c>ProductConsts.MaxImageCount</c>) ikisi birden buna karşıdır. Push zaten OKUMA anında
+    /// ürün setini tüm varyant setleriyle birleştirir (<c>MarketplacePushImageResolver</c>), yani birleşimin
+    /// pazaryerine ulaşma yolu zaten açıktır. Kanal CDN adres damgası (<c>RemoteImageMediaIds</c>) için gereken birleşim
+    /// <see cref="CollectAllImageUrls"/>'dedir.</para></summary>
     public static IReadOnlyList<TrendyolRemoteProduct> GroupByProductMainId(IReadOnlyList<TrendyolRemoteProduct> flatItems)
     {
         var grouped = new List<TrendyolRemoteProduct>();
@@ -260,7 +269,10 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
             if (byMainId.TryGetValue(item.ProductMainId!, out var index))
             {
                 var existing = grouped[index];
-                grouped[index] = existing with { Variants = existing.Variants.Concat(item.Variants).ToList() };
+                grouped[index] = existing with
+                {
+                    Variants = existing.Variants.Concat(item.Variants).ToList()
+                };
             }
             else
             {
@@ -272,9 +284,34 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         return grouped;
     }
 
+    /// <summary>Uzak ürünün BİLİNEN TÜM görsel adresleri — havuz (ilk kalem) + HER varyantın kendi seti,
+    /// sıra korunarak tekilleştirilmiş (<c>N11ImportGroup.ImageUrls</c> ile aynı desen; iki pazaryeri aynı
+    /// soruya farklı cevap vermesin).</summary>
+    /// <remarks>
+    /// <para><b>Nerede kullanılır:</b> import'un kanal CDN adresi damgası
+    /// (<c>SalesChannelTrTrendyolProduct.SetRemoteImageUrls</c>) — DAM'a indirme yolunda DEĞİL. Fark önemli:
+    /// indirme yolu bağlam ayrımını korur (havuz kayıt geneline, varyant seti varyanta), <c>SetRemoteImageUrls</c> ise "bu kaydın
+    /// bugünkü görsel setinin kanaldaki karşılıkları" sorusuna cevap verir ve o set İKİ bağlamı da kapsar.</para>
+    /// <para><b>Neden birleşim şart:</b> push'un yeniden-kullanım dalı <c>RemoteImageMediaIds</c>'i
+    /// <c>ResolveCandidateMediaIdsAsync</c> (ürün + TÜM varyant medyası) ile karşılaştırır ve eşleşince
+    /// adresleri OLDUĞU GİBİ gönderir. <c>RemoteImageMediaIds</c> yalnız havuzdan yazılsaydı eşleşme yine tutar ama gönderilen
+    /// adres sayısı medya sayısından az kalırdı: varyant fotoğrafları sessizce düşer, defter ise onları
+    /// "gönderildi" diye yazardı (CLAUDE.md §6 "göndermediğini yazma").</para>
+    /// <para>Tekilleştirme, aynı fotoğrafı her varyantta tekrarlayan (yaygın) satıcı düzeninde aynı adresin
+    /// N kez taşınmasını önler; SIRA korunur çünkü ilk görsel vitrindir.</para>
+    /// </remarks>
+    public static IReadOnlyList<string> CollectAllImageUrls(TrendyolRemoteProduct product)
+    {
+        return product.ImageUrls
+            .Concat(product.Variants.SelectMany(variant => variant.ImageUrls))
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     /// <summary>Listeleme yanıtını parse eder (public static — birim test edilir): sayfalama zarfı + <c>content[]</c>
     /// kalemleri. Barcode'suz kalem BOŞ barcode ile taşınır (parse'ta sessiz elenmez — import tarafı atla+raporla
-    /// yapar, "InvalidBarcode" satırı rapora düşer). Bozuk JSON gövdesi dostane hatayla İMPORTU DURDURUR: sessizce
+    /// yapar, "InvalidBarcode" satırı rapora düşer). Bozuk JSON body'si dostane hatayla İMPORTU DURDURUR: sessizce
     /// boş sayfa dönmek o ve sonraki sayfaların kalemlerini raporsuz kaybettirirdi (sessiz kapsam düşürme yasak).
     /// Alan adları defansif okunur (sayı/metin id toleransı, onSale/onsale iki yazım).</summary>
     public static TrendyolSellerProductsPage ParseSellerProductsPage(int page, int size, string payload)
@@ -354,7 +391,12 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
             Approved: ReadBool(el, "approved"),
             OnSale: ReadBool(el, "onSale") ?? ReadBool(el, "onsale"),
             Attributes: attributes,
-            Flags: ReadListingFlags(el));
+            Flags: ReadListingFlags(el),
+            // Aynı liste HEM kalemin kendi varyantına HEM (aşağıda) ürün havuzuna yazılır. Trendyol görselleri
+            // kalem (barkod = varyant) başına döndürüyor; yalnız havuza yazmak, hangi fotoğrafın hangi varyanta
+            // ait olduğu bilgisini daha parse anında kaybetmek olurdu — varyant bağlamına inecek veri de o an
+            // yok olurdu. İki bağlam birbirinin yerine geçmez (CLAUDE.md §6: "HER MEDYA TİPİ İKİ BAĞLAMI DA TAŞIR").
+            ImageUrls: images);
 
         return new TrendyolRemoteProduct(
             ProductMainId: ReadString(el, "productMainId"),
@@ -420,7 +462,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         return reasons.Count == 0 ? null : string.Join(" · ", reasons);
     }
 
-    // Trendyol zaman damgaları epoch MİLİSANİYE. Kayıt UTC'dir (CLAUDE.md §6: kayıt=UTC, görüntü=yerel).
+    // Trendyol timestamp'leri epoch MİLİSANİYE. Kayıt UTC'dir (CLAUDE.md §6: kayıt=UTC, görüntü=yerel).
     private static DateTime? ReadEpochUtc(JsonElement obj, string property)
     {
         return ReadLong(obj, property) is > 0 and { } epochMs
@@ -428,9 +470,9 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
             : null;
     }
 
-    // ── Create gövdesi (items[]) ──────────────────────────────────────────────────────────────────────
+    // ── Create body'si (items[]) ──────────────────────────────────────────────────────────────────────
 
-    // internal — gövde ağa çıkmadan birim test edilebilsin diye (BuildPriceInventoryBody emsali;
+    // internal — body ağa çıkmadan birim test edilebilsin diye (BuildPriceInventoryBody emsali;
     // InternalsVisibleTo zaten test derlemesine açık).
     internal static string BuildCreateBody(TrendyolProductData p)
     {
@@ -518,12 +560,12 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
             .ToList();
     }
 
-    // ── Fiyat/stok gövdesi (items[]) ─────────────────────────────────────────────────────────────────
+    // ── Fiyat/stok body'si (items[]) ─────────────────────────────────────────────────────────────────
 
-    /// <summary>Hafif fiyat/stok gövdesini kurar: <c>{ "items": [ { barcode, quantity?, listPrice?, salePrice? } ] }</c>.
+    /// <summary>Hafif fiyat/stok body'sini kurar: <c>{ "items": [ { barcode, quantity?, listPrice?, salePrice? } ] }</c>.
     ///
     /// <para><b>public static</b> — ağ olmadan birim test edilebilsin diye (dosyadaki <see cref="FetchAllPagesAsync"/> /
-    /// <see cref="ParseSellerProductsPage"/> emsali). Gövdenin şekli bu dilimin tek gerçek riski: yanlış alan adı ya da
+    /// <see cref="ParseSellerProductsPage"/> emsali). Body'nin şekli bu dilimin tek gerçek riski: yanlış alan adı ya da
     /// yanlış atlama, HTTP 200 dönerken bile yanlış stoğu yazar.</para>
     ///
     /// <para><b>NULL ALAN JSON'A YAZILMAZ.</b> Tabanda ortak <c>JsonSerializerOptions</c> (dolayısıyla
@@ -533,7 +575,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
     {
         if (items is null || items.Count == 0)
         {
-            // Boş gövdeyi sessizce POST etmek, "gönderdim" diye görünüp hiçbir şey yapmamaktır.
+            // Boş body'yi sessizce POST etmek, "gönderdim" diye görünüp hiçbir şey yapmamaktır.
             throw new BusinessException("TradeXpress:Trendyol:Product:EmptyItems");
         }
 
@@ -615,7 +657,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
     }
 
     /// <summary>Satır hatalarının ortak kurucusu — hangi barkodda patladığı hata verisinde TAŞINIR
-    /// (yalnız "geçersiz satır" demek, 1000 satırlık gövdede teşhis ettirmez).</summary>
+    /// (yalnız "geçersiz satır" demek, 1000 satırlık body'de teşhis ettirmez).</summary>
     private static BusinessException Fail(string code, string barcode)
     {
         return new BusinessException(code).WithData("barcode", barcode);

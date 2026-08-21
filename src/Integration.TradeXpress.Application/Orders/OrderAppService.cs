@@ -184,7 +184,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     [UnitOfWork(isTransactional: true)]
     public virtual async Task<OrderReservationDto> ReleaseReservationAsync(OrderReservationReleaseDto input)
     {
-        // ⚠ SESSİZ NO-OP KAPISI: OrderReservationManager.ReleaseAsync, Reserved OLMAYAN kaydı sessizce
+        // ⚠ SESSİZ NO-OP GUARD'I: OrderReservationManager.ReleaseAsync, Reserved OLMAYAN kaydı sessizce
         // atlar — bu İDEMPOTENT iç yol için doğrudur (iptal onayı iki kez işlense de stok bir kez döner).
         // Ama KULLANICI aksiyonunda yanlıştır: karşılanmış bir rezervasyonda "Serbest Bırak" hiçbir şey
         // yapmadan başarı döndürüyordu — kullanıcı stoğu geri aldığını sanırdı. Açık aksiyon açık cevap ister.
@@ -234,6 +234,115 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
                 PriceDifference   = l.PriceDifference,
                 Note              = l.Note,
             }),
+        };
+    }
+
+    // ── "Karar Bekleyenler" sekmesi (2026-08-21 Hakan yerleşim kararı) — SALT OKUMA ──────────────────
+
+    /// <summary>Karar bekleyenlerin TEK listesi: ① Blocked rezervasyonlar (gerekçesiyle) ② iptal talebi
+    /// bekleyen siparişler ③ yaş eşiğini aşan aktif rezervler. Tip ayrımı DTO'daki <c>Kind</c> alanıyla —
+    /// üç ayrı uç açılmadı (aynı soru: "burada benim yapmam gereken bir şey var mı?").
+    /// <para><b>Hiçbir eksene YAZMAZ</b> — yaşlanan rezerv için de süre aşımı YOKTUR ("sipariş siparıştir");
+    /// eşik yalnız görünürlük sağlar. Sayfalama yok: bekleyen iş listesi tanım gereği kısadır ve sekme rozeti
+    /// toplam sayıyı ister.</para></summary>
+    public virtual async Task<List<OrderPendingDecisionDto>> GetPendingDecisionsAsync()
+    {
+        if (_currentCompany.Id is not { } companyId)
+        {
+            // Konsolide (şirketsiz) bağlamda boş liste: başka şirketin bekleyen işi gösterilmez
+            // (OrderReservationInboxSummaryProvider ile aynı fail-closed kural).
+            return new List<OrderPendingDecisionDto>();
+        }
+
+        var agingThreshold = Clock.Now.ToUniversalTime()
+            .AddDays(-OrderConsts.AgingReservationThresholdDays);
+
+        // ① iptal talebi karar bekliyor (stok ekseni ne olursa olsun — karar hâlâ insanın)
+        // ② rezervasyon kurulamadı; iptali ONAYLANMIŞ kayıt hariç (sipariş kapandı, bağlanacak eşleşme kalmadı —
+        //    süresiz listede kalması gürültü olurdu)
+        // ③ eşikten eski AKTİF rezerv. Fulfilled/Released kayıtların işi bitmiştir, listeye girmez.
+        var reservations = await AsyncExecuter.ToListAsync(
+            (await _reservationRepository.GetQueryableAsync())
+                .Where(r => r.CompanyId == companyId)
+                .Where(r => r.CancellationDecision == OrderCancellationDecision.Pending
+                            || (r.Status == OrderReservationStatus.Blocked
+                                && r.CancellationDecision != OrderCancellationDecision.Approved)
+                            || (r.Status == OrderReservationStatus.Reserved
+                                && r.ReservedAt != null
+                                && r.ReservedAt <= agingThreshold)));
+
+        if (reservations.Count == 0)
+        {
+            return new List<OrderPendingDecisionDto>();
+        }
+
+        var orderIds = reservations.Select(r => r.OrderId).ToList();
+        var orderById = (await AsyncExecuter.ToListAsync(
+                (await _orderRepository.GetQueryableAsync())
+                    .Where(o => o.CompanyId == companyId && orderIds.Contains(o.Id))))
+            .ToDictionary(o => o.Id);
+
+        var channelCodes = await GetChannelCodesAsync(
+            companyId, orderById.Values.Select(o => o.SalesChannelId).Distinct().ToList());
+
+        var rows = new List<OrderPendingDecisionDto>();
+        foreach (var reservation in reservations)
+        {
+            // Rezervasyon katmanı siparişten AYRI yaşar (senkron Order'ı yeniden yazabilir) — sipariş
+            // bulunamazsa satır üretilmez; kayıt silinmez, sipariş geri geldiğinde yeniden görünür.
+            if (!orderById.TryGetValue(reservation.OrderId, out var order))
+            {
+                continue;
+            }
+
+            rows.Add(BuildPendingDecisionRow(reservation, order, channelCodes));
+        }
+
+        // En uzun süredir bekleyen ÜSTTE — sekmenin amacı önceliklendirme, tazelik değil.
+        return rows.OrderBy(r => r.PendingSinceUtc).ThenBy(r => r.OrderId).ToList();
+    }
+
+    /// <summary>Satır kurucu. Tip seçimi ÖNCELİKLİDİR (iptal talebi &gt; kurulamadı &gt; yaşlandı): rozeti
+    /// kullanıcıdan iş isteyen en acil durum belirler; ham iki eksen DTO'da ayrıca taşınır, bilgi gizlenmez.
+    /// (Elle eşleme değil enrichment — reservation + order + kanal sözlüğü birleşir; Mapperly kapsamı dışı.)</summary>
+    private static OrderPendingDecisionDto BuildPendingDecisionRow(
+        OrderReservation reservation, Order order, IReadOnlyDictionary<Guid, string> channelCodes)
+    {
+        OrderPendingDecisionKind kind;
+        DateTime pendingSince;
+        if (reservation.CancellationDecision == OrderCancellationDecision.Pending)
+        {
+            kind = OrderPendingDecisionKind.CancellationRequested;
+            // İLK talep anı (RequestCancellation tekrar eden kanal sinyalinde tazelemez) → yaş gerçek bekleme süresi.
+            pendingSince = reservation.CancellationRequestedAt ?? reservation.CreationTime;
+        }
+        else if (reservation.Status == OrderReservationStatus.Blocked)
+        {
+            kind = OrderPendingDecisionKind.BlockedReservation;
+            // Blocked'a özgü zaman damgası yok — kaydın açıldığı an beklemenin başlangıcıdır.
+            pendingSince = reservation.CreationTime;
+        }
+        else
+        {
+            kind = OrderPendingDecisionKind.AgingReservation;
+            pendingSince = reservation.ReservedAt ?? reservation.CreationTime;
+        }
+
+        return new OrderPendingDecisionDto
+        {
+            OrderId              = reservation.OrderId,
+            Kind                 = kind,
+            ReservationStatus    = reservation.Status,
+            CancellationDecision = reservation.CancellationDecision,
+            Reason               = reservation.Note,
+            PendingSinceUtc      = pendingSince,
+            ChannelType          = order.ChannelType,
+            SalesChannelCode     = channelCodes.GetValueOrDefault(order.SalesChannelId),
+            OrderNumber          = order.OrderNumber,
+            OrderDate            = order.OrderDate,
+            NeutralStatus        = order.NeutralStatus,
+            CustomerName         = ResolveCustomerName(order),
+            TotalAmount          = order.TotalAmount,
         };
     }
 
@@ -349,7 +458,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
             TaxId = operational?.BuyerCorrection?.TaxId ?? buyer?.TaxId,
             TaxOffice = operational?.BuyerCorrection?.TaxOffice ?? buyer?.TaxOffice,
         };
-        // Sipariş adresleri Türkiye kabul edilir → ülke TR-kilitli + il ADINDAN çekirdek idari-alanı ön-seç (picker
+        // Sipariş adresleri Türkiye kabul edilir → ülke TR-kilitli + il ADINDAN core idari-alanı ön-seç (picker
         // İl'i ön-seçer). İlçe/mahalle KASITLI ön-seçilmez (canlı N11 mahalle fetch'inden kaçınmak için) — ithal
         // İlçe/Mahalle ADLARI modelde korunur, Save'de yazılır. TR kataloğu yoksa CountryId null (picker serbest mod).
         var geography = await BuildTurkeyAddressCatalogAsync();
@@ -694,7 +803,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     /// kullanıcı bağlamına taşımaktan iyidir. Materializer'ın "SaveLineAsync KULLANILMAZ" notu YALNIZ kullanıcısız
     /// worker içindir.</para>
     ///
-    /// <para><b>ÇİFT SAYIM KAPISI:</b> fiziki çıkış satırları yazılır VE rezervasyon satırları aynı transaction'da
+    /// <para><b>ÇİFT SAYIM GUARD'I:</b> fiziki çıkış satırları yazılır VE rezervasyon satırları aynı transaction'da
     /// soft-delete edilir. İkincisi unutulursa aynı mal iki kez düşer (<c>Available</c> 30 yerine 10 olur) ve
     /// ürün stokta olduğu hâlde satıştan kalkar — hiçbir istisna doğmaz.</para></summary>
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -892,7 +1001,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     /// <summary>Elle eşleştirme adayları — ÇALIŞILAN ŞİRKETİN ürün varyantları.
     ///
     /// <para><b>Şirket sınırı açıkça uygulanır:</b> <c>EntityVariant</c> kendi <c>CompanyId</c>'sini taşır ama
-    /// aday listesi kullanıcının GÖRDÜĞÜ bir yüzeydir — global filtreye ek olarak koşulu yazmak, bağlam
+    /// aday listesi kullanıcının GÖRDÜĞÜ bir listedir — global filtreye ek olarak koşulu yazmak, bağlam
     /// kurulmamış bir çağrıda yabancı şirketin ürünlerinin listelenmesini yapısal olarak engeller.</para>
     ///
     /// <para>Arama hem ürün kodunda/adında hem varyant kodunda yapılır: kullanıcı elindeki pazaryeri stok
@@ -999,7 +1108,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         return dto;
     }
 
-    // Kalıcı taraf (correction ?? original) isim-tabanlı ADLARI editable DTO'ya taşır + TR il ADINDAN çekirdek
+    // Kalıcı taraf (correction ?? original) isim-tabanlı ADLARI editable DTO'ya taşır + TR il ADINDAN core
     // idari-alanı en-iyi-çaba ön-seçer (picker İl'i ön-seçsin). İLÇE/MAHALLE KASITLI ön-seçilmez (LocalityId null →
     // picker canlı N11 mahalle fetch'i TETİKLEMEZ; sipariş açılışı hızlı + N11-bağımsız). İthal İl/İlçe/Mahalle ADLARI
     // her hâlde KORUNUR (eşleşme yoksa yalnız geo-id null, ad korunur — tolerant snapshot, ithal değer kaybolmaz).
@@ -1182,17 +1291,27 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
             return;
         }
 
-        var channelIds = dtos.Select(d => d.SalesChannelId).Distinct().ToList();
-        var codes = (await AsyncExecuter.ToListAsync(
-                (await _channelRepository.GetQueryableAsync())
-                    .Where(c => c.CompanyId == companyId && channelIds.Contains(c.Id))
-                    .Select(c => new { c.Id, c.Code })))
-            .ToDictionary(x => x.Id, x => x.Code);
-
+        var codes = await GetChannelCodesAsync(companyId, dtos.Select(d => d.SalesChannelId).Distinct().ToList());
         foreach (var dto in dtos)
         {
             dto.SalesChannelCode = codes.TryGetValue(dto.SalesChannelId, out var code) ? code : null;
         }
+    }
+
+    /// <summary>Kanal kodu sözlüğü (id → Code) — sipariş listesinin ve karar bekleyenler sekmesinin ORTAK
+    /// enrich kaynağı (aynı sorgu iki yerde kopyalanmasın; kanal referansı id-only, mapper doldurmaz).</summary>
+    private async Task<Dictionary<Guid, string>> GetChannelCodesAsync(Guid companyId, List<Guid> channelIds)
+    {
+        if (channelIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        return (await AsyncExecuter.ToListAsync(
+                (await _channelRepository.GetQueryableAsync())
+                    .Where(c => c.CompanyId == companyId && channelIds.Contains(c.Id))
+                    .Select(c => new { c.Id, c.Code })))
+            .ToDictionary(x => x.Id, x => x.Code);
     }
 
     private async Task<string?> ResolveChannelCodeAsync(Guid salesChannelId)
@@ -1227,7 +1346,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     }
 
     /// <summary>Sipariş adres picker'ının TR ÖN-SEÇİM kataloğu (host-global; N11 TETİKLEMEZ). İthal il ADINDAN
-    /// çekirdek idari-alanı (il) en-iyi-çaba eşler → picker İl'i ön-seçer. İlçe/mahalle KASITLI ön-seçilmez (canlı
+    /// core idari-alanı (il) en-iyi-çaba eşler → picker İl'i ön-seçer. İlçe/mahalle KASITLI ön-seçilmez (canlı
     /// N11 mahalle fetch'inden kaçınmak için). Eşleşme yoksa <see cref="MatchArea"/> null döner (ithal ad korunur).</summary>
     private sealed class TurkeyAddressCatalog
     {
@@ -1267,7 +1386,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         /// <summary>TR ülke id'si (picker <c>FixedCountryId</c>'si) — TR kataloğu yoksa null.</summary>
         public Guid? CountryId { get; }
 
-        /// <summary>İl adını çekirdek idari-alana eşler (Trim + kültür-duyarsız). Eşleşme yoksa null (ad korunur).</summary>
+        /// <summary>İl adını core idari-alana eşler (Trim + kültür-duyarsız). Eşleşme yoksa null (ad korunur).</summary>
         public AdministrativeAreaMatch? MatchArea(string? cityName)
         {
             if (string.IsNullOrWhiteSpace(cityName))
@@ -1278,7 +1397,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
             return _areaByName.GetValueOrDefault(cityName.Trim());
         }
 
-        /// <summary>İlçe adını, verilen il içinde çekirdek yerelliğe eşler (Trim + kültür-duyarsız). Yoksa null (ad korunur).</summary>
+        /// <summary>İlçe adını, verilen il içinde core yerelliğe eşler (Trim + kültür-duyarsız). Yoksa null (ad korunur).</summary>
         public LocalityMatch? MatchLocality(Guid areaId, string? districtName)
         {
             if (string.IsNullOrWhiteSpace(districtName))
@@ -1292,9 +1411,9 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         }
     }
 
-    /// <summary>Çekirdek idari-alan (il) ön-seçim satırı — id + ad + kaynak kod + ISO 3166-2 kodu.</summary>
+    /// <summary>Core idari-alan (il) ön-seçim satırı — id + ad + kaynak kod + ISO 3166-2 kodu.</summary>
     private sealed record AdministrativeAreaMatch(Guid Id, string Name, string Code, string? IsoCode);
 
-    /// <summary>Çekirdek yerellik (ilçe) ön-seçim satırı — id + il id + ad + kaynak (N11) ilçe kodu.</summary>
+    /// <summary>Core yerellik (ilçe) ön-seçim satırı — id + il id + ad + kaynak (N11) ilçe kodu.</summary>
     private sealed record LocalityMatch(Guid Id, Guid AreaId, string Name, string Code);
 }

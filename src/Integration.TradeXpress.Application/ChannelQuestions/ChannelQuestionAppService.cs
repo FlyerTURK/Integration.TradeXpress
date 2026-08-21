@@ -19,7 +19,7 @@ namespace Integration.TradeXpress.ChannelQuestions;
 ///
 /// <para><b>Kapsam FAIL-CLOSED (OrderAppService deseni):</b> tenant sınırını ABP global filtresi uygular, ama
 /// şirket filtresi <c>CurrentCompanyId</c> null iken PERMISSIVE'dir — working company olmayan bir bağlamda
-/// (HTTP yüzeyi/Swagger, arka plan işi) liste tenant'ın TÜM şirketlerinin sorularını döndürürdü. Bu yüzden
+/// (HTTP API'si/Swagger, arka plan işi) liste tenant'ın TÜM şirketlerinin sorularını döndürürdü. Bu yüzden
 /// liste sorgusu şirket bağlamı yoksa BOŞ döner ve ayrıca <c>CompanyId</c> ile açıkça daraltılır. Tekil
 /// erişimde repository <c>GetAsync</c>'i kapsam dışı id'yi zaten kayıt yokmuş gibi karşılar.</para>
 ///
@@ -85,7 +85,7 @@ public class ChannelQuestionAppService : TradeXpressAppService, IChannelQuestion
     public virtual async Task<PagedResultDto<ChannelQuestionListDto>> GetListAsync(ChannelQuestionListRequestDto input)
     {
         // FAIL-CLOSED şirket kapsamı (OrderAppService deseni): global company filtresi CurrentCompanyId null iken
-        // PERMISSIVE'dir — working company yokken (HTTP yüzeyi/Swagger, arka plan) tenant'ın TÜM şirketlerinin
+        // PERMISSIVE'dir — working company yokken (HTTP API'si/Swagger, arka plan) tenant'ın TÜM şirketlerinin
         // soruları dönerdi. Şirket bağlamı yoksa boş sayfa: kapsamsız okuma kazara veri sızdırmasın.
         if (_currentCompany.Id is not { } companyId)
         {
@@ -135,7 +135,7 @@ public class ChannelQuestionAppService : TradeXpressAppService, IChannelQuestion
     {
         var question = await GetOwnedQuestionAsync(id);
 
-        // Damga ABP IClock'tan: AbpClockOptions.Kind=Utc olduğundan Clock.Now UTC'dir (kayıt=UTC kuralı).
+        // Timestamp ABP IClock'tan: AbpClockOptions.Kind=Utc olduğundan Clock.Now UTC'dir (kayıt=UTC kuralı).
         // Yerel saate çevirmek UI'nın işi — burada dönüşüm YAPILMAZ.
         question.WriteAnswer(input.AnswerText, input.ReadyToSend, Clock.Now);
         await _questionRepository.UpdateAsync(question);

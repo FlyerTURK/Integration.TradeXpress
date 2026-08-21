@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.SalesChannels.Variants;
 /// </list>
 /// Sıra sözleşmesi (mevcut N11 akışının birebiri): önce TÜM silmeler (mevcut giriş sırasıyla), sonra
 /// eklemeler (hedef giriş sırasıyla, tekrarlı hedef anahtar TEK ekleme). ERP <c>ProductVariantSynchronizer</c>
-/// buna BAĞLANMAZ (bilinçli karar — analiz 1.3: çalışan+testli ERP gövdesi yerinde kalır).
+/// buna BAĞLANMAZ (bilinçli karar — analiz 1.3: çalışan+testli <c>ProductVariantSynchronizer</c> yerinde kalır).
 /// </summary>
 public static class VariantSetReconciler
 {

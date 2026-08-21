@@ -33,7 +33,7 @@ namespace Integration.TradeXpress.Orders;
 /// henüz belli değildir. Hazırlayan kasa rezervasyonu fiziki çıkışa çevirirken kendi fişini keser.</para>
 ///
 /// <para><b>Karşı taraf = kanalın varsayılan carisi</b> (<c>SalesChannelBase.SubAccountId</c>) — alan ZATEN
-/// VARDI ve doc'u aynen bu köprüyü bekliyordu; sıfır migration.</para>
+/// VARDI ve doc'u aynen bu kullanımı bekliyordu; sıfır migration.</para>
 ///
 /// <para><b>⚠ <c>MainUnitId</c> FAIL-FAST:</b> stok raporu birimi olmayan satırı SESSİZCE atlar. Böyle bir
 /// satır "0 gram rezerve eden hayalet" olurdu — rezervasyon var görünür, stok hiç düşmezdi. Bu yüzden

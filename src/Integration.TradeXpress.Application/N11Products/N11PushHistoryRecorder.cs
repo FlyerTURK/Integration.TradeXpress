@@ -12,7 +12,7 @@ using Volo.Abp.Timing;
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
-/// PUSH GEÇMİŞİ YAZICISI — N11'e gerçekten ULAŞAN her gönderim için tarihli delil kaydı üretir.
+/// PUSH GEÇMİŞİ YAZICISI — N11'e gerçekten ULAŞAN her gönderim için tarihli PushHistory kaydı üretir.
 ///
 /// <para><b>Neden ayrı servis:</b> iki push yolu var (tam push + fiyat/stok senkronu) ve ikisi de aynı kaydı
 /// yazmalı. Çağrı yerine kopyalanan bir kayıt mantığı zamanla ayrışır — biri görseli yazar, diğeri unutur;
@@ -20,7 +20,7 @@ namespace Integration.TradeXpress.N11Products;
 ///
 /// <para><b>⚠ Kayıt PUSH'U DÜŞÜRMEZ:</b> geçmiş yazılamazsa (ör. alan taşması) gönderim BAŞARILI sayılmaya
 /// devam eder — mal zaten N11'e gitmiştir, kaydı tutamamak onu geri almaz. Hata YUTULMAZ, loglanır.
-/// Tersi tercih edilseydi delil kaydı, çalışan satışı bozan bir tek nokta arızasına dönerdi.</para>
+/// Tersi tercih edilseydi PushHistory kaydı, çalışan satışı bozan bir tek nokta arızasına dönerdi.</para>
 ///
 /// <para>Görseller <c>MediaId</c> + <c>ContentHash</c> ile saklanır: id "hangi kayıt", hash "içerik o gün
 /// buydu" der. Bugünkü DAM'da içerik blob'u zaten üzerine yazılmıyor — hash o güvenceyi belgeler.</para>
@@ -114,6 +114,26 @@ public class N11PushHistoryRecorder : ITransientDependency
 
         var rows = await _mediaRepository.GetListAsync(m => mediaIds.Contains(m.Id));
         return rows.ToDictionary(m => m.Id, m => (string?)m.ContentHash);
+    }
+
+    /// <summary>Fiyat/stok gönderiminin geçmiş girdileri — GÖNDERİLEN (ya da gönderilmeye çalışılan) satırlardan
+    /// kurulur; başarı ve başarısızlık dalları AYNI kaynaktan okur ki iki dal zamanla ayrışmasın. ORTAK gövde:
+    /// senkron yolu (<c>SyncStockAndPriceAsync</c>) ile pasifleştirmenin adet-0 gönderimi
+    /// (<see cref="N11StockWithdrawer"/>) aynı delil biçimini yazmalı — ikinci bir defter biçimi İCAT EDİLMEZ.
+    /// <para>İçerik (başlık/görsel/seçenek) bu yolda gönderilmediği için <c>null</c> geçilir — gönderilmeyeni
+    /// deftere yazmak yalan olurdu.</para></summary>
+    public static List<N11PushHistoryEntry> BuildPriceStockEntries(IReadOnlyCollection<N11RestPriceStock> items)
+    {
+        return items
+            .Select(item => new N11PushHistoryEntry(
+                item.StockCode,
+                item.SalePrice,
+                item.CurrencyType,
+                item.Quantity,
+                Title: null,
+                Options: null,
+                MediaIds: null))
+            .ToList();
     }
 }
 

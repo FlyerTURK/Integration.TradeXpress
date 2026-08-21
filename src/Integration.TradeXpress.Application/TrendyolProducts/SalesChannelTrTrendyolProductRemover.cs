@@ -65,6 +65,21 @@ public class SalesChannelTrTrendyolProductRemover : IProductChannelListingRemove
         }
     }
 
+    /// <summary>Ana ürün pasifleşince kanal ürünleri pasif + Trendyol'da ARŞİV (IsActive = kanal arşiv yansıması).
+    /// Zaten pasif olan atlanır (mükerrer istek yok). Aynı transaction: kanal reddederse ürün pasifleşmesi geri döner.</summary>
+    public virtual async Task DeactivateForProductAsync(Guid productId)
+    {
+        var records = await _asyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync()).Where(r => r.ProductId == productId && r.IsActive));
+
+        foreach (var record in records)
+        {
+            record.SetActive(false);
+            await _repository.UpdateAsync(record, autoSave: true);
+            await _listingWithdrawer.SetArchivedAsync(record, archived: true);
+        }
+    }
+
     /// <summary>Kanal ürününü bağımlılarıyla (override başlıkları · reçete satırları · özellik/değer grafı)
     /// soft-delete eder. Sıra ÖNEMLİ: değerler özelliklerden, bağımlılar ana kayıttan önce.</summary>
     public virtual async Task RemoveGraphAsync(SalesChannelTrTrendyolProduct entity)

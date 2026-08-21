@@ -166,6 +166,10 @@ public partial class SalesChannelTrN11ProductAppService
 
             await EnsureTemplateVariantsAsync(group, product, variantsByStockCode, tryCurrencyUnitId, report);
 
+            // REST yanıtında görseller SATIR (yani SKU/varyant) başına gelir → varyanta özel görsel varyantın
+            // kendi bağlamına iner. Grup-seviyesi (birleşik) görsel seti kayıt geneline yazılmaya devam eder.
+            await ImportVariantImagesAsync(product, group, variantsByStockCode, report);
+
             var entity = await UpsertChannelRecordAsync(
                 channel, group, existing, categoryExternalId, shipmentTemplateName, product, variantsByStockCode,
                 categoryNames, defaultVatRate, report);
@@ -177,7 +181,23 @@ public partial class SalesChannelTrN11ProductAppService
             await UpsertStockItemsAsync(entity, group, product, variantsByStockCode, tryCurrencyUnitId, report);
         }
 
+        ReportSkippedImages(report);
         return report;
+    }
+
+    /// <summary>Görsel sınırına takılıp hiç bağlanmayan pazaryeri görsellerini RAPORA taşır (Trendyol/Etsy ikizi).
+    ///
+    /// <para><b>Neden gerekli:</b> sınır aşımı indiricide yalnız server-log'a düşüyordu; kullanıcı "içe aktarım
+    /// başarılı" raporunu görüp fotoğrafın neden gelmediğini hiçbir ekranda bulamıyordu. Sayı ürün-başı değil
+    /// import-başı TEK satırda verilir — 103 ürünlük bir mağazada ürün başına uyarı raporu okunmaz hâle
+    /// getirirdi.</para></summary>
+    private void ReportSkippedImages(N11ImportResultDto report)
+    {
+        if (report.SkippedImages > 0)
+        {
+            report.Warnings.Add(
+                L["N11Product:Import:ImagesSkippedForLimit", report.SkippedImages, ProductConsts.MaxImageCount].Value);
+        }
     }
 
     // ── Uzak satır eleme + gruplama ─────────────────────────────────────────────────────────────────
@@ -412,7 +432,7 @@ public partial class SalesChannelTrN11ProductAppService
         product.SetName(BuildSafeName(group.Title, code), normalizeTitle: false);
         product.SetCurrencyUnit(tryCurrencyUnitId);
 
-        // ÇEKİRDEK kategori kanal kategorisinden çözülür/kurulur (2026-08-06 Hakan kararı) — yalnız YENİ üründe
+        // ÜRÜNÜN KENDİ kategorisi kanal kategorisinden çözülür/kurulur (2026-08-06 Hakan kararı) — yalnız YENİ üründe
         // (Trendyol ikizi; mevcut ürünün kategorisi kullanıcı beyanıdır, EZİLMEZ).
         product.SetProductCategory(await _categoryResolver.ResolveOrCreateAsync(
             channel.CompanyId, SalesChannelType.TrN11, group.CategoryExternalId,
@@ -420,9 +440,12 @@ public partial class SalesChannelTrN11ProductAppService
 
         await _productRepository.InsertAsync(product, autoSave: true);
 
-        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA. YALNIZ kuruluşta: import her
-        // seferinde çalışsaydı kullanıcının düzenlediği galeriyi ezerdi (link seti replace-all'dır).
-        await _imageDownloader.ImportToProductAsync(product, group.ImageUrls);
+        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA. YALNIZ kuruluşta: mevcut ürünün
+        // kayıt-geneli galerisi KULLANICI BEYANIDIR, içe aktarım onu tazelemez (kategori ve varyant alanlarıyla
+        // aynı minimal-güncelleme politikası). İndirici 2026-08-20'den beri EKLEMELİ olduğundan ezme riski
+        // kalmadı; buradaki kısıt teknik değil POLİTİKA — kanalda sonradan eklenen görsel bilinçle inmez.
+        report.SkippedImages += (await _imageDownloader.ImportToProductAsync(product, group.ImageUrls))
+            .SkippedForCapacityCount;
 
         var map = new Dictionary<string, EntityVariant>(StringComparer.OrdinalIgnoreCase);
         var usedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -433,7 +456,7 @@ public partial class SalesChannelTrN11ProductAppService
                 product, row, group.Title, usedCodes, tryCurrencyUnitId, isMain: i == 0);
         }
 
-        // Ana-varyant değişmezi MERKEZÎ kapıdan (tekil main garanti; idempotent).
+        // Ana-varyant değişmezi MERKEZÎ EnsureMainVariantAsync'ten (tekil main garanti; idempotent).
         await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
         return (product, map);
     }
@@ -469,13 +492,55 @@ public partial class SalesChannelTrN11ProductAppService
 
         if (addedAny)
         {
-            // Mevcut main KORUNUR — yeni eklenenler main OLMAZ (merkezî kapı idempotenttir).
+            // Mevcut main KORUNUR — yeni eklenenler main OLMAZ (merkezî EnsureMainVariantAsync idempotenttir).
             await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
         }
     }
 
-    /// <summary>Tek varyant + satış fiyatı uzantısı. Stok yalnız BURADA (varyant doğarken) uzaktan tohumlanır;
-    /// sonraki içe aktarımlar çekirdek stoğu EZMEZ (K12 politikası — bkz. <see cref="ResolveOverrideStock"/>).</summary>
+    /// <summary>Satır-başına gelen uzak görselleri İLGİLİ ERP VARYANTININ kendi medya bağlamına indirir
+    /// ("ProductVariant" + varyant Id'si) — Trendyol ikizi.
+    ///
+    /// <para><b>Neden gerekti (2026-08-20):</b> REST yanıtında her SKU satırı KENDİ görsellerini taşır, ama içe
+    /// aktarım bunları yalnız grup seviyesinde birleştirip (<see cref="N11RemoteProductGroup.ImageUrls"/>) ürün
+    /// bağlamına yazıyordu. Görsel KAYBOLMUYORDU ama satır↔görsel eşleşmesi kayboluyordu: hangi fotoğrafın hangi
+    /// varyanta ait olduğu bilgisi hiçbir yerde durmuyordu.</para>
+    ///
+    /// <para>Grup-seviyesi (birleşik) set kayıt geneline yazılmaya DEVAM eder — iki bağlam birbirinin yerine
+    /// geçmez (CLAUDE.md §6) ve push zinciri varyant→kayıt-geneli fallback'iyle okur.</para></summary>
+    private async Task ImportVariantImagesAsync(
+        Product product,
+        N11RemoteProductGroup group,
+        Dictionary<string, EntityVariant> variantsByStockCode,
+        N11ImportResultDto report)
+    {
+        foreach (var row in group.Rows)
+        {
+            if (row.ImageUrls is not { Count: > 0 } imageUrls)
+            {
+                continue;
+            }
+
+            if (!variantsByStockCode.TryGetValue(row.StockCode, out var variant)
+                || variant.EntityId != product.Id)
+            {
+                continue;   // satır ERP varyantına eşleşmedi → görsel yanlış varyanta bağlanmaktansa hiç bağlanmaz
+            }
+
+            // İndirici URL-başına dayanıklıdır (bozuk görsel atlanır + loglanır) ve EKLEMELİDİR: kullanıcının
+            // varyanta elle bağladığı görseller bu çağrıyla EZİLMEZ. Sınıra takılan görsel RAPORA taşınır —
+            // varyant bağlamı her turda yazıldığı için sınır aşımının en olası yeri burasıdır.
+            report.SkippedImages += (await _imageDownloader.ImportToVariantAsync(
+                    variant.Id,
+                    product.CompanyId,
+                    product.Code,
+                    variant.Code,
+                    imageUrls))
+                .SkippedForCapacityCount;
+        }
+    }
+
+    /// <summary>Tek varyant + satış fiyatı uzantısı. Stok yalnız BURADA (varyant doğarken) uzaktan seed'lenir;
+    /// sonraki içe aktarımlar core stoğu EZMEZ (K12 politikası — bkz. <see cref="ResolveOverrideStock"/>).</summary>
     private async Task<EntityVariant> CreateVariantAsync(
         Product product,
         N11RestProductSummary row,
@@ -664,9 +729,9 @@ public partial class SalesChannelTrN11ProductAppService
 
     // ── StockItem (fiyat/stok override) + yan-maliyet reçetesi ──────────────────────────────────────
 
-    /// <summary>Uzak fiyat/stok kanal override katmanına yazılır (çekirdek EZİLMEZ): varyant-başına başlık upsert
+    /// <summary>Uzak fiyat/stok kanal override katmanına yazılır (core EZİLMEZ): varyant-başına başlık upsert
     /// edilir; YENİ başlıkta kanal gider satırları da kurulur. Mevcut başlıkta reçeteye DOKUNULMAZ (kullanıcı emeği),
-    /// yalnız override tazelenir — override kullanıcının rezerv alanı değil, pazaryerinin AYNASIDIR.</summary>
+    /// yalnız override tazelenir — override kullanıcının rezerv alanı değil, pazaryerinin YANSIMASIDIR.</summary>
     private async Task UpsertStockItemsAsync(
         SalesChannelTrN11Product entity,
         N11RemoteProductGroup group,
@@ -716,10 +781,10 @@ public partial class SalesChannelTrN11ProductAppService
         }
     }
 
-    /// <summary>Stok politikası (Trendyol içe aktarımıyla AYNI K12 kuralı): uzak stok çekirdek
+    /// <summary>Stok politikası (Trendyol içe aktarımıyla AYNI K12 kuralı): uzak stok, core
     /// <see cref="EntityVariant.StockQuantity"/> ile AYNIYSA null döner (override yazılmaz — "fark yok" gürültüsü
     /// üretilmez); FARKLIYSA uzak değer kanal override'ı olur + fark LogWarning + rapor sayacıyla GÖRÜNÜR kılınır.
-    /// Çekirdek stok ASLA ezilmez: kullanıcının ERP'deki sayımı pazaryerinin anlık verisinden daha otoriterdir.</summary>
+    /// Core stok ASLA ezilmez: kullanıcının ERP'deki sayımı pazaryerinin anlık verisinden daha otoriterdir.</summary>
     private int? ResolveOverrideStock(
         SalesChannelTrN11Product entity, EntityVariant variant, N11RestProductSummary row, N11ImportResultDto report)
     {

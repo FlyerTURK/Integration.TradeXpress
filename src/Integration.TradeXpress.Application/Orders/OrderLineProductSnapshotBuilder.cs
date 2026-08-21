@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.Orders;
 /// <para><b>Kaynak merkezi DAM</b> (legacy <c>ProductImage</c> 2026-07-31'de emekli): görsel VARYANT-FARKINDA geri
 /// düşüşle seçilir — önce varyantın kendi seti ("ProductVariant" bağlamı), yoksa ürünün kayıt geneli seti ("Product").
 /// Gerekçe: satır belirli bir varyanta eşleşti; görselin ürün-düzeyi default'tan gelmesi yanlış SKU'yu gösterir
-/// (ör. Mavi yüzük satırına Kırmızı thumbnail). Kapak-önce sırası <c>GetPushMediaAsync</c>'te çözülür; snapshot
+/// (ör. Mavi yüzük satırına Kırmızı thumbnail). cover-önce (IsDefault) sırası <c>GetPushMediaAsync</c>'te çözülür; snapshot
 /// poster URL'ini dondurur (medya Id-scoped endpoint — blob adı sızmaz).</para>
 /// </summary>
 public class OrderLineProductSnapshotBuilder : ITransientDependency
@@ -38,7 +38,7 @@ public class OrderLineProductSnapshotBuilder : ITransientDependency
     }
 
     // Varyantın kendi medyası → ürünün kayıt geneli medyası → null. Push seçim kuralları (pasif elenir,
-    // kapak önce) burada da geçerli — sipariş satırı thumbnail'i pazaryerindeki vitrinle aynı görsel olmalı.
+    // cover önce) burada da geçerli — sipariş satırı thumbnail'i pazaryerindeki vitrinle aynı görsel olmalı.
     private async Task<string?> ResolvePreferredPosterUrlAsync(EntityVariant variant)
     {
         var set = await _entityMedia.GetPushMediaAsync(MediaEntityNames.ProductVariant, variant.Id, MediaType.Image);

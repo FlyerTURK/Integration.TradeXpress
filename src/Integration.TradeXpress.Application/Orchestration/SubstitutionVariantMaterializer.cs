@@ -286,7 +286,7 @@ public class SubstitutionVariantMaterializer : ITransientDependency
     }
 
     /// <summary>Varyantın reçete satırlarını kombinasyondan YENİDEN kurar (kombinasyon reçetenin SAHİBİDİR —
-    /// eski satırlar silinir, taze eklenir). Alan kurulumu kanal köprüsünün kanonik
+    /// eski satırlar silinir, taze eklenir). Alan kurulumu SubstitutionChannelPlanProvider'ın kanonik
     /// <c>SubstitutionChannelPlanProvider.BuildRecipeLineDtos</c>'uyla AYNI matematik (hedef DTO değil ENTITY
     /// olduğundan yeniden kullanılamadı; sapma olursa referans orası).</summary>
     private async Task ReplaceRecipeLinesIfChangedAsync(
@@ -457,16 +457,31 @@ public class SubstitutionVariantMaterializer : ITransientDependency
     ///
     /// <para><b>Neden şablona BAĞ kurmuyoruz:</b> "şablon bir kaynaktır, ürünle kalıcı bağ kurmaz" kararı
     /// (şablondaki sonraki değişiklik yüzlerce ürünü habersiz değiştirmesin). Bu yüzden şablon yeniden
-    /// okunmaz — ürünün KENDİ mevcut satırları çoğaltılır: kullanıcı uygulamadan sonra satırı düzenlediyse
-    /// düzenlenmiş hâli taşınır.</para>
+    /// okunmaz — ürünün KENDİ mevcut satırları çoğaltılır.</para>
     ///
-    /// <para>Varyantta zaten şablon satırı varsa (dirilmiş varyant) DOKUNULMAZ — çoğaltma yalnız boşluğu doldurur.</para>
+    /// <para><b>⚠ DÜZENLENMİŞ satır KAYNAK olarak taşınmaz</b> (2026-08-20 sahiplenme kuralının sonucu):
+    /// kullanıcı şablondan gelen bir satırı düzenlediyse o satır artık
+    /// <see cref="RecipeLineOrigin.TemplateEdited"/>'dır ve KOPYALAMA sorgusuna girmez — yeni kombinasyon
+    /// şablonun DOKUNULMAMIŞ hâlini alır (hiç dokunulmamış satır kalmadıysa aşağıdaki dal ürünün kayıtlı
+    /// şablonunu yeniden uygular). Düzenleme varyanta özgü bir karardır; onu her yeni kombinasyona sessizce
+    /// taşımak da en az taşımamak kadar sürpriz olurdu — karar bilinçli olarak "şablon tabanı taşınır, kişisel
+    /// düzeltme taşınmaz" yönünde. Bu paragraf eskiden "düzenlenmiş hâli taşınır" diyordu; kural değişti,
+    /// doküman GERÇEĞE uyduruldu.</para>
+    ///
+    /// <para>Varyantta zaten ŞABLON SOYLU satır varsa (dokunulmamış ya da düzenlenmiş — dirilmiş varyant)
+    /// DOKUNULMAZ: çoğaltma yalnız boşluğu doldurur, üstüne yazmaz.</para>
     /// </summary>
     private async Task CopyTemplateLinesFromSiblingAsync(Product product, Guid targetVariantId)
     {
+        // Nöbetçi ŞABLON SOYUNUN TAMAMINA bakar (dokunulmamış + kullanıcı düzenlemesi): yalnız Template'e
+        // baksaydı, tek satırlı bir şablonda kullanıcı o satırı düzelttiği anda varyant "şablonsuz" sayılır ve
+        // üstüne İKİNCİ bir şablon seti serilirdi — paketleme/kargo/komisyon sessizce iki kez fiyatlanır.
+        // Bu yol OTOMATİKTİR (her materyalizasyon turunda mevcut varyantlar için de koşar), yani hata
+        // kullanıcının hiçbir tıklaması olmadan büyürdü.
         var alreadyHasTemplateLines = await _asyncExecuter.AnyAsync(
             (await _recipeLineRepository.GetQueryableAsync())
-                .Where(l => l.ProductVariantId == targetVariantId && l.Origin == RecipeLineOrigin.Template));
+                .Where(l => l.ProductVariantId == targetVariantId
+                    && (l.Origin == RecipeLineOrigin.Template || l.Origin == RecipeLineOrigin.TemplateEdited)));
         if (alreadyHasTemplateLines)
         {
             return;
@@ -524,6 +539,10 @@ public class SubstitutionVariantMaterializer : ITransientDependency
 
             copy.SetDescription(source.Description);
             copy.SetOrigin(RecipeLineOrigin.Template);
+
+            // Soy kimliği KLONA DA taşınır (2026-08-21): taşınmazsa klon "kimliksiz" doğar — çoğalma üretmez ama
+            // kullanıcı klonu düzenlerse o varyantta legacy çoğalma yolu (kimliksiz eşleme) geri gelirdi.
+            copy.SetTemplateSource(source.SourceTemplateLineId);
             await _recipeLineRepository.InsertAsync(copy, autoSave: true);
         }
     }

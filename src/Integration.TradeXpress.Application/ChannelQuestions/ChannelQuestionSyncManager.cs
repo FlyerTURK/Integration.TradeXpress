@@ -79,7 +79,7 @@ public class ChannelQuestionSyncManager : DomainService
         _currentPrincipalAccessor = currentPrincipalAccessor;
     }
 
-    // ── Dış yüzey ─────────────────────────────────────────────────────────────────────────────────────
+    // ── Dış API ───────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>UI tetiği — pazaryerine GİTMEZ. "Bu kanalı sıradaki turda öncelikli çek" işareti koyar; kullanıcı
     /// mevcut veriyi görmeye devam eder. Doğrudan çağrı yapılsaydı aynı dakikada sayfayı açan ikinci kullanıcı
@@ -103,7 +103,7 @@ public class ChannelQuestionSyncManager : DomainService
         }
 
         // Adalet imleci turu AYIRIR AYIRMAZ işaretlenir (başarı/başarısızlık fark etmez): kota hatası alan bir
-        // kanal defterine yazmadığı için, bellekteki bu damga olmasa sıradaki tur yine aynı kanalı seçer ve
+        // kanal defterine yazmadığı için, bellekteki bu timestamp olmasa sıradaki tur yine aynı kanalı seçer ve
         // sistem tek bir kanala kilitlenirdi.
         _signals.RegisterAttempt(candidate.SalesChannelId, nowUtc);
 
@@ -415,7 +415,7 @@ public class ChannelQuestionSyncManager : DomainService
                             && q.RemoteQuestionId == remoteQuestionId));
     }
 
-    /// <summary>Defteri ilerletir — sayfa bitmediyse imleç, bittiyse ay kapanışı / tazeleme damgası.</summary>
+    /// <summary>Defteri ilerletir — sayfa bitmediyse imleç, bittiyse ay kapanışı / tazeleme timestamp'i.</summary>
     private async Task AdvanceStateAsync(
         SyncCandidate candidate, ChannelQuestionQuery query, RemoteQuestionPage page, DateTime nowUtc)
     {

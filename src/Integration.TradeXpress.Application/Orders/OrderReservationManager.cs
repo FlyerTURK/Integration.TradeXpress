@@ -119,8 +119,8 @@ public class OrderReservationManager : ITransientDependency
 
         var order = await _orderRepository.GetAsync(orderId);
 
-        // ⚠ TERMİNAL KAPISI: teslim edilmiş / iptal edilmiş / iade edilmiş sipariş rezervasyon KURMAZ.
-        // Kapı burada, çağıranda değil: rezervasyonun ne zaman meşru olduğu bu sınıfın bilgisidir ve
+        // ⚠ TERMİNAL DURUM GUARD'I: teslim edilmiş / iptal edilmiş / iade edilmiş sipariş rezervasyon KURMAZ.
+        // Guard burada, çağıranda değil: rezervasyonun ne zaman meşru olduğu bu sınıfın bilgisidir ve
         // ileride başka bir çağıran eklenirse kuralı yeniden yazmak gerekmez.
         // Kayıt AÇILMAZ (2026-08-07 Hakan kararı): terminal sipariş için "bloklandı" ya da "serbest bırakıldı"
         // demek yanlış olurdu — ortada hiç kurulmamış bir taahhüt var, geri alınan bir şey yok. Gelen kutusunu

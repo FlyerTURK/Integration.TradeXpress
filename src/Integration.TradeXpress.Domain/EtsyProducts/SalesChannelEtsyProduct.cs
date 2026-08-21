@@ -512,7 +512,7 @@ public class SalesChannelEtsyProduct : FullAuditedAggregateRoot<Guid>, IMultiTen
             .ToDictionary(kv => kv.Key, kv => kv.Value!);
     }
 
-    // Ortak eşleme çekirdeği (SSOT): PlanStockCodes (readonly, allowCreate=false) ve ReconcileSkus (allowCreate=true)
+    // Ortak eşleme metodu (SSOT): PlanStockCodes (readonly, allowCreate=false) ve ReconcileSkus (allowCreate=true)
     // aynı iki-aşamalı deterministik atamayı paylaşır → plan ile commit AYNI kodu üretir.
     private Dictionary<Guid, SalesChannelEtsyProductSku?> AssignSkus(IReadOnlyList<EtsySkuPushCandidate> candidates, bool allowCreate)
     {

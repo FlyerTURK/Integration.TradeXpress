@@ -137,7 +137,7 @@ public static class N11MockProductServiceEndpoint
 
     // ── Kimlik probu ────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Doğrulayıcı yalnız HTTP 200 + gövdede açık <c>status=failure</c> OLMAMASINI arıyor.
+    /// <summary>Doğrulayıcı yalnız HTTP 200 + yanıt body'sinde açık <c>status=failure</c> OLMAMASINI arıyor.
     /// Ağaç içeriği önemsiz — kategori ağacı yerel DB'den okunuyor.</summary>
     private static XElement TopLevelCategories()
     {

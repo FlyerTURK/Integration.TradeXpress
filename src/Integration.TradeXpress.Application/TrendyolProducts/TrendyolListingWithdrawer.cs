@@ -5,8 +5,10 @@ using System.Threading.Tasks;
 using Integration.TradeXpress.SalesChannelProducts;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Trendyol;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.TrendyolProducts;
 
@@ -34,15 +36,18 @@ public class TrendyolListingWithdrawer : ITransientDependency
     private readonly ITrendyolProductClient _client;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
     private readonly TrendyolPushHistoryRecorder _historyRecorder;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
 
     public TrendyolListingWithdrawer(
         ITrendyolProductClient client,
         IRepository<SalesChannelTrTrendyol, Guid> channelRepository,
-        TrendyolPushHistoryRecorder historyRecorder)
+        TrendyolPushHistoryRecorder historyRecorder,
+        IUnitOfWorkManager unitOfWorkManager)
     {
         _client = client;
         _channelRepository = channelRepository;
         _historyRecorder = historyRecorder;
+        _unitOfWorkManager = unitOfWorkManager;
     }
 
     /// <summary>Kaydın barkodlarını Trendyol'dan siler (kanala hiç ulaşmamışsa no-op). DB grafı silindikten SONRA,
@@ -65,7 +70,8 @@ public class TrendyolListingWithdrawer : ITransientDependency
             (barcodes, credentials) => _client.ArchiveProductsAsync(barcodes, archived, credentials));
     }
 
-    // Ortak gövde: barkodlar → kanal çağrısı → delil satırı (başarı/red) → red'de istisna yukarı (UoW rollback).
+    // Ortak SendAsync: barkodlar → kanal çağrısı → PushHistory satırı (başarı/red) → red'de istisna yukarı (UoW rollback).
+    // Red satırı AYRI requiresNew transaction'da yazılır ki çağıranın rollback'i delili de silmesin (aşağıdaki metot).
     private async Task SendAsync(
         SalesChannelTrTrendyolProduct entity,
         TrendyolProductPushKind kind,
@@ -93,9 +99,35 @@ public class TrendyolListingWithdrawer : ITransientDependency
         {
             // Red de deftere yazılır (defter yalnız başarıyı yazsaydı "denendi, kanal reddetti" ile "hiç denenmedi"
             // ayırt edilemezdi — 2026-08-10 kuralı); ardından istisna yukarı: çağıranın UoW'u DB değişimini geri alır.
-            await _historyRecorder.RecordAsync(
-                entity.CompanyId, entity.Id, kind, entries, batchRequestId: null, ChannelPushOutcome.Failed, ex.Message);
+            // Tipli hatada mesaj ABP'nin jenerik cümlesi olurdu — kod daha bilgilendiricidir (N11 ile aynı tercih).
+            await RecordFailureSurvivingRollbackAsync(
+                entity.CompanyId, entity.Id, kind, entries,
+                ex is BusinessException { Code: { Length: > 0 } code } ? code : ex.Message);
             throw;
         }
+    }
+
+    /// <summary>
+    /// BAŞARISIZ delil satırı AYRI (requiresNew) transaction'da yazılır — dıştaki UoW rollback olsa bile KALIR.
+    ///
+    /// <para><b>Neden (2026-08-21 hakem bulgusu — <c>N11StockWithdrawer</c> ile aynı gün düzeltilen aynı kusur):</b>
+    /// iki giriş de (silme yolu · arşiv/bayrak yolu) transactional UoW kapsamında ve kanal reddi BİLİNÇLE yukarı
+    /// fırlatılıyor (DB işi geri dönsün diye — sınıf sözleşmesinin kendisi). Delil aynı transaction'da yazılsaydı
+    /// rollback onu da SİLERDİ: üretimde başarısız deneme deftere asla kalıcı geçmez, "denendi, kanal reddetti"
+    /// ile "hiç denenmedi" yine ayırt edilemezdi — 2026-08-10 "başarısız gönderim de yazılır" kuralının bu yoldaki
+    /// sessiz ihlali. Satır yalnız kimlik + değer fotoğraflarıyla kurulur (şirket/kayıt id'si + barkod entry'leri;
+    /// dış entity state'ine bağımlılık yok), yeni transaction'da güvenle yazılır.</para>
+    /// </summary>
+    private async Task RecordFailureSurvivingRollbackAsync(
+        Guid companyId,
+        Guid channelProductId,
+        TrendyolProductPushKind kind,
+        IReadOnlyCollection<TrendyolPushHistoryEntry> entries,
+        string errorMessage)
+    {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
+        await _historyRecorder.RecordAsync(
+            companyId, channelProductId, kind, entries, batchRequestId: null, ChannelPushOutcome.Failed, errorMessage);
+        await uow.CompleteAsync();
     }
 }

@@ -11,7 +11,7 @@ using Volo.Abp.Linq;
 
 namespace Integration.TradeXpress.SalesChannels;
 
-/// <summary>Kanal tahtasının KANAL-AGNOSTİK satır verisi — ürün kimliği, görseli ve "karar bekliyor mu" sinyali.</summary>
+/// <summary>Kanal board'unın KANAL-AGNOSTİK satır verisi — ürün kimliği, görseli ve "karar bekliyor mu" sinyali.</summary>
 public sealed record ChannelProductBoardRow(
     string ProductCode,
     string ProductName,
@@ -21,19 +21,19 @@ public sealed record ChannelProductBoardRow(
     int ReadyVariantCount);
 
 /// <summary>
-/// KANAL TAHTALARININ ORTAK GÖVDESİ — "bu üründe daha ne yapılacak?" sorusunun tek cevap yeri.
+/// KANAL TAHTALARININ ORTAK BUILDER'I — "bu üründe daha ne yapılacak?" sorusunun tek cevap yeri.
 ///
-/// <para><b>Neden ortak sınıf:</b> N11 ve Trendyol tahtalarının kanal-özel kısmı birkaç kolondan ibaret
+/// <para><b>Neden ortak sınıf:</b> N11 ve Trendyol boardlarının kanal-özel kısmı birkaç kolondan ibaret
 /// (Trendyol'da pazaryeri fiyatı/adedi, N11'de satış/onay durumu), ama <b>karar sinyali</b> — reçete var mı,
 /// kaç varyant satışa hazır — ikisinde de HARFİ HARFİNE aynı. Bu ~80 satırlık sorguyu ikinci kanala
 /// kopyalamak connascence-of-algorithm üretirdi: satılabilirlik kuralı değişince biri güncellenir, diğeri
 /// sessizce eski kalırdı — ve fark ancak "bu ürün neden push edilmiyor?" diye sorulduğunda görülürdü.</para>
 ///
-/// <para><b>Reçete VARLIĞI ölçülür, içeriği değil:</b> tahta "sınıflandırıldı mı" sorusuna cevap verir;
+/// <para><b>Reçete VARLIĞI ölçülür, içeriği değil:</b> board "sınıflandırıldı mı" sorusuna cevap verir;
 /// maliyet hesabı push zincirinin işidir. Tek satır bile varsa ürün "reçetesiz" listesinden çıkar.</para>
 ///
-/// <para><b>Satılabilirlik kapının BUGÜNKÜ kararıdır:</b> <c>Ready</c> olmak yetmez, doğrulama damgasının
-/// tazeliği de aranır (<see cref="VariantSaleReadinessResolver"/>). Yani tahta "onaylanmış" değil "şu an
+/// <para><b>Satılabilirlik guard'ın BUGÜNKÜ kararıdır:</b> <c>Ready</c> olmak yetmez, <c>VerifiedRecipeStamp</c>'in
+/// tazeliği de aranır (<see cref="VariantSaleReadinessResolver"/>). Yani board "onaylanmış" değil "şu an
 /// geçer" sayısını gösterir — kullanıcı reçeteyi değiştirdiyse sayı düşer ve sebebi budur.</para>
 ///
 /// <para><b>N+1 YOK:</b> ürün · varyant · reçete · görsel dört TOPLU sorguyla çekilir. Ürün başına çözücü
@@ -66,7 +66,7 @@ public class ChannelProductBoardBuilder : ITransientDependency
         _asyncExecuter = asyncExecuter;
     }
 
-    /// <summary>Ürün başına ortak tahta satırı. Ürünü bulunamayan kimlik sözlüğe GİRMEZ — çağıran o kanal
+    /// <summary>Ürün başına ortak board satırı. Ürünü bulunamayan kimlik sözlüğe GİRMEZ — çağıran o kanal
     /// kaydını atlamak yerine boş alanlarla göstermeyi seçebilir (karar onundur).</summary>
     public virtual async Task<Dictionary<Guid, ChannelProductBoardRow>> BuildAsync(IReadOnlyCollection<Guid> productIds)
     {

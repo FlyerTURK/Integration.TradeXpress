@@ -51,11 +51,11 @@ public class SalesChannelTrTrendyolProductSkuAttribute
     }
 }
 
-/// <summary>Pazaryerinin kalem için BİLDİRDİĞİ varianter (eksen) değeri — içe aktarım anının fotoğrafı
+/// <summary>Pazaryerinin kalem için BİLDİRDİĞİ varianter (eksen) değeri — içe aktarım anının snapshot'ı
 /// (<c>TrendyolVariantAxisResolver</c> çıkarımı; "50 ml" / "Kırmızı" gibi kalemler arasında DEĞİŞEN nitelik).
 /// <see cref="SalesChannelTrTrendyolProductSkuAttribute"/> (yeniden-BAĞLAMA imzası; push planında yazılır) ile
 /// KARIŞTIRILMAZ — o imzadır, bu pazaryeri beyanıdır; ikisini tek listede tutmak imza eşleştirmesini import
-/// verisiyle kirletirdi. Push gövdesi bu değerleri item-düzeyi attribute olarak GERİ gönderir: değerler
+/// verisiyle kirletirdi. Push body'si bu değerleri item-düzeyi attribute olarak GERİ gönderir: değerler
 /// Trendyol'un kendi beyanı olduğundan kategori-tanımı doğrulaması gerektirmez. Kimliksiz (serbest metin)
 /// eksen değeri <see cref="ValueText"/> ile taşınır (<see cref="AttributeValueId"/> null).</summary>
 public class SalesChannelTrTrendyolProductSkuRemoteAxisValue
@@ -63,11 +63,11 @@ public class SalesChannelTrTrendyolProductSkuRemoteAxisValue
     public int AttributeId { get; set; }
     public int? AttributeValueId { get; set; }
 
-    /// <summary>Değerin OKUNUR metni ("Kırmızı"/"50 ml") — id'li değerde de saklanır (delil defteri ve etiketler
-    /// için); gövdeye custom olarak yalnız id yokken gider.</summary>
+    /// <summary>Değerin OKUNUR metni ("Kırmızı"/"50 ml") — id'li değerde de saklanır (PushHistory ve etiketler
+    /// için); body'ye custom olarak yalnız id yokken gider.</summary>
     public string? ValueText { get; set; }
 
-    /// <summary>Niteliğin OKUNUR adı ("Renk") — pazaryerinin bildirdiği; defter "Ad=Değer" biçimi buradan kurulur.</summary>
+    /// <summary>Niteliğin OKUNUR adı ("Renk") — pazaryerinin bildirdiği; PushHistory "Ad=Değer" biçimi buradan kurulur.</summary>
     public string? AttributeName { get; set; }
 
     public SalesChannelTrTrendyolProductSkuRemoteAxisValue()
@@ -107,7 +107,7 @@ public class SalesChannelTrTrendyolProductSku
     /// <summary>Push edilen varianter attribute id çiftleri — yeniden-bağlama imzası.</summary>
     public List<SalesChannelTrTrendyolProductSkuAttribute> AttributeSnapshot { get; set; } = new();
 
-    /// <summary>Pazaryerinin kalem için bildirdiği EKSEN değerleri (import görüntüsü) — push gövdesinde
+    /// <summary>Pazaryerinin kalem için bildirdiği EKSEN değerleri (import görüntüsü) — push body'sinde
     /// item-düzeyi attribute kaynağı. <see cref="AttributeSnapshot"/>'tan AYRI: o bizim gönderdiğimiz imza,
     /// bu pazaryerinin beyanı. Boş liste = "eksen yok" beyanı (tek kalemli grup).</summary>
     public List<SalesChannelTrTrendyolProductSkuRemoteAxisValue> RemoteVariantAttributes { get; set; } = new();
@@ -206,14 +206,14 @@ public class SalesChannelTrTrendyolProductSku
     /// <summary>Gönderilen ama batch'i henüz sonuçlanmamış salePrice.</summary>
     public decimal? PendingSentSalePrice { get; set; }
 
-    // İÇERİK BEKLEYENLERİ (2026-08-14): defter satırının Title/VariantOptions/Images alanları finalize anında
+    // İÇERİK BEKLEYENLERİ (2026-08-14): PushHistory satırının Title/VariantOptions/Images alanları finalize anında
     // ancak SUBMIT anında saklanmış değerden yazılabilir — finalize'da yeniden hesaplamak "göndermediğini
     // gönderdim diye yazma" hatasına girer (yukarıdaki (a) alternatifinin reddi ile aynı gerekçe).
 
-    /// <summary>Gönderilen başlık (batch sonuçlanınca deftere yazılır; yalnız FullPush doldurur).</summary>
+    /// <summary>Gönderilen başlık (batch sonuçlanınca PushHistory'ye yazılır; yalnız FullPush doldurur).</summary>
     public string? PendingSentTitle { get; set; }
 
-    /// <summary>Gönderilen eksen çiftleri, "Ad=Değer; Ad2=Değer2" biçiminde (defter VariantOptions kaynağı).</summary>
+    /// <summary>Gönderilen eksen çiftleri, "Ad=Değer; Ad2=Değer2" biçiminde (PushHistory VariantOptions kaynağı).</summary>
     public string? PendingSentOptions { get; set; }
 
     /// <summary>FİİLEN gönderilen görsel MediaId'leri, virgüllü Guid metni ("id,id" — SIRALI, ilk = vitrin;
@@ -238,6 +238,18 @@ public sealed record TrendyolSkuPushCandidate(
     Guid VariantId,
     string VariantCode,
     IReadOnlyList<SalesChannelTrTrendyolProductSkuAttribute> VarianterAttributes);
+
+/// <summary>Mutabakat sapması — <see cref="SalesChannelTrTrendyolProduct.ReconcileObservedSkuState"/> çıktısı:
+/// SKU tabanının eski (yerel tahmin) ve yeni (kanal gözlemi) değerleri. Yalnız log içindir; kalıcı değildir
+/// (delil defteri push'a aittir, gözleme değil).</summary>
+public sealed record TrendyolSkuObservedDrift(
+    string Barcode,
+    int? LocalQuantity,
+    decimal? LocalListPrice,
+    decimal? LocalSalePrice,
+    int? ObservedQuantity,
+    decimal? ObservedListPrice,
+    decimal? ObservedSalePrice);
 
 /// <summary>
 /// Trendyol ürün listelemesi — bir ERP <see cref="Integration.TradeXpress.Products.Product"/>'ın belirli bir Trendyol
@@ -371,17 +383,17 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     public virtual List<string> RemoteImageUrls { get; protected set; } = new();
 
     /// <summary><see cref="RemoteImageUrls"/> okunduğu anda ürünün DAM'daki görsel seti (SIRALI MediaId'ler) — kanal
-    /// adreslerinin HANGİ yerel sete karşılık geldiğinin damgası. Push'un yeniden-kullanım kapısı bugünkü seti
-    /// BUNUNLA kıyaslar; defterle değil. Defterle kıyas bayat kanal adresini geri gönderebilirdi: import (kanalda A)
-    /// → kullanıcı görseli B yapar → push#1 B'yi geçici linkle gönderir, defter B → import koşmadan push#2:
-    /// defter B == bugün B ama RemoteImageUrls hâlâ A → kanala A gider, B geri alınır. Damga bu sırayı kapatır:
-    /// A'nın damgası A'dır, bugün B ≠ A → geçici link yolu.</summary>
+    /// adreslerinin HANGİ yerel sete karşılık geldiğini söyler. Push'un yeniden-kullanım dalı bugünkü seti
+    /// BUNUNLA kıyaslar; PushHistory ile değil. PushHistory ile kıyas bayat kanal adresini geri gönderebilirdi:
+    /// import (kanalda A) → kullanıcı görseli B yapar → push#1 B'yi geçici linkle gönderir, PushHistory B →
+    /// import koşmadan push#2: PushHistory B == bugün B ama RemoteImageUrls hâlâ A → kanala A gider, B geri
+    /// alınır. Bu alan o sırayı kapatır: A adresleriyle birlikte yazılan set A'dır, bugün B ≠ A → geçici link yolu.</summary>
     public virtual List<Guid> RemoteImageMediaIds { get; protected set; } = new();
 
     /// <summary>Import her koşuşta uzak görsel listesini TAZELER (beyandır — null/boş da beyandır; koruma
     /// semantiği yok: kanal görselsiz diyorsa görselsizdir). Adreslerle birlikte o anki yerel görsel seti de
-    /// damgalanır — ikisi ancak birlikte anlamlıdır. Adres sayısı ve uzunluğu import sınırında zaten kırpılmış
-    /// gelir (bkz. Import <c>SafeRemoteImageUrls</c>); burada yalnız boş/beyaz elenir.</summary>
+    /// <see cref="RemoteImageMediaIds"/>'e yazılır — ikisi ancak birlikte anlamlıdır. Adres sayısı ve uzunluğu
+    /// import sınırında zaten kırpılmış gelir (bkz. Import <c>SafeRemoteImageUrls</c>); burada yalnız boş/beyaz elenir.</summary>
     public virtual void SetRemoteImageUrls(IEnumerable<string>? urls, IEnumerable<Guid>? localMediaIds)
     {
         RemoteImageUrls = urls?
@@ -410,7 +422,7 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     public virtual string? LastError { get; protected set; }
 
 
-    // ── Push emniyet alanları (kural gövdesi: ChannelPushGuard; N11 ile BİREBİR aynı anlam) ──
+    // ── Push emniyet alanları (kurallar ChannelPushGuard'da; N11 ile BİREBİR aynı anlam) ──
     /// <summary>Kanalda GÖSTERİLMEYEN stok payı (opsiyonel) — push satırının nihai adedinden düşülür.</summary>
     public virtual int? SafetyStock { get; protected set; }
 
@@ -426,7 +438,7 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
 
     #region Methods
 
-    /// <summary>Emniyet payı (opsiyonel; negatif reddedilir). Kural gövdesi <see cref="ChannelPushGuard"/>'dadır.</summary>
+    /// <summary>Emniyet payı (opsiyonel; negatif reddedilir). Kural <see cref="ChannelPushGuard"/>'dadır.</summary>
     public virtual void SetSafetyStock(int? safetyStock)
     {
         SafetyStock = ChannelPushGuard.NormalizeSafetyStock(safetyStock);
@@ -600,10 +612,64 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
             .ToList();
     }
 
+    /// <summary>GÜNLÜK MUTABAKAT — SKU tabanını kanalın FİİLEN bildirdiği adet/fiyata çeker (2026-08-21).
+    ///
+    /// <para><b>Semantik:</b> <c>LastSent*</c> "kanalda fiilen ne var" bilgisinin en iyi TAHMİNİDİR — normalde
+    /// son başarılı gönderimimiz. Satıcı panelinden elle değişiklik ya da kaçan bir batch o tahmini gözlemden
+    /// koparır; dirty-check <c>LastSent</c>'e baktığı için "değişiklik yok" der ve sapma SONSUZA DEK kalırdı.
+    /// Bu metot tahmini GÖZLEMLE düzeltir; doğruyu kanala geri yazan şey normal senkron turudur (otorite devri:
+    /// kanalda elle yapılan değişiklik geçersizdir, değerleri sistem belirler).</para>
+    ///
+    /// <para><b>Push DEĞİLDİR:</b> PushHistory'ye satır düşülmez — biz bir şey göndermedik ("gönderdim kaydı
+    /// fiilen giden setten yazılır" kuralı). <c>Pending*</c>/<c>AttributeSnapshot</c>/kimlik alanlarına da
+    /// dokunulmaz. Kanalın BİLDİRMEDİĞİ alan (<c>null</c>) yereldekini DEĞİŞTİRMEZ — bilgisizlik gözlem değildir.</para>
+    ///
+    /// <para>Dönüş: SKU bilinmiyorsa ya da sapma yoksa <c>null</c>; sapma varsa eski→yeni değerler
+    /// (çağıran Warning loglar).</para></summary>
+    public virtual TrendyolSkuObservedDrift? ReconcileObservedSkuState(
+        string barcode, int? observedQuantity, decimal? observedListPrice, decimal? observedSalePrice)
+    {
+        var sku = FindSku(barcode);
+        if (sku is null)
+        {
+            return null;
+        }
+
+        var quantityDrifted = observedQuantity is not null && sku.LastSentQuantity != observedQuantity;
+        var listPriceDrifted = observedListPrice is not null && sku.LastSentListPrice != observedListPrice;
+        var salePriceDrifted = observedSalePrice is not null && sku.LastSentSalePrice != observedSalePrice;
+        if (!quantityDrifted && !listPriceDrifted && !salePriceDrifted)
+        {
+            return null;
+        }
+
+        var drift = new TrendyolSkuObservedDrift(
+            sku.Barcode,
+            sku.LastSentQuantity, sku.LastSentListPrice, sku.LastSentSalePrice,
+            observedQuantity, observedListPrice, observedSalePrice);
+
+        if (quantityDrifted)
+        {
+            sku.LastSentQuantity = observedQuantity;
+        }
+
+        if (listPriceDrifted)
+        {
+            sku.LastSentListPrice = observedListPrice;
+        }
+
+        if (salePriceDrifted)
+        {
+            sku.LastSentSalePrice = observedSalePrice;
+        }
+
+        return drift;
+    }
+
     /// <summary>SUBMIT anında "ne gönderdim"i kaydeder — henüz onaylanmış SAYILMAZ.
     /// <c>LastSent*</c>'e DOKUNMAZ: batch reddedilirse dirty-check eski (doğru) tabanla çalışmaya devam eder.
     /// İçerik üçlüsü (başlık/eksen/görsel) yalnız FullPush'ta dolar; senkron null geçer — gönderilmeyeni
-    /// yazmak yalan olurdu (defter kuralı).</summary>
+    /// yazmak yalan olurdu (PushHistory kuralı).</summary>
     public virtual void RecordPendingSkuPush(
         string barcode, int? quantity, decimal? listPrice, decimal? salePrice,
         string? title = null, string? optionsText = null, string? mediaIdsCsv = null)
@@ -678,7 +744,7 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
             batchRequestId, nameof(BatchRequestId), 1, TrendyolProductConsts.BatchRequestIdMaxLength);
         LastBatchRequestType = StringFieldGuard.EnsureOptionalText(
             batchRequestType, nameof(LastBatchRequestType), 1, TrendyolProductConsts.BatchRequestTypeMaxLength);
-        Status = "PROCESSING";
+        Status = TrendyolProductConsts.ProcessingBatchStatus;
         FailedItemCount = null;
         LastSyncedAt = submittedAtUtc;
         LastError = null;
@@ -768,7 +834,7 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         sku.RemoteCreatedAtUtc = remoteState.CreatedAtUtc ?? sku.RemoteCreatedAtUtc;
         sku.RemoteUpdatedAtUtc = remoteState.UpdatedAtUtc ?? sku.RemoteUpdatedAtUtc;
 
-        // Gerekçe metinleri KANALIN KENDİ cümlesidir — yeniden yazılmaz (delil defterindeki ErrorMessage
+        // Gerekçe metinleri KANALIN KENDİ cümlesidir — yeniden yazılmaz (PushHistory'deki ErrorMessage
         // ile aynı felsefe). Uzunluk emniyeti İMPORT SINIRINDA (BuildRemoteState kırpar); buradaki guard
         // fail-fast kalır — sınırı aşan değer kırpılmadan gelirse hata gizlenmez. Bayrak false'a döndüğünde
         // gerekçe de temizlenir: kalkmış bir karalistenin gerekçesini ekranda bırakmak, çözülmüş bir sorunu
@@ -782,7 +848,7 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
             1, TrendyolProductConsts.RemoteProductUrlMaxLength) ?? sku.RemoteProductUrl;
 
         // Eksen değerleri: null = bildirilmedi (mevcut korunur); BOŞ liste = "eksen yok" BEYANI (tek kalemli
-        // grup) — temizler. Grup tekil kalınca eski eksen fotoğrafını taşımak, push'a bayat "Renk" göndermek olurdu.
+        // grup) — temizler. Grup tekil kalınca eski eksen snapshot'ını taşımak, push'a bayat "Renk" göndermek olurdu.
         if (remoteState.AxisValues is not null)
         {
             sku.RemoteVariantAttributes = remoteState.AxisValues.ToList();
@@ -811,12 +877,27 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         LastSyncedAt = attemptedAtUtc;
     }
 
+    /// <summary>BAYAT BATCH (2026-08-19): çok uzun süredir PROCESSING'te kalan gönderim artık beklenmez.
+    /// <b>Status PROCESSING'ten ÇIKARILIR</b> — eski yol yalnız <see cref="MarkSyncFailed"/> çağırıyor,
+    /// <see cref="Status"/>'u bırakıyordu; çifte-batch koruması ("PROCESSING iken yeni submit yok") o kaydı
+    /// SONSUZA KADAR kilitliyor, "kilidi açar" diye yazılan yol kilidi açmıyordu. Bekleyen SKU değerleri
+    /// atılır (kanıtlanmamış gönderim "gönderildi" sayılmaz), <see cref="BatchRequestId"/> KORUNUR — kullanıcı
+    /// "Durumu Yenile" ile akıbeti hâlâ sorabilsin. <c>LastSent*</c> değişmez: bir sonraki senkron aynı farkı
+    /// görüp yeniden gönderir.</summary>
+    public virtual void MarkBatchStale(DateTime markedAtUtc)
+    {
+        ClearPendingSkuPushes();
+        Status = TrendyolProductConsts.StaleBatchStatus;
+        LastError = TrendyolProductConsts.StaleBatchError;
+        LastSyncedAt = markedAtUtc;
+    }
+
     public override string ToString()
     {
         return $"{ProductId} @ {SalesChannelId}";
     }
 
-    // Ortak eşleme çekirdeği (SSOT): PlanBarcodes (readonly, allowCreate=false) ve ReconcileSkus (allowCreate=true)
+    // Ortak eşleme metodu (SSOT): PlanBarcodes (readonly, allowCreate=false) ve ReconcileSkus (allowCreate=true)
     // aynı çok-aşamalı deterministik atamayı paylaşır → plan ile commit AYNI barcode'u üretir.
     private Dictionary<Guid, SalesChannelTrTrendyolProductSku?> AssignSkus(IReadOnlyList<TrendyolSkuPushCandidate> candidates, bool allowCreate)
     {

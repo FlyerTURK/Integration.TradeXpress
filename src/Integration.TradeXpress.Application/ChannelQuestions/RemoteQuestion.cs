@@ -38,7 +38,7 @@ public sealed record RemoteQuestion(
     IReadOnlyList<string> ImageUrls)
 {
     /// <summary>Yalnız uzak kimliği yazar. <b>Record'un üretilmiş ToString'i BİLEREK ezilir:</b> varsayılan hâli
-    /// TÜM üyeleri (müşteri adı + e-posta + soru gövdesi) düz metne döker; bu nesne log/exception satırlarında
+    /// TÜM üyeleri (müşteri adı + e-posta + <c>QuestionText</c>) düz metne döker; bu nesne log/exception satırlarında
     /// geçtiğinde kişisel veri sızardı.</summary>
     public override string ToString()
     {

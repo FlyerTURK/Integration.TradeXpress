@@ -24,7 +24,7 @@ public interface IChannelStockPusher
 }
 
 /// <summary>
-/// TEK BİR KANALIN push ayağı. Job bunu görmez — <see cref="IChannelStockPusher"/> (composite) görür.
+/// TEK BİR KANALIN push üyesi. Job bunu görmez — <see cref="IChannelStockPusher"/> (composite) görür.
 ///
 /// <para><b>Neden ayrı arayüz:</b> job tek bir <c>IChannelStockPusher</c> enjekte ediyor. İki somut sınıf aynı
 /// arayüzü uygulasaydı hangisinin çözüleceği KAYIT SIRASINA kalırdı — yani bir kanal sessizce hiç push
@@ -34,7 +34,7 @@ public interface IChannelStockPusher
 /// <para><b>⚠ Uygulayan sınıflar <c>[ExposeServices(typeof(IChannelStockPusherMember))]</c> TAŞIMALIDIR:</b>
 /// sınıf adları bu arayüzün adıyla bitmediği için ABP'nin varsayılan kaydı arayüzü AÇMAZ ve composite boş
 /// koleksiyon alır — hiçbir kanal push edilmez, hata da çıkmaz. (Aynı tuzak 2026-08-08'de
-/// <c>ICommodityStockReader</c>'da 14 gün yaşandı.) Mekanik ağ: <c>DependencyRegistrationConventionTests</c>.</para>
+/// <c>ICommodityStockReader</c>'da 14 gün yaşandı.) Konvansiyon testi: <c>DependencyRegistrationConventionTests</c>.</para>
 /// </summary>
 public interface IChannelStockPusherMember
 {
@@ -87,17 +87,36 @@ public class N11ChannelStockPusher : IChannelStockPusherMember, ITransientDepend
         //    UoW'suz patlar ya da push süresince açık kalan transaction'a yapışırdı).
         using (var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
         {
-            channelProductIds = await _asyncExecuter.ToListAsync(
+            // IsActive TEK sorguda okunur (ayrı bir "aktif mi" sorgusu açmadan): aşağıda iki farklı karar
+            // besliyor — gölge temizliği TÜM kayıtlarla, senkron listesi YALNIZ aktif olanlarla.
+            var rows = await _asyncExecuter.ToListAsync(
                 (await _n11ProductRepository.GetQueryableAsync())
                     .Where(p => p.ProductId == productId)
-                    .Select(p => p.Id));
+                    .Select(p => new { p.Id, p.IsActive }));
 
-            if (channelProductIds.Count > 0)
+            if (rows.Count > 0)
             {
                 // Gölge temizliği KANAL-AGNOSTİK servistedir (ChannelOverrideAuthority) — aynı delik
                 // Trendyol/Etsy'de de vardı; N11'e gömülü kalsaydı orada açık kalırdı.
+                //
+                // Bu yüzden tetiği PASİF kayıt da verir: koşulu yukarıdaki IsActive süzgecine bağlasaydık,
+                // N11 satırları pasif ama Trendyol satırları aktif olan bir üründe temizlik hiç koşmaz ve
+                // Trendyol push'u bayat OverrideStock gölgesini taşırdı (TrendyolChannelStockPusher
+                // temizliği bilinçli olarak çağırmıyor — "N11 üyesinde zaten çağrılıyor").
                 await _overrideAuthority.ClearShadowedStockAsync(productId);
             }
+
+            // PASİF kanal ürünü senkron kapsamı DIŞINDADIR — TrendyolChannelStockPusher'daki
+            // ".Where(... && p.IsActive)" süzgecinin N11 karşılığı (2026-08-21'de portlandı; o güne kadar
+            // YALNIZ Trendyol'da vardı).
+            //
+            // ASİMETRİ NEDEN TEHLİKELİYDİ: SalesChannelTrN11ProductRemover.DeactivateForProductAsync ürün
+            // pasifleşince kanal kaydının IsActive'ini düşürüyor ve kendi doc'unda "pasif kayıt push/senkron
+            // kapsamı dışında kalır (stok tetiği IsActive süzer)" diyordu — ama süzgeç YOKTU. Sonuç: 15
+            // dakikalık repricing turu pasif kayda fiyat/stok yazmaya DEVAM ediyor, N11 listelemesindeki adet
+            // her turda tazeleniyordu. Ne hata, ne uyarı, ne log çıkıyordu: kullanıcı ürünü "kaldırdım"
+            // sanıyor, durumu ancak o listelemeden SİPARİŞ gelince fark ediyordu.
+            channelProductIds = rows.Where(r => r.IsActive).Select(r => r.Id).ToList();
 
             await uow.CompleteAsync();
         }

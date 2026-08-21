@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.MarketplaceShipmentTariffs;
 /// tenant bağlamındaki bir sorgu (ileride db-per-tenant'a geçilirse) merkezi kataloğu göremezdi.
 /// <para>Yazma ucu YOK: veri gömülü yayın dosyasından seed edilir (bkz. <see cref="MarketplaceShipmentTariffSeeder"/>).</para>
 /// <para><b>Yetki (2026-08-07 G1):</b> policy'siz <c>[Authorize]</c> — salt-okuma referans verisi ve tüketici
-/// kısıtı yok (kanal-dışı yüzeylerden de okunabilir); kimlik yeter. Öncesinde ANONİMDİ (konvansiyon ağı kırmızı).</para>
+/// kısıtı yok (kanal-dışı çağıranlardan da okunabilir); kimlik yeter. Öncesinde ANONİMDİ (konvansiyon ağı kırmızı).</para>
 /// </summary>
 [Authorize]
 public class MarketplaceShipmentTariffAppService(

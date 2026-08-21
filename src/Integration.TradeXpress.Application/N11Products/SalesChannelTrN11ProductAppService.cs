@@ -24,6 +24,7 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Caching;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Uow;
 using Integration.TradeXpress.N11Products.Rest;
 
 namespace Integration.TradeXpress.N11Products;
@@ -40,7 +41,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
     private readonly IRepository<SalesChannelTrN11Product, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
-    private readonly ProductCategoryChannelResolver _categoryChannelResolver;   // çekirdek kategori → kanal kategorisi
+    private readonly ProductCategoryChannelResolver _categoryChannelResolver;   // ürünün kendi kategorisi → kanal kategorisi
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<EntityAttribute, Guid> _attributeRepository;
@@ -64,11 +65,11 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     private readonly IN11TaskPoller _taskPoller;
     private readonly MarketplacePushImageResolver _pushImageResolver;
 
-    /// <summary>Push kapısı — yalnız onaylı VE damgası güncel varyant aday olur (üç kanalda ortak).</summary>
+    /// <summary>Push guard'ı — yalnız onaylı VE <c>VerifiedRecipeStamp</c>'i güncel varyant aday olur (üç kanalda ortak).</summary>
     private readonly VariantSaleReadinessResolver _saleReadiness;
     private readonly ChannelProductBoardBuilder _boardBuilder;
 
-    /// <summary>Append-only delil kaydı — N11 versiyonlarını fotoğrafıyla saklıyor, bizde tarihli kayıt yoktu.</summary>
+    /// <summary>Append-only PushHistory kaydı — N11 versiyonlarını fotoğrafıyla saklıyor, bizde tarihli kayıt yoktu.</summary>
     private readonly N11PushHistoryRecorder _pushHistory;
     private readonly IEntityMediaAppService _entityMedia;   // yalnız OKUMA — push önizlemesi (DAM galerisi)
     private readonly IN11CategoryClient _categoryClient;
@@ -79,6 +80,9 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     private readonly MarketplaceCurrencyResolver _marketplaceCurrency;   // yalnız içe aktarım — TRY birim kimliği
     private readonly SalesChannelTrN11ProductRemover _remover;
     private readonly ImportedProductCategoryResolver _categoryResolver;
+
+    /// <summary>Pasifleşme anının adet-0 gönderimi (Trendyol'daki <c>TrendyolListingWithdrawer</c>'ın N11 eşi).</summary>
+    private readonly N11StockWithdrawer _stockWithdrawer;
 
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
@@ -117,10 +121,12 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         EntityVariantManager variantManager,
         MarketplaceCurrencyResolver marketplaceCurrency,
         SalesChannelTrN11ProductRemover remover,
-        ImportedProductCategoryResolver categoryResolver)
+        ImportedProductCategoryResolver categoryResolver,
+        N11StockWithdrawer stockWithdrawer)
     {
         _remover = remover;
         _categoryResolver = categoryResolver;
+        _stockWithdrawer = stockWithdrawer;
         _repository = repository;
         _productRepository = productRepository;
         _categoryChannelResolver = categoryChannelResolver;
@@ -247,12 +253,12 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
     /// <summary>Kanalın ÇALIŞMA TAHTASI — Trendyol'daki eşinin N11 karşılığı.
     ///
-    /// <para>Karar sinyali (reçete varlığı + satılabilir varyant sayısı) ORTAK gövdeden gelir
+    /// <para>Karar sinyali (reçete varlığı + satılabilir varyant sayısı) ORTAK builder'dan gelir
     /// (<see cref="ChannelProductBoardBuilder"/>): kural iki kanalda da aynı olduğu için buraya kopyalanmadı.
     /// Kopyalansaydı satılabilirlik kuralı değiştiğinde bir kanal sessizce eski davranışta kalırdı.</para>
     ///
     /// <para>Kanal-özel kısım yalnız <c>SaleStatus</c>/<c>ApprovalStatus</c>'tür — N11 pazaryeri fiyatı/adedi
-    /// saklamaz, o yüzden Trendyol tahtasındaki o kolonların karşılığı BİLEREK yoktur.</para></summary>
+    /// saklamaz, o yüzden Trendyol board'undaki o kolonların karşılığı BİLEREK yoktur.</para></summary>
     public virtual async Task<List<N11PricingBoardItemDto>> GetPricingBoardAsync(Guid salesChannelId)
     {
         var companyId = EnsureCurrentCompanyId();
@@ -287,8 +293,8 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
             };
         }).ToList();
 
-        // Karar bekleyen iş ÖNCE (Trendyol tahtasıyla AYNI sıra kuralı): reçetesizler başa, sonra satışa
-        // çıkamayanlar, sonra ada göre. İki tahtanın farklı sıralanması kullanıcıyı şaşırtırdı.
+        // Karar bekleyen iş ÖNCE (Trendyol board'uyla AYNI sıra kuralı): reçetesizler başa, sonra satışa
+        // çıkamayanlar, sonra ada göre. İki board'un farklı sıralanması kullanıcıyı şaşırtırdı.
         return board
             .OrderBy(x => x.HasRecipe)
             .ThenBy(x => x.ReadyVariantCount > 0)
@@ -316,7 +322,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         var product = await GetOwnedProductAsync(input.ProductId);
         var sequenceNo = await NextSequenceNoAsync(channel.Id, product.Id);
 
-        // Kanal kategorisi GÖNDERİLMEMİŞSE ürünün ÇEKİRDEK kategorisinden çözülür (2026-07-27 Hakan vizyonu:
+        // Kanal kategorisi GÖNDERİLMEMİŞSE ürünün KENDİ kategorisinden çözülür (2026-07-27 Hakan vizyonu:
         // "her satış kanalında kategori ayrı ayrı seçme zahmetinden kurtulalım"). Eşleştirme KALITIMLIDIR:
         // ürünün kategorisi eşleştirilmemişse en yakın atasınınki kullanılır. Elle gönderilen kategori DAİMA
         // önceliklidir — kullanıcı bilinçli olarak farklı bir kategori seçmişse ezilmez.
@@ -361,16 +367,60 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         return ChannelSequenceCode.Compose(productCode, sequenceNo);
     }
 
+    /// <summary>Kanal ürünü güncelleme. <b>IsActive = kanaldaki SATIŞ durumunun yansıması</b> (2026-08-21 Hakan
+    /// kararı: <i>"isactive false ise derhal 0 stok olmalı"</i>): bayrak AKTİF→PASİF düştüyse N11'e bilinen tüm
+    /// SKU'larla ADET-0 gider (fiyat korunur; N11 arşiv ucu vermediğinden Trendyol'un pasif→arşiv aynasının N11
+    /// karşılığı budur), PASİF→AKTİF çıktıysa anında fiyat/stok senkronu koşar (dirty-check <c>LastSent=0</c> ≠
+    /// gerçek adedi görüp geri yazar — ayrı bir "yeniden aç" yolu YOKTUR). İki yön de AYNI TRANSACTION'dadır;
+    /// kanal reddederse güncellemenin tamamı geri döner (biz ile kanal farklı şey söyleyemez — Trendyol emsali).</summary>
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    [UnitOfWork(isTransactional: true)]
     public virtual async Task<SalesChannelTrN11ProductDto> UpdateAsync(Guid id, SalesChannelTrN11ProductUpdateDto input)
     {
         var entity = await GetOwnedAsync(id);
+        // Değer-tipi fotoğraf (CLAUDE.md §6 "kayıt-öncesi durum" kuralı): ApplyInput aynı instance'ı mutasyona
+        // uğratır, sonrasında entity üzerinden "eski değer" diye okunan şey YENİ değeri gösterirdi.
+        var wasActive = entity.IsActive;
+
+        // YENİDEN AKTİFLEŞME + bekleyen task: o task pasifken açılmış tek şey olabilir — adet-0 gönderimi
+        // (pasif kayda push/senkron guard'ları yeni task açtırmaz, pasifleştirme de bekleyen task varken
+        // reddedilir). Bayrak DEĞİŞMEDEN önce çözülür ki çözüm ResolvePendingPushInternalAsync'in PASİF dalına
+        // düşsün (LastSent → 0); bayrak önce değişseydi çözüm plan dondurup gerçek adetleri "gönderildi" yazar,
+        // aşağıdaki senkron "değişiklik yok" der ve N11 sessizce 0'da takılı kalırdı. Hâlâ kuyruktaysa
+        // PushPending fırlar — kuyruk işçisi (5 dk) çözünce yeniden denenir.
+        if (!wasActive && input.IsActive && entity.PendingPushTaskId is not null)
+        {
+            var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+            await EnsureNoPendingPushAsync(entity, channel, new List<string>());
+        }
+
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
         await SaveStockItemsAsync(entity, input.ProductAttributes, input.StockItems);
 
+        List<string>? transitionWarnings = null;
+        if (wasActive && !entity.IsActive)
+        {
+            // Satış DERHAL durur — yalnız yerel bayrak düşürmek N11'deki son gönderilen adedi canlı bırakırdı.
+            await _stockWithdrawer.WithdrawStockAsync(entity);
+        }
+        else if (!wasActive && entity.IsActive && entity.Skus.Count > 0)
+        {
+            // Senkron kapsamına dönüş + anında senkron (guard artık geçer): 15 dk'lık turu beklemeden gerçek
+            // adet geri yazılır. SKU'suz kayıtta atlanır — kanala hiç ulaşmamış kayıtta geri yüklenecek adet yok
+            // (senkron NotPushedYet ile aktifleşmeyi bloke ederdi). Stok kalemleri KAYDEDİLDİKTEN sonra koşar ki
+            // formdaki güncel override'lar gönderime girsin.
+            var syncDto = await SyncStockAndPriceAsync(entity.Id);
+            transitionWarnings = syncDto.SyncWarnings;
+        }
+
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
         await PopulateStockItemGraphAsync(entity, dto);
+        if (transitionWarnings is { Count: > 0 })
+        {
+            dto.SyncWarnings = transitionWarnings;   // aktifleşme senkronunun uyarıları kullanıcıya kaybolmadan ulaşsın
+        }
+
         return dto;
     }
 
@@ -415,7 +465,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         return dto;
     }
 
-    /// <summary>Muadil M4 köprüsü — Top-N BAŞARILI kombinasyonu bu N11 ürününün StockItem'larına dönüştürür.
+    /// <summary>Muadil M4 adaptörü — Top-N BAŞARILI kombinasyonu bu N11 ürününün StockItem'larına dönüştürür.
     /// Zincir (bağlayıcı karar 1): hesap TEK motordan koşulur → saf plan (<see cref="SubstitutionStockItemPlanner"/>)
     /// → "Kombinasyon" ÖZELLİĞİ + kombinasyon-başına DEĞER → MEVCUT kartezyen reconcile yolu
     /// (<see cref="SaveAttributesAndReconcileAsync"/> — paralel kayıt yolu YOK) StockItem'ları üretir/korur/siler
@@ -428,7 +478,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     {
         var entity = await GetOwnedAsync(id);
 
-        // Orkestrasyon KANAL-AGNOSTİK gövdede (SubstitutionChannelPlanProvider.ApplyAsync — Trendyol ile TEK
+        // Orkestrasyon KANAL-AGNOSTİK sınıfta (SubstitutionChannelPlanProvider.ApplyAsync — Trendyol ile TEK
         // akış); bu adaptör yalnız N11 graf tiplerini bağlar: özellik/değer okuma, upsert planı → N11 DTO
         // çevirisi + MEVCUT persist/reconcile yolu (SaveAttributesAndReconcileAsync) ve StockItem
         // paket stoğu + reçete yazımı (ReplaceChannelRecipeLinesAsync).
@@ -484,7 +534,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         };
     }
 
-    /// <summary>Köprü, kombinasyon StockItem REÇETESİNİN sahibidir: mevcut satırlar silinir + plan satırları yazılır.
+    /// <summary>Adaptör, kombinasyon StockItem REÇETESİNİN sahibidir: mevcut satırlar silinir + plan satırları yazılır.
     /// Persist mekaniği MEVCUT <see cref="SaveChannelRecipeLinesAsync"/> (paralel kayıt yolu açılmaz).</summary>
     private async Task ReplaceChannelRecipeLinesAsync(
         SalesChannelTrN11Product channelProduct, Guid stockItemId, List<ProductRecipeLineGraphDto> freshLines)
@@ -505,6 +555,21 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
         var syncWarnings = new List<string>();
+
+        // PASİF KAYDA TAM PUSH YOK (2026-08-21 hakem bulgusu): pasifleşme N11'e adet-0 gönderir (Hakan kararı
+        // "isactive false ise derhal 0 stok") ve N11PendingPushResolver pasif kayıtta çözümü 0'a çeker —
+        // o dal "pasif kayıttaki tek olası task adet-0'dır" varsayımına dayanır. Bu guard olmadan elle tam
+        // push o varsayımı ZEHİRLERDİ: gerçek adetli task kuyruğa düşer, çözüm LastSent'i 0'a çeker, N11
+        // gerçek stokla satışta kalırken sistem 0 gönderdiğine inanırdı. Satışa dönüş yolu push değil,
+        // kaydı AKTİFLEŞTİRMEKTİR (aktifleşme anında senkron gerçek adetleri zaten geri yazar).
+        if (!entity.IsActive)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:PassiveNoPush");
+        }
+
+        // KUYRUK KONTROLÜ: önceki push task'ı çözülmeden yeni task id'si onun üstüne YAZILMAZ (gerekçe metodun doc'unda).
+        // try DIŞINDA bilinçli: "hâlâ kuyrukta" bir senkron hatası değildir, LastError'a yazılmaz.
+        await EnsureNoPendingPushAsync(entity, channel, syncWarnings);
 
         // BAŞARISIZLIK KAYDI İÇİN (2026-08-10): ne göndermeye çalıştığımız catch'te de bilinmeli.
         // null kalması "veri hiç kurulamadı" demektir (BuildProductDataAsync patladı) → yazacak delil yok.
@@ -649,6 +714,29 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+
+        // PASİF kanal ürününe fiyat/stok YAZILMAZ — Trendyol ikizindeki guard'ın N11 karşılığı
+        // (SalesChannelTrTrendyolProductAppService.SyncStockAndPriceAsync → "Trendyol:Product:ArchivedNoSync").
+        // Reddediş biçimi de birebir aynı sınıftadır: sessiz atlama değil, tipli BusinessException — kullanıcı
+        // elle "Senkronla" dediğinde neden bir şey olmadığını görmeli.
+        //
+        // ASİMETRİ NEDEN TEHLİKELİYDİ (2026-08-21 ölçümü): bu guard ve N11ChannelStockPusher süzgeci yokken
+        // ürün pasife alındıktan sonra da 15 dakikalık repricing turu N11'e fiyat/stok yazmaya devam ediyordu.
+        // Hata yok, uyarı yok, log yok: kullanıcı ürünü "kaldırdım" sanıyor, N11 listelemesinin adedi her turda
+        // tazeleniyor ve durum ancak o listelemeden SİPARİŞ gelince ortaya çıkıyordu.
+        //
+        // ANAHTAR ADI NEDEN "Archived" DEĞİL: N11'in uzak arşiv ucu YOK — pasifleştirme yerel bayrağı düşürür
+        // ve satışı N11StockWithdrawer'ın ADET-0 gönderimiyle durdurur (2026-08-21 Hakan kararı); kayıt "N11'de
+        // arşivde" değil "bizde pasif + N11'de Out_Of_Stock"tur. Trendyol'un cümlesini kopyalamak kullanıcıya
+        // olmayan bir kanal durumu anlatırdı.
+        //
+        // Bu guard adet-0 sonrası da GEREKLİ: pasif kayda senkron yazsaydı gerçek adedi geri yükleyip
+        // pasifleştirmenin durdurduğu satışı sessizce yeniden açardı.
+        if (!entity.IsActive)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:PassiveNoSync");
+        }
+
         var syncWarnings = new List<string>();
 
         // Ön koşul: en az bir SKU satırı DONMUŞ olmalı — yani daha önce başarılı bir push olmuş olmalı.
@@ -660,6 +748,10 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         {
             throw new BusinessException("TradeXpress:N11:Product:NotPushedYet");
         }
+
+        // KUYRUK KONTROLÜ (Trendyol "tip ayrımı yapılmaz" kuralının N11 karşılığı): çözülmemiş bir tam-push task'ı
+        // varken fiyat/stok güncellemesi gönderilmez — iki açık task'tan hangisinin son yazdığı belirsizdir.
+        await EnsureNoPendingPushAsync(entity, channel, syncWarnings);
 
         var n11ProductId = entity.N11ProductId;
 
@@ -1169,6 +1261,42 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
 
+        await ResolvePendingPushInternalAsync(entity, channel, taskId, syncWarnings);
+
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        dto.SyncWarnings = syncWarnings;
+        return dto;
+    }
+
+    /// <summary>KUYRUK KONTROLÜ (2026-08-19 haritası, öncelik #2 — N11 paritesi Trendyol'un çifte-batch korumasıyla):
+    /// kayıtta çözülmemiş bir push task'ı varsa yeni gönderim/senkron ONUN ÜZERİNE YAZILMAZ. Eski davranış: tam
+    /// push yeni task id'yi eskisinin üstüne yazıyor, 15 dk'lık repricing turu da aynı yoldan geçiyordu → ilk
+    /// task'ın akıbeti (red gerekçeleri dahil) bir daha sorgulanamıyor, N11 kuyruğunda aynı ürün mükerrer
+    /// bekliyordu. Önce bekleyen task BİR KEZ sorgulanır (ucuz, tek istek): çözüldüyse yol açıktır; hâlâ
+    /// kuyruktaysa <c>TradeXpress:N11:Rest:PushPending</c> ile durulur — kuyruk çözücü işçisi 5 dk'da bir yeniden
+    /// sorar (<c>N11PendingPushResolverWorker</c>). Reddedilmiş task burada hatasını fırlatır (kayıt işaretlenir);
+    /// kullanıcı sebebi görür, sonraki denemede yol açıktır.</summary>
+    private async Task EnsureNoPendingPushAsync(SalesChannelTrN11Product entity, SalesChannelTrN11 channel, List<string> syncWarnings)
+    {
+        if (entity.PendingPushTaskId is not { } taskId)
+        {
+            return;
+        }
+
+        var resolved = await ResolvePendingPushInternalAsync(entity, channel, taskId, syncWarnings);
+        if (!resolved)
+        {
+            throw new BusinessException("TradeXpress:N11:Rest:PushPending").WithData("TaskId", taskId);
+        }
+    }
+
+    /// <summary>Bekleyen task'ı sorgular ve sonucu kayda işler. <c>false</c> = hâlâ kuyrukta (kayıt DEĞİŞMEZ);
+    /// <c>true</c> = başarıyla çözüldü (SKU'lar donar, MarkSynced). Red/kalem hatası → kimlik temizlenir,
+    /// <c>MarkSyncFailed</c> yazılır ve <c>BuildRestPushFailure</c> fırlatılır (üç çağıran — elle çözme,
+    /// <c>EnsureNoPendingPushAsync</c>, işçi — aynı sonucu görsün; ikinci kopya zamanla ayrışırdı).</summary>
+    private async Task<bool> ResolvePendingPushInternalAsync(
+        SalesChannelTrN11Product entity, SalesChannelTrN11 channel, string taskId, List<string> syncWarnings)
+    {
         try
         {
             var taskResult = await _taskPoller.QueryAsync(taskId, channel.AppKey, channel.AppSecret);
@@ -1177,9 +1305,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
             {
                 // Hâlâ işleniyor — durumu DEĞİŞTİRME. Bunu hata saymak kullanıcıyı boş yere telaşlandırırdı.
                 syncWarnings.Add(L["N11Product:PushStillQueued"]);
-                var pendingDto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
-                pendingDto.SyncWarnings = syncWarnings;
-                return pendingDto;
+                return false;
             }
 
             entity.ClearPendingPushTask();
@@ -1199,31 +1325,48 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                 throw BuildRestPushFailure(failures);
             }
 
-            // Task BAŞARILI. SKU kodlarını ancak plan hâlâ AYNI kodları üretiyorsa donduruyoruz.
-            var plan = await BuildProductDataAsync(entity, channel);
-            var plannedCodes = plan.Data.StockItems.Select(s => s.SellerStockCode).OrderBy(c => c, StringComparer.Ordinal);
-            var acknowledgedCodes = taskResult.Items.Select(i => i.ItemCode).OrderBy(c => c, StringComparer.Ordinal);
-
-            if (taskResult.Items.Count > 0 && !plannedCodes.SequenceEqual(acknowledgedCodes, StringComparer.OrdinalIgnoreCase))
+            // Task BAŞARILI. PASİF kayıtta çözülen task, pasifleştirme anının ADET-0 gönderimidir
+            // (N11StockWithdrawer): pasif kayda push/senkron guard'ları yeni task açtırmaz, pasifleştirme de
+            // bekleyen task varken reddedilir (kuyruk kapısı). Burada planı dondurmak YANLIŞ olurdu — plan
+            // gerçek adetleri söyler, kanala giden 0'dı; "gönderdim" kaydı gövdeye fiilen giren setten yazılır
+            // (CLAUDE.md §6). Plan değerleri yazılsaydı yeniden aktifleşme senkronu "değişiklik yok" der ve
+            // N11 sessizce 0'da takılı kalırdı. LastSent 0'a çekilir ki dirty-check gerçek adedi geri yazsın.
+            if (!entity.IsActive)
             {
-                // Ürün gönderimden bu yana değişmiş: N11'de olmayan kodları dondurmak yerine uyarıyoruz.
-                syncWarnings.Add(L["N11Product:ProductChangedSinceQueue"]);
+                foreach (var sku in entity.Skus)
+                {
+                    entity.RecordStockPriceSync(sku.SellerStockCode, 0, sku.LastSentOptionPrice, version: null);
+                }
             }
             else
             {
-                entity.ReconcileSkus(plan.Candidates);
-                foreach (var item in plan.Data.StockItems)
+                // SKU kodlarını ancak plan hâlâ AYNI kodları üretiyorsa donduruyoruz.
+                var plan = await BuildProductDataAsync(entity, channel);
+                var plannedCodes = plan.Data.StockItems.Select(s => s.SellerStockCode).OrderBy(c => c, StringComparer.Ordinal);
+                var acknowledgedCodes = taskResult.Items.Select(i => i.ItemCode).OrderBy(c => c, StringComparer.Ordinal);
+
+                if (taskResult.Items.Count > 0 && !plannedCodes.SequenceEqual(acknowledgedCodes, StringComparer.OrdinalIgnoreCase))
                 {
-                    entity.RecordSkuPush(
-                        item.SellerStockCode,
-                        item.Quantity,
-                        item.OptionPrice,
-                        item.Attributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value)));
+                    // Ürün gönderimden bu yana değişmiş: N11'de olmayan kodları dondurmak yerine uyarıyoruz.
+                    syncWarnings.Add(L["N11Product:ProductChangedSinceQueue"]);
+                }
+                else
+                {
+                    entity.ReconcileSkus(plan.Candidates);
+                    foreach (var item in plan.Data.StockItems)
+                    {
+                        entity.RecordSkuPush(
+                            item.SellerStockCode,
+                            item.Quantity,
+                            item.OptionPrice,
+                            item.Attributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value)));
+                    }
                 }
             }
 
             entity.MarkSynced(entity.N11ProductId, entity.SaleStatus, entity.ApprovalStatus, Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
+            return true;
         }
         catch (Exception ex)
         {
@@ -1231,10 +1374,6 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
             await _repository.UpdateAsync(entity, autoSave: true);
             throw;
         }
-
-        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
-        dto.SyncWarnings = syncWarnings;
-        return dto;
     }
 
     /// <summary>
@@ -1311,24 +1450,12 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         return new N11SaveProductResult(null, entity.SellerCode, null, null, Array.Empty<N11SkuIdentity>());
     }
 
-    /// <summary>
-    /// SKU bazlı red gerekçelerini tek bir dostane hataya çevirir.
-    ///
-    /// <para><b>FAHİŞ FİYAT BANDI ayrı ele alınır:</b> N11 ürün başına bir alt/üst fiyat bandı uygular ve
-    /// aşan isteği reddeder (resmî hata sözlüğü, makale 10433). Kuyumda bu doğrudan zarar demektir — altın
-    /// sıçradığında otomatik fiyat güncellemesi bandı aşıp reddedilir ve ürün ESKİ (düşük) fiyatta satışta
-    /// KALIR. Genel "push başarısız" mesajına gömülürse operasyon farkı göremez, o yüzden kendi kodu var.</para>
-    /// </summary>
+    /// <summary>SKU bazlı red gerekçelerini tek bir dostane hataya çevirir — gövde ORTAK sınıfa taşındı
+    /// (<see cref="N11RestPushFailure"/>): adet-0 gönderimi (<see cref="N11StockWithdrawer"/>) de aynı
+    /// sınıflandırmayı (fahiş fiyat bandı ayrımı dâhil) görmeli, iki kopya zamanla ayrışırdı.</summary>
     private static BusinessException BuildRestPushFailure(IReadOnlyList<string> failures)
     {
-        var joined = string.Join(" | ", failures);
-
-        if (failures.Any(f => f.Contains("fahiş fiyat", StringComparison.OrdinalIgnoreCase)))
-        {
-            return new BusinessException("TradeXpress:N11:Rest:PriceOutOfBand").WithData("Reasons", joined);
-        }
-
-        return new BusinessException("TradeXpress:N11:Rest:PushRejected").WithData("Reasons", joined);
+        return N11RestPushFailure.Build(failures);
     }
 
     /// <summary>Push planı — N11'e gidecek veri + BAŞARILI push sonrası SKU satırlarını kurmak için kanonik adaylar
@@ -1337,8 +1464,8 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates, N11LeafAttributes Leaf);
 
     /// <summary>N11'e gidecek kargo şablonu adı — kanal-ürünün kendi seçimi.
-    /// <para>2026-07-26: eski FK onarım kolu KALKTI. Kargo artık YALNIZ kanal seviyesinde yaşıyor (çekirdek
-    /// <c>ShipmentTemplate</c> ve ürün üzerindeki bağı silindi) → onarılacak bir çekirdek referans yok.
+    /// <para>2026-07-26: eski FK onarım kolu KALKTI. Kargo artık YALNIZ kanal seviyesinde yaşıyor (core
+    /// <c>ShipmentTemplate</c> ve ürün üzerindeki bağı silindi) → onarılacak bir core referans yok.
     /// Ad kimliktir (N11'de ayrı şablon id'si yok); doğrulamayı N11 kendi yapar.</para></summary>
     private static string ResolvePushShipmentTemplateName(SalesChannelTrN11Product channelProduct)
     {
@@ -1402,9 +1529,9 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                 .Where(v => v.EntityName == ProductEntityName && v.EntityId == channelProduct.ProductId && v.IsActive));
         var salePrices = await LoadVariantSalePricesAsync(activeVariants.Select(v => v.Id).ToList());
 
-        // PUSH KAPISI (2026-08-05 Hakan kararı: "kararsız reçeteli ürün kesinlikle satışa girmemeli").
+        // PUSH GUARD'I (2026-08-05 Hakan kararı: "kararsız reçeteli ürün kesinlikle satışa girmemeli").
         // Yalnız İNSAN tarafından onaylanmış VE onaydan sonra reçetesi değişmemiş varyant aday olur.
-        // Kapı fiyatlamadan ÖNCEDİR — bu yüzden elle girilen OverridePrice de kararsızlığı ÖRTEMEZ.
+        // Guard fiyatlamadan ÖNCEDİR — bu yüzden elle girilen OverridePrice de kararsızlığı ÖRTEMEZ.
         var sellable = await _saleReadiness.ResolveSellableAsync(activeVariants.Select(v => v.Id).ToList());
 
         var variants = activeVariants
@@ -1536,22 +1663,12 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
     /// <summary>Push'a girecek her satırın efektif fiyat+stok'unun ÇÖZÜLMÜŞ olduğunu doğrular — N11-only satırda
     /// ERP fallback yoktur (zincir: OverridePrice ?? türetilmiş / OverrideStock); çözülemiyorsa N11'e gitmeden fail-fast.</summary>
-    /// <summary>Fiyat/stok senkronunun geçmiş girdileri — GÖNDERİLEN (ya da gönderilmeye çalışılan) satırlardan
-    /// kurulur. Başarı ve başarısızlık dalları AYNI kaynaktan okur ki iki dal zamanla ayrışmasın.
-    /// <para>İçerik (başlık/görsel/seçenek) bu yolda gönderilmediği için <c>null</c> geçilir — gönderilmeyeni
-    /// deftere yazmak yalan olurdu.</para></summary>
+    /// <summary>Fiyat/stok senkronunun geçmiş girdileri — ORTAK gövdeye taşındı
+    /// (<see cref="N11PushHistoryRecorder.BuildPriceStockEntries"/>): adet-0 gönderimi
+    /// (<see cref="N11StockWithdrawer"/>) da aynı delil biçimini yazar, iki kopya zamanla ayrışırdı.</summary>
     private static List<N11PushHistoryEntry> BuildSyncHistoryEntries(IReadOnlyCollection<N11RestPriceStock> items)
     {
-        return items
-            .Select(item => new N11PushHistoryEntry(
-                item.StockCode,
-                item.SalePrice,
-                item.CurrencyType,
-                item.Quantity,
-                Title: null,
-                Options: null,
-                MediaIds: null))
-            .ToList();
+        return N11PushHistoryRecorder.BuildPriceStockEntries(items);
     }
 
     /// <summary>Push geçmişi girdileri — GÖNDERİLEN veriden kurulur (yeniden hesaplanmaz).
@@ -1582,7 +1699,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         return await _pushImageResolver.ResolveMediaIdsAsync(product, ProductConsts.MaxImageCount);
     }
 
-    /// <summary>N11 sayısal para birimi kodu → yazı (delil kaydı okunabilir olmalı; "1" tek başına bir şey demez).</summary>
+    /// <summary>N11 sayısal para birimi kodu → yazı (PushHistory kaydı okunabilir olmalı; "1" tek başına bir şey demez).</summary>
     private static string MapCurrencyName(int currencyType)
     {
         return currencyType switch
@@ -1598,7 +1715,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     /// <para>İhlalde ÜRÜNÜN TÜM push'u düşer — ihlal eden satırı atlayıp kalanları göndermek sessiz kapsam
     /// düşürmesi olurdu: kullanıcı push'u "başarılı" görür, ama kanaldaki varyantlardan biri eski fiyatta kalır.</para>
     ///
-    /// <para>Adet-0 dalı bu kapıya TAKILMAZ: orada <c>rows</c> zaten boştur (satış durdurma yolu, fiyat değil stok
+    /// <para>Adet-0 dalı bu guard'a TAKILMAZ: orada <c>rows</c> zaten boştur (satış durdurma yolu, fiyat değil stok
     /// gönderimidir). Bandın satışı durdurma yolunu kapatması, tam da işe yaraması gereken anda felç ederdi.</para></summary>
     private static void EnsurePushRowsWithinPriceBand(SalesChannelTrN11Product channelProduct, List<N11PushRow> rows)
     {
@@ -1638,7 +1755,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         }
     }
 
-    /// <summary>N11-only kombinasyon satırının stok kodu GÖVDESİ — değer adlarından türetilir (ERP
+    /// <summary>N11-only kombinasyon satırının stok kodu KÖKÜ — değer adlarından türetilir (ERP
     /// <c>ProductVariantSynchronizer.BuildVariantCode</c> deseni: "SIYAH-42"); "-{SequenceNo}" sonekini entity
     /// <see cref="SalesChannelTrN11Product.BuildStockCode"/> ekler. Sonek payı düşülerek
     /// <see cref="N11ProductConsts.StockCodeMaxLength"/>'e kesilir (deterministik — aynı kombinasyon hep aynı kod).</summary>
@@ -2020,7 +2137,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     /// ile) mevcut özellik/değer setiyle reconcile eder — diff/sıra mekaniği <see cref="VariantSetReconciler"/>'a
     /// devredildi (2026-07-09): artık üretilemeyen kombinasyonlar (satır + reçetesi) removeAsync'te SİLİNİR (orphan
     /// temizliği), eksik kombinasyonlar addAsync'te İNSERT edilir (fırsatçı ERP eşleştirmesiyle — KANAL politikası,
-    /// çekirdekte değil). Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı override/reçete verisi korunur.</summary>
+    /// core'da değil). Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı override/reçete verisi korunur.</summary>
     private async Task SynchronizeStockItemsAsync(SalesChannelTrN11Product channelProduct, List<AttributeWithValues> channelAttributes)
     {
         var combos = BuildCombinations(channelAttributes);
@@ -2354,7 +2471,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     /// <c>plan with { VariantOptInEnabled = ... }</c> ile varyanta göre açar.</summary>
     /// <summary>
     /// Kanal kategorisini çözer: gönderilen değer doluysa AYNEN kullanılır (kullanıcının bilinçli seçimi
-    /// ezilmez); boşsa ürünün ÇEKİRDEK kategorisinden eşleştirmeyle (kalıtımlı) türetilir. Hiçbiri yoksa boş
+    /// ezilmez); boşsa ürünün KENDİ kategorisinden eşleştirmeyle (kalıtımlı) türetilir. Hiçbiri yoksa boş
     /// döner ve entity ctor'u zaten fail-fast eder — kategori N11'de zorunludur.
     /// </summary>
     private async Task<string> ResolveChannelCategoryAsync(Product product, string? requestedCategoryExternalId)
@@ -2384,7 +2501,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         decimal? marketingFeeRate = null;
         decimal? marketplaceFeeRate = null;
 
-        // NOT: kanal kategorisi ZORUNLUDUR (entity ctor'u boş kabul etmez) — çekirdek kategoriden çözüm bu
+        // NOT: kanal kategorisi ZORUNLUDUR (entity ctor'u boş kabul etmez) — ürünün kendi kategorisinden çözüm bu
         // yüzden BURADA değil kanal ürünü KURULURKEN yapılır (CreateAsync → ResolveChannelCategoryAsync).
         // Burada okunan değer daima doludur.
         var categoryExternalId = channelProduct.CategoryExternalId;

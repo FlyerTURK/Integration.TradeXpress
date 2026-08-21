@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.Orchestration;
 /// EMTİA STOK TETİĞİNİN TEK KAYNAĞI — fiş yazan her yol, commit SONRASI
 /// <see cref="CommodityStockChangedEto"/> kuyruklar.
 ///
-/// <para><b>Neden tek yer:</b> aynı iskelet üç sınıfa birebir kopyalanmıştı (fiş app service'i, teyit
+/// <para><b>Neden tek yer:</b> aynı kod üç sınıfa birebir kopyalanmıştı (fiş app service'i, teyit
 /// materializer'ı, rezervasyon materializer'ı — biri yorumunda kopya olduğunu itiraf ediyordu) ve DÖRDÜNCÜSÜ
 /// eksikti: rezervasyonun serbest bırakılması hiç tetik yayımlamıyordu. Kopya sayısı arttıkça "hangi yol
 /// tetikliyor?" sorusu kaynağa bakmadan cevaplanamaz hâle geliyordu; eksik olan da tam bu yüzden yıllarca

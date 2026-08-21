@@ -21,7 +21,7 @@ namespace Integration.TradeXpress.N11Categories;
 /// <summary>
 /// <see cref="IN11CategoryClient"/> — REST <c>/cdn</c> primary, SOAP CategoryService fallback. REST tüm ağacı tek
 /// GET'te + valueId verir (keşif: findings.md). REST hata verirse SOAP'a düşer (tree = BFS walk, YAVAŞ ama son çare;
-/// attribute = tek çağrı). Auth: REST header <c>appkey/appsecret</c>, SOAP gövde <c>&lt;auth&gt;</c> (+ header hedge).
+/// attribute = tek çağrı). Auth: REST header <c>appkey/appsecret</c>, SOAP body <c>&lt;auth&gt;</c> (+ header hedge).
 /// Sınıf adı arayüzle eşleştiği için ABP otomatik expose eder. Sir/secret ASLA loglanmaz.
 /// </summary>
 public sealed class N11CategoryClient : IN11CategoryClient, ITransientDependency

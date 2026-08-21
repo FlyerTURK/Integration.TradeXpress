@@ -6,7 +6,7 @@ namespace Integration.TradeXpress.N11Products;
 /// <summary>
 /// N11 REST YAZMA uçlarının (<c>product-create</c> · <c>product-update</c> · <c>price-stock-update</c>) DÖNÜŞÜ.
 /// <para>
-/// <b>Bu bir SONUÇ değil, MAKBUZDUR.</b> Üç uç da asenkrondur: yanıt gövdesi
+/// <b>Bu bir SONUÇ değil, MAKBUZDUR.</b> Üç uç da asenkrondur: yanıt body'si
 /// <c>{ "id": 1092, "type": "PRODUCT_UPDATE", "status": "IN_QUEUE", "reasons": [...] }</c> şeklindedir ve
 /// yalnız "istek kuyruğa alındı" der. Ürünün gerçekten yüklendiğini/güncellendiğini <b>yalnız</b>
 /// <see cref="N11TaskPoller"/> söyler. Yerel kaydı bu makbuza bakarak "senkron edildi" işaretlemek YANLIŞTIR —

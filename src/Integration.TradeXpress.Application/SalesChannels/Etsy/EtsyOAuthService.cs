@@ -15,8 +15,8 @@ using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.SalesChannels.Etsy;
 
-/// <summary>PKCE state cache kaydı — OAuth'u başlatan bağlam (kanal + tenant + ŞİRKET) ile callback arasında
-/// köprü. Key = state (CSRF nonce); değer callback'te kanalı çözmeye yeter. Tek kullanımlık (okununca silinir).</summary>
+/// <summary>PKCE state cache kaydı — OAuth'u başlatan bağlamı (kanal + tenant + ŞİRKET) callback'e
+/// taşıyan kayıt. Key = state (CSRF nonce); değer callback'te kanalı çözmeye yeter. Tek kullanımlık (okununca silinir).</summary>
 public class EtsyOAuthStateCacheItem
 {
     public Guid ChannelId { get; set; }

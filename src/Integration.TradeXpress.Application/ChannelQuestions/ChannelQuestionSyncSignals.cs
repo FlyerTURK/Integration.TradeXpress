@@ -7,7 +7,7 @@ using Volo.Abp.DependencyInjection;
 namespace Integration.TradeXpress.ChannelQuestions;
 
 /// <summary>
-/// Soru senkronunun BELLEK-İÇİ sinyal tahtası: UI'ın "şu kanalı sıradaki turda öncelikli çek" işareti + turlar
+/// Soru senkronunun BELLEK-İÇİ sinyal board'u: UI'ın "şu kanalı sıradaki turda öncelikli çek" işareti + turlar
 /// arası ADALET imleci. Hiçbir metodu pazaryerine GİTMEZ; yalnız worker'ın bir sonraki turda ne seçeceğini etkiler.
 ///
 /// <para><b>Neden kalıcı DEĞİL (bilinçli seçim):</b> öncelik işareti bir KULLANICI NİYETİDİR ve ömrü saniyelerle
@@ -28,7 +28,7 @@ public class ChannelQuestionSyncSignals : ISingletonDependency
 
     /// <summary>Kanal başına SON DENEME anı — tur içinde adalet (round-robin) imleci. DB'ye yazılmaz: kota
     /// sınırına takılan (RateLimited) bir tur HİÇBİR ŞEY yazmamalı, ama bir sonraki turda aynı kanalı yeniden
-    /// seçip kilitlenmemeliyiz. Bellekteki bu damga tam olarak o boşluğu kapatır.</summary>
+    /// seçip kilitlenmemeliyiz. Bellekteki bu timestamp tam olarak o boşluğu kapatır.</summary>
     private readonly ConcurrentDictionary<Guid, DateTime> _lastAttemptUtc = new();
 
     /// <summary>UI işareti: bu kanal sıradaki turda öncelikli çekilsin.</summary>

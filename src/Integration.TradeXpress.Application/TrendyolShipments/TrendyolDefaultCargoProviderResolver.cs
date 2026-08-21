@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.TrendyolShipments;
 /// <summary>
 /// Yeni Trendyol kanalına konacak VARSAYILAN kargo firmasını seçer — tek karar yeri.
 ///
-/// <para><b>Neden ayrı sınıf:</b> aynı cevabı üç yüzey soruyor (kanal oluşturma · kanal edit formunun ilk
+/// <para><b>Neden ayrı sınıf:</b> aynı cevabı üç çağıran soruyor (kanal oluşturma · kanal edit formunun ilk
 /// açılışı · kurulum sihirbazı). Üçü kendi başına seçseydi, kullanıcının sihirbazda gördüğü firma ile kaydın
 /// aldığı firma farklı olabilirdi — ve bu fark ancak ilk gönderimde görülürdü.</para>
 ///
@@ -19,7 +19,7 @@ namespace Integration.TradeXpress.TrendyolShipments;
 /// bu çözücü bir daha karışmaz (yalnız <c>null</c> iken devreye girer).</para>
 ///
 /// <para><b>Zincirin sonu BOŞTUR, uydurma DEĞİL:</b> Trendyol Express pasifleştirilmişse ilk aktif firmaya
-/// düşülür; hiç firma yoksa <c>null</c> döner ve kanal kargosuz kaydedilir. Rastgele bir firma damgalamak,
+/// düşülür; hiç firma yoksa <c>null</c> döner ve kanal kargosuz kaydedilir. Rastgele bir firma yazmak,
 /// kullanıcının hiç görmediği bir kararı sessizce onun adına vermek olurdu.</para>
 /// </summary>
 public class TrendyolDefaultCargoProviderResolver : ITransientDependency

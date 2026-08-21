@@ -24,4 +24,11 @@ public interface IProductChannelListingRemover
     /// <summary>Verilen şablon ürüne bağlı TÜM kanal kayıtlarını bağımlılarıyla (override başlıkları · reçete
     /// satırları · özellik/değer grafı) soft-delete eder. Kayıt yoksa no-op.</summary>
     Task RemoveForProductAsync(Guid productId);
+
+    /// <summary>ANA ÜRÜN PASİFLEŞİNCE bağlı kanal kayıtlarını pasifler (2026-08-17 Hakan kararı "A" — tek yönlü baskı:
+    /// ürün satıştan çekilince kanal listing'i de çekilir; ürün yeniden aktif olunca kanal ürünleri OTOMATİK
+    /// açılMAZ, kanal kanal insan kararı). Pazaryerindeki satış da durdurulur — kanalın yeteneği neyse o:
+    /// Trendyol'da uzak ARŞİV, N11'de bilinen tüm SKU'lara ADET-0 (2026-08-21 kararı; arşiv ucu yok). İki yolda da
+    /// red ürünün pasifleşmesini geri alır (aynı transaction). Etsy bugün yalnız yerel bayrak.</summary>
+    Task DeactivateForProductAsync(Guid productId);
 }

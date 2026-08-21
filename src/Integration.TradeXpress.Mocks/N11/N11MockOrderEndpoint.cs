@@ -16,7 +16,7 @@ namespace Integration.TradeXpress.Mocks.N11;
 /// N11 SOAP <c>OrderService</c> taklidi — sipariş akışını hesap olmadan çalıştırabilmek için.
 ///
 /// <para><b>Neden sipariş de gerekti:</b> sipariş kodu (çekim + kabul/red/kargo) yazıldı ama HİÇ doğrulanmadı.
-/// Push döngüsü mock'landıktan sonra doğrulanamayan en büyük yüzey buydu.</para>
+/// Push döngüsü mock'landıktan sonra doğrulanamayan en büyük N11 servisi <c>OrderService</c> idi.</para>
 ///
 /// <para><b>XML sadakati beklendiğinden kolay:</b> gerçek istemcinin ayrıştırıcısı NAMESPACE ve SIRA AGNOSTİK
 /// (<c>e.Name.LocalName</c> ile arıyor — <c>N11OrderClient:131</c>). Yani ad alanı önek oyunlarına girmeye gerek
@@ -31,7 +31,7 @@ public static class N11MockOrderEndpoint
 {
     private const string SoapNs = "http://schemas.xmlsoap.org/soap/envelope/";
 
-    /// <summary>SOAP sipariş ucunu haritalar. Tek adres, işlem AYIRIMI gövdenin kök elementinden yapılır
+    /// <summary>SOAP sipariş ucunu haritalar. Tek adres, işlem AYIRIMI SOAP body'sinin kök elementinden yapılır
     /// (gerçek N11 de böyle: tüm operasyonlar aynı .wsdl adresine POST edilir).</summary>
     public static IEndpointRouteBuilder MapN11MockOrderEndpoint(
         this IEndpointRouteBuilder endpoints, N11MockStore store, N11MockOptions options)
@@ -63,7 +63,7 @@ public static class N11MockOrderEndpoint
             return Soap(Fault("İstek gövdesi geçerli XML değil."));
         }
 
-        // Operasyon adı: zarfın gövdesindeki İLK element (ör. DetailedOrderListRequest).
+        // Operasyon adı: zarfın SOAP body'sindeki İLK element (ör. DetailedOrderListRequest).
         var operation = request.Root?.Descendants()
             .FirstOrDefault(e => e.Name.LocalName.EndsWith("Request", StringComparison.Ordinal))?
             .Name.LocalName ?? string.Empty;

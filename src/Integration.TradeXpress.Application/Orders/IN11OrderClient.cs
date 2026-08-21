@@ -9,7 +9,7 @@ namespace Integration.TradeXpress.Orders;
 /// N11 SİPARİŞ istemcisi — SOAP <c>OrderService</c>. Okuma (<c>DetailedOrderList</c>/<c>getOrderDetail</c>) +
 /// Sipariş Fazı O2'den itibaren YAZMA (<c>OrderItemAccept</c>/<c>OrderItemReject</c>/<c>MakeOrderItemShipment</c> —
 /// GERÇEK pazaryerine, geri alınamaz). Kanal-agnostik <see cref="RemoteOrder"/> üretir (Trendyol istemcisiyle AYNI
-/// tip → <see cref="OrderAppService"/> upsert'i tek gövde).
+/// tip → <see cref="OrderAppService"/> upsert'i tek metotta).
 /// <para><b>Canlı doğrulandı (2026-07-11):</b> endpoint + auth + istek biçimi çalışıyor. <b>Tarih filtresi
 /// GÖNDERİLMEZ:</b> N11 sipariş geçmişini UZUN saklar (test hesabında 2017'ye kadar 106 sipariş) — <c>period</c>
 /// verilince yalnız o aralık gelir ve eski siparişler gizlenir; verilmeyince N11 TÜM geçmişi döndürür (istediğimiz).

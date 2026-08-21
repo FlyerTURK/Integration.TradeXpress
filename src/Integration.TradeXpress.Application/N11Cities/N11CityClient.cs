@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.N11Cities;
 
 /// <summary>
 /// <see cref="IN11CityClient"/> — N11 SOAP CityService (GetCities / GetDistrict(cityCode) / GetNeighborhoods(districtId)).
-/// Auth SOAP gövdesinde <c>&lt;auth&gt;</c> (+ header hedge). Namespace-agnostik (LocalName) parse. Sınıf adı arayüzle
+/// Auth SOAP body'sinde <c>&lt;auth&gt;</c> (+ header hedge). Namespace-agnostik (LocalName) parse. Sınıf adı arayüzle
 /// eşleştiği için ABP otomatik expose eder. Sir ASLA loglanmaz.
 /// </summary>
 public sealed class N11CityClient : IN11CityClient, ITransientDependency

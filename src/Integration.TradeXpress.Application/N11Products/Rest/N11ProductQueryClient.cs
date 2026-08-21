@@ -170,7 +170,7 @@ public sealed class N11ProductQueryClient : N11RestClientBase, IN11ProductQueryC
         }
         catch (JsonException ex)
         {
-            // Gövde JSON değil (WAF/HTML hata sayfası vb.) — HTTP 200 gelmiş olsa bile kullanılabilir veri YOK.
+            // Body JSON değil (WAF/HTML hata sayfası vb.) — HTTP 200 gelmiş olsa bile kullanılabilir veri YOK.
             // Kök neden loglanır, dışarı taban sınıfın hata koduyla çıkılır (yeni lokalizasyon anahtarı açmadan).
             // URL yalnız filtre parametreleri taşır — appkey/appsecret BAŞLIKTADIR, loga sızmaz.
             _logger.LogError(ex, "N11 product-query yanıtı JSON değil: {Url}", url);

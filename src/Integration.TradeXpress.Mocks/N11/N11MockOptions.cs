@@ -5,7 +5,8 @@ namespace Integration.TradeXpress.Mocks.N11;
 /// <summary>
 /// N11 sahte sunucusunun ayarları (config bölümü <c>"N11:Mock"</c>).
 ///
-/// <para><b>Üç kapı birden gerekir</b> — biri bile eksikse sahte sunucu devreye girmez:</para>
+/// <para><b>Üç koşul birden gerekir</b> (<c>IsN11MockActive</c>) — biri bile eksikse sahte sunucu
+/// devreye girmez:</para>
 /// <list type="number">
 ///   <item><c>IsDevelopment()</c> — üretim ortamında uçlar HİÇ haritalanmaz.</item>
 ///   <item><see cref="Enabled"/> — bu ayar.</item>

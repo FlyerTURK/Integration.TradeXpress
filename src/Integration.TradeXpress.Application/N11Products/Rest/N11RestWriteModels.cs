@@ -7,10 +7,10 @@ using System.Text.Json.Serialization;
 namespace Integration.TradeXpress.N11Products;
 
 // ── Zarf ────────────────────────────────────────────────────────────────────────────────────────────
-// Üç yazma ucu da AYNI gövde şeklini kullanır: { "payload": { "integrator": "...", "skus": [ ... ] } }
+// Üç yazma ucu da AYNI body şeklini kullanır: { "payload": { "integrator": "...", "skus": [ ... ] } }
 // (doküman v9.0 §3.4 / §3.5 / §3.6 örnek request'leri). Zarf jenerik: satır tipi uca göre değişir.
 
-/// <summary>N11 REST yazma gövdesinin dış zarfı — <c>{"payload": {...}}</c>.</summary>
+/// <summary>N11 REST yazma body'sinin dış zarfı — <c>{"payload": {...}}</c>.</summary>
 internal sealed record N11RestEnvelope<TSku>(N11RestPayload<TSku> Payload);
 
 /// <summary>Zarfın içi — entegratör adı + SKU satırları. Alan adları camelCase serileşir (<c>integrator</c>, <c>skus</c>).</summary>
@@ -85,11 +85,11 @@ public sealed record N11RestProductCreate(
 public sealed record N11RestProductImage(string Url, int Order);
 
 /// <summary>
-/// Ürüne yazılan kategori özelliği — <c>product-create</c> gövdesindeki alan adları <b><c>id</c> / <c>valueId</c> /
+/// Ürüne yazılan kategori özelliği — <c>product-create</c> body'sindeki alan adları <b><c>id</c> / <c>valueId</c> /
 /// <c>customValue</c></b>'dur.
 /// <para><b>Karıştırmayın:</b> <c>isMandatory</c>/<c>isVariant</c>/<c>isSlicer</c>/<c>isCustomValue</c> alanları
 /// KATEGORİ ÖZELLİK SORGUSUNUN (<c>GET /cdn/category/{id}/attribute</c>) YANITINA aittir — özelliğin tanımını
-/// betimlerler, ürün gövdesine yazılmazlar (<c>N11AttributeDef</c> onları zaten okuyor).</para>
+/// betimlerler, ürün body'sine yazılmazlar (<c>N11AttributeDef</c> onları zaten okuyor).</para>
 /// <para>Kural: kategori servisinden <c>isCustomValue=false</c> gelen özellikte <see cref="ValueId"/> zorunludur;
 /// <c>true</c> gelende serbest metin (<see cref="CustomValue"/>) yazılabilir. <c>isVariant=true</c> özellikte aynı
 /// ürüne <b>mükerrer değer</b> gönderilirse istek REJECT alır.</para>

@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.N11Shipments;
 
 /// <summary>
 /// N11 kargo firması SYNC çekirdeği — <b>izinsiz iç servis</b> (2026-08-07 G1 ayrıştırması; gerekçe
-/// <c>N11CitySyncManager</c>'da: worker <c>[Authorize]</c>'lı uçtan geçemez, kapı yalnız HTTP yüzeyinde).
+/// <c>N11CitySyncManager</c>'da: worker <c>[Authorize]</c>'lı uçtan geçemez, [Authorize] yalnız HTTP ucunda).
 /// </summary>
 public class N11ShipmentCompanySyncManager : ITransientDependency
 {
@@ -35,7 +35,7 @@ public class N11ShipmentCompanySyncManager : ITransientDependency
 
     public virtual async Task<int> SyncAsync()
     {
-        // Host-only guard KORUNUR — kimlik kapısı app service ucunda, bağlam kontrolü burada (N11CitySyncManager notu).
+        // Host-only guard KORUNUR — [Authorize] app service ucunda, bağlam kontrolü burada (N11CitySyncManager notu).
         if (_currentTenant.Id is not null)
         {
             throw new BusinessException("TradeXpress:N11:ShipmentSyncHostOnly");

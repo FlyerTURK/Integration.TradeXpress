@@ -24,7 +24,7 @@ namespace Integration.TradeXpress.N11Products;
 /// değişimi değil AKIŞ değişimidir: gönder → <c>taskId</c> sakla → yokla → SKU bazlı sonucu yorumla.
 /// </para>
 /// <para>
-/// Uç, N11 dokümanının §1 servis kataloğunda LİSTELENMEMİŞTİR (yalnız gövdede anlatılır) ve metin yalnız
+/// Uç, N11 dokümanının §1 servis kataloğunda LİSTELENMEMİŞTİR (yalnız doküman metninde anlatılır) ve metin yalnız
 /// <c>UpdateProduct</c>/<c>UpdateProductPriceAndStock</c>'tan söz eder; ancak <c>CreateProduct</c> de aynı
 /// TaskDetail'e yönlendirdiği için <b>üç uç için de geçerlidir</b>.
 /// </para>
@@ -76,7 +76,7 @@ public sealed class N11TaskPoller : N11RestClientBase, IN11TaskPoller
         CancellationToken cancellationToken = default)
     {
         // Fail-fast: boş taskId ile ağa çıkmanın anlamı yok. (Check.NotNullOrWhiteSpace bu projede BannedSymbols
-        // ile YASAK — kök BannedSymbols.txt Application katmanına da bağlı; sanctioned kapı StringFieldGuard.)
+        // ile YASAK — kök BannedSymbols.txt Application katmanına da bağlı; sanctioned guard StringFieldGuard.)
         var normalizedTaskId = StringFieldGuard.EnsureRequiredText(taskId, nameof(taskId), 1, MaxTaskIdLength);
 
         var url = $"{RestProductBase}/task-details/page-query";
@@ -150,7 +150,7 @@ public sealed class N11TaskPoller : N11RestClientBase, IN11TaskPoller
         return new N11TaskResult(state, items, rejectReason);
     }
 
-    // ── Gövde kurulumu ──────────────────────────────────────────────────────────────────────────────
+    // ── Body kurulumu ───────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// <c>{"taskId":…,"pageable":{"page":…,"size":…}}</c>. Doküman örneği <c>taskId</c>'yi SAYI olarak gönderiyor;

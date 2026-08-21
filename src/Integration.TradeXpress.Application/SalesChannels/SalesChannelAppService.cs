@@ -12,7 +12,7 @@ using Volo.Abp.Domain.Repositories;
 namespace Integration.TradeXpress.SalesChannels;
 
 /// <summary>
-/// Satış kanalı BİRLEŞİK (polymorphic) yüzeyi — TÜM TPT alt-tiplerini tek listede sunar + tür-bağımsız silme.
+/// Satış kanalı BİRLEŞİK (polymorphic) app service'i — TÜM TPT alt-tiplerini tek listede sunar + tür-bağımsız silme.
 /// Base repository üzerinden sorgular (EF concrete alt-tipi materyalize eder); <see cref="SalesChannelListDto.ChannelType"/>
 /// concrete tipten türetilir. Company-owned (sunucu <see cref="ICurrentCompany"/> zorlar). Tipe-özel oluşturma/güncelleme
 /// <see cref="ISalesChannelTrN11AppService"/> / <see cref="ISalesChannelTrTrendyolAppService"/>'te.

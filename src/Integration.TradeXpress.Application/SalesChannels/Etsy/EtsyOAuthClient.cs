@@ -168,7 +168,7 @@ public sealed class EtsyOAuthClient : IEtsyOAuthClient, ITransientDependency
         }
     }
 
-    /// <summary>Hata gövdesinden yalnız Etsy'nin <c>error</c>/<c>error_description</c> alanlarını loglar (token/sır içermez).</summary>
+    /// <summary>Hata body'sinden yalnız Etsy'nin <c>error</c>/<c>error_description</c> alanlarını loglar (token/sır içermez).</summary>
     private void LogTokenError(System.Net.HttpStatusCode status, string body, string grantType)
     {
         string? error = null;
@@ -188,7 +188,7 @@ public sealed class EtsyOAuthClient : IEtsyOAuthClient, ITransientDependency
         }
         catch (JsonException)
         {
-            // Gövde JSON değil — yalnız durum kodu loglanır.
+            // Body JSON değil — yalnız durum kodu loglanır.
         }
 
         _logger.LogWarning(

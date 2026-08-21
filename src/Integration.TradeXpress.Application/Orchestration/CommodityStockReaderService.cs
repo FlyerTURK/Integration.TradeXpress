@@ -29,7 +29,7 @@ namespace Integration.TradeXpress.Orchestration;
 /// <para>Bu tam olarak yaşandı (2026-07-25 → 2026-08-08): job'ın tamamı 14 gün boyunca her koşuda
 /// <c>Cannot resolve parameter 'ICommodityStockReader stockReader'</c> ile düştü. Derleme temizdi, testler
 /// yeşildi, hiçbir kural kırmızı değildi — çünkü hata derleme zamanında değil KONTEYNER kurulumunda doğuyor.
-/// Mekanik ağ: <c>DependencyRegistrationConventionTests</c>.</para>
+/// Konvansiyon testi: <c>DependencyRegistrationConventionTests</c>.</para>
 /// </remarks>
 [ExposeServices(typeof(ICommodityStockReader))]
 public class CommodityStockReaderService : ICommodityStockReader, ITransientDependency

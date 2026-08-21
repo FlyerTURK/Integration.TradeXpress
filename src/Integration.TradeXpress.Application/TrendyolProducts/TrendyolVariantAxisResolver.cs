@@ -33,7 +33,7 @@ public sealed record TrendyolVariantAxisPlan(
 ///
 /// <para><b>DÜZELTTİĞİ HATA:</b> içe aktarım ürün-seviyesi nitelikleri grubun İLK kaleminden alıyordu. Varyant
 /// ekseni varsa bu, birinci varyantın değerini (ör. "50 ml") ÜRÜNÜN değeri sanıp kaydetmek demekti — hem
-/// yanlış hem de gönderimde tüm varyantlara aynı değeri yazdıracak bir tohum.</para>
+/// yanlış hem de gönderimde tüm varyantlara aynı değeri yazdıracak bir seed.</para>
 ///
 /// <para><b>Tek kalemli grupta eksen YOKTUR</b> ve bu doğru: karşılaştıracak ikinci kalem olmadığı için
 /// hiçbir nitelik "değişen" sayılamaz, üstelik tek varyantta ayırt edici bir eksene ihtiyaç da yok.</para>

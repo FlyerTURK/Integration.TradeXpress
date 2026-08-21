@@ -31,10 +31,10 @@ namespace Integration.TradeXpress.Orders;
 ///
 /// <para><b>İKİ STRATEJİ:</b> <see cref="SyncEmptyChannelsAsync"/> (boş kanal → tarih filtresiz TAM geçmiş) ve
 /// <see cref="SyncActiveChannelsAsync"/> (dolu kanal → dar pencere + açık siparişlerin tazelenmesi). Ortak
-/// tenant/kimlik iskeleti <c>ForEachChannelAsync</c>'te; iki kol onu kopyalamaz.</para>
+/// tenant/kimlik kurulumu <c>ForEachChannelAsync</c>'te; iki kol onu kopyalamaz.</para>
 ///
 /// <para><b>⚠ Çekim SALT-OKUMA DEĞİLDİR</b> (eski doc öyle diyordu): upsert idempotenttir ama zincirin devamı
-/// ürün eşleştirmesini, REZERVASYONU (yani fiş + stok) ve iptal köprüsünü tetikler. Bu yüzden delta kolunun
+/// ürün eşleştirmesini, REZERVASYONU (yani fiş + stok) ve iptal yolunu (RequestCancellation) tetikler. Bu yüzden delta kolunun
 /// canlıda açılması bir config kararıdır, kod merge'i değil.</para>
 /// </summary>
 public class OrderSyncManager : DomainService
@@ -156,12 +156,12 @@ public class OrderSyncManager : DomainService
     /// taramak ise throttle bütçesini yakar ve her turda aynı siparişleri yeniden yazardı. İki kol tek metoda
     /// sıkıştırılsaydı biri diğerinin varsayımını sessizce bozardı.</para>
     ///
-    /// <para><b>Damga MIGRATION'SIZ:</b> pencere başı = kanalın <c>MAX(FetchedAt)</c> − 2 gün örtüşme payı.
+    /// <para><b>FetchedAt MIGRATION'SIZ:</b> pencere başı = kanalın <c>MAX(FetchedAt)</c> − 2 gün örtüşme payı.
     /// Upsert idempotent olduğu için örtüşme zararsızdır; yeni kolon açmak yerine var olan veriden türetilir.</para>
     ///
     /// <para><b>⚠ Pencere TEK BAŞINA YETMEZ:</b> N11'in tarih filtresi sipariş TARİHİNE bakar, statü değişimine
     /// değil — pencere dışında kalan eski bir siparişin İPTALİ listeye hiç düşmez. Bu yüzden N11 kolunda açık
-    /// siparişlerin detayı ayrıca tazelenir; iptal köprüsü de o tazelemeyle beslenir.</para></summary>
+    /// siparişlerin detayı ayrıca tazelenir; iptal yolu da o tazelemeyle beslenir.</para></summary>
     public virtual async Task<OrderFetchResultDto> SyncActiveChannelsAsync(CancellationToken cancellationToken = default)
     {
         return await ForEachChannelAsync(
@@ -211,8 +211,8 @@ public class OrderSyncManager : DomainService
         return lastFetched is { } stamp ? stamp - DeltaOverlap : null;
     }
 
-    /// <summary>Tenant/kimlik/şirket-filtresi iskeleti — seed ve delta kollarının ORTAK çerçevesi.
-    /// <para>İki kol bu iskeleti kopyalasaydı (impersonation · <c>Disable&lt;ICompanyScoped&gt;</c> · tenant
+    /// <summary>Tenant/kimlik/şirket-filtresi kurulumu — seed ve delta kollarının ORTAK çerçevesi.
+    /// <para>İki kol bu çerçeveyi kopyalasaydı (impersonation · <c>Disable&lt;ICompanyScoped&gt;</c> · tenant
     /// başına taze UoW) biri düzeltilip diğeri unutulurdu; bu dosyada zaten o sınıf hatanın izleri var.</para></summary>
     private async Task<OrderFetchResultDto> ForEachChannelAsync(
         string armName,
@@ -419,7 +419,7 @@ public class OrderSyncManager : DomainService
     ///
     /// <para><b>İki adım da şart.</b> Liste penceresi sipariş TARİHİNE göre filtreler; bir siparişin STATÜSÜ
     /// pencere dışında değişirse (tipik örnek: iki hafta önceki siparişin bugün iptal edilmesi) o değişiklik
-    /// listeye HİÇ düşmez. Yalnız pencereye güvenen bir delta, iptalleri sessizce kaçırırdı — iptal köprüsü de
+    /// listeye HİÇ düşmez. Yalnız pencereye güvenen bir delta, iptalleri sessizce kaçırırdı — iptal yolu da
     /// hiç tetiklenmezdi.</para></summary>
     private async Task StreamN11DeltaAsync(
         SalesChannelTrN11 channel, DateTime sinceUtc, OrderFetchResultDto report, CancellationToken cancellationToken)
@@ -578,8 +578,8 @@ public class OrderSyncManager : DomainService
         // Eşleşmeyen/reçetesiz sipariş SESSİZ ATLANMAZ: rezervasyon Blocked gerekçesiyle kaydedilir.
         await _reservationManager.EnsureReservationAsync(companyId, order.Id);
 
-        // İPTAL KÖPRÜSÜ: kanaldan gelen iptal sinyali rezervasyonun KARAR eksenini uyandırır.
-        // Köprü olmadan `RequestCancellation`'ın hiç çağıranı yoktu → karar ekseni sonsuza kadar "yok"ta
+        // İPTAL YOLU (RequestCancellation): kanaldan gelen iptal sinyali rezervasyonun KARAR eksenini uyandırır.
+        // Bu çağrı olmadan `RequestCancellation`'ın hiç çağıranı yoktu → karar ekseni sonsuza kadar "yok"ta
         // kalır, kullanıcı arayüzündeki Onayla/Reddet düğmeleri ölü veriye bağlanırdı.
         // Kanal-agnostik: nötr Cancelled'a üç mapper de düşer. Kalem kodu 51 ("İptal Talep Edildi") N11'e özgü
         // ek sinyaldir — sipariş başlığı hâlâ açıkken tek kalem iptal isteyebilir.

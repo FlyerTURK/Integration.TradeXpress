@@ -32,7 +32,7 @@ namespace Integration.TradeXpress.N11Products;
 /// YOKTUR — eşleme kimliği İSTEKTEN taşınır (<see cref="ParseDetailResponse"/>).</para>
 ///
 /// <para><b>Doğrulama durumu:</b> endpoint/auth/zarf/sayfalama CANLI doğrulandı, ama keşif anında hesapta 0 soru
-/// vardı → gerçek soru gövdesi (özellikle <c>images</c> ve <c>questionDate</c> biçimi) GÖRÜLMEDİ; alan adları
+/// vardı → gerçek soru body'si (özellikle <c>images</c> ve <c>questionDate</c> biçimi) GÖRÜLMEDİ; alan adları
 /// WSDL'den alındı. İlk gerçek soru geldiğinde ayrıştırma doğrulanmalıdır.</para>
 /// </summary>
 [ExposeServices(typeof(IChannelQuestionClient))]
@@ -176,7 +176,7 @@ public sealed class N11QuestionClient : IChannelQuestionClient, ITransientDepend
     }
 
     /// <summary>İş tarihini N11 biçimine çevirir. Timezone kaydırması YOK: bu alan gün hassasiyetli bir İŞ
-    /// TARİHİDİR, saat damgası değil (kaydırmak gün kaymasına yol açardı).</summary>
+    /// TARİHİDİR, timestamp değil (kaydırmak gün kaymasına yol açardı).</summary>
     private static string FormatDate(DateTime value)
     {
         return value.ToString(N11DateFormat, CultureInfo.InvariantCulture);
@@ -313,7 +313,7 @@ public sealed class N11QuestionClient : IChannelQuestionClient, ITransientDepend
 
     /// <summary>Soru tarihi (WSDL <c>xs:date</c> — GÜN hassasiyetli, saat YOK).
     /// <para><b>Saat kaydırması UYGULANMAZ</b> — <c>N11OrderClient</c>'ın <c>createDate</c> alanının aksine
-    /// (o GMT+3 saat damgasıdır ve UTC'ye çekilir). Burada saat olmadığı için −3 uygulamak günü BİR GERİ kaydırırdı.
+    /// (o GMT+3 timestamp'idir ve UTC'ye çekilir). Burada saat olmadığı için −3 uygulamak günü BİR GERİ kaydırırdı.
     /// Kayıt UTC işaretli midnight olarak saklanır ve zaten yalnız çapraz kontrol içindir: SLA geri sayımı
     /// <c>ChannelQuestion.FirstSeenAt</c> üzerinden akar.</para>
     /// <para>Biçim toleranslı (canlı görülmedi): N11'in her yerde kullandığı <c>dd/MM/yyyy</c> önce, ardından
@@ -381,7 +381,7 @@ public sealed class N11QuestionClient : IChannelQuestionClient, ITransientDepend
 
     /// <summary><c>result/status != success</c> → hata mesajını taşıyan dostane <c>BusinessException</c>.
     /// <c>result</c> bloğu HİÇ yoksa da hata sayılır (fail-closed): N11 bu serviste her yanıta ekler, yokluğu
-    /// beklenmedik bir gövde demektir ve sessizce "boş liste" saymak veri kaybını gizlerdi.</summary>
+    /// beklenmedik bir body demektir ve sessizce "boş liste" saymak veri kaybını gizlerdi.</summary>
     private static void EnsureSuccess(XDocument doc, string errorCode)
     {
         var result = FindResult(doc);

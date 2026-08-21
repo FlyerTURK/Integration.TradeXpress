@@ -42,7 +42,7 @@ public interface IN11ProductRestClient : ITransientDependency
 
 /// <summary>
 /// <see cref="IN11ProductRestClient"/> uygulaması. Kimlik <c>appkey</c>/<c>appsecret</c> HTTP başlığıyla taşınır
-/// (taban sınıf halleder); sır ASLA loglanmaz. Gövde: <c>{"payload":{"integrator":"...","skus":[...]}}</c>.
+/// (taban sınıf halleder); sır ASLA loglanmaz. Body: <c>{"payload":{"integrator":"...","skus":[...]}}</c>.
 /// <para><b>Fail-fast felsefesi:</b> dokümanın REJECT sebebi olarak saydığı her kural (fiyat çifti, 2 hane küsurat,
 /// listPrice ≥ salePrice, KDV oranı, https görsel, stok kodu uzunluğu, sessiz no-op bayrakları) uzak REJECT
 /// beklenmeden YERELDE yakalanır — asenkron uçta uzak hata ancak poll sonrası görülebilir, o da geç ve pahalıdır.</para>
@@ -74,7 +74,7 @@ public sealed class N11ProductRestClient : N11RestClientBase, IN11ProductRestCli
     private static readonly HashSet<string> AllowedProductStatuses = new(StringComparer.Ordinal) { "Active", "Suspended" };
 
     /// <summary>
-    /// Yazma gövdesinin serileştirme sözleşmesi = <b>tabanın ortak sözleşmesi + fiyat biçimi</b>.
+    /// Yazma body'sinin serileştirme sözleşmesi = <b>tabanın ortak sözleşmesi + fiyat biçimi</b>.
     /// Kopya kurucu bilinçli: camelCase / null-atlama kuralları <see cref="N11RestClientBase.JsonOptions"/>'ta TEK
     /// kaynaktan gelir, burada yalnızca tabanın kapsam dışı bıraktığı "noktadan sonra tam 2 hane" kuralı
     /// (<see cref="N11PriceJsonConverter"/>) eklenir — ayarları yeniden yazmak SSOT'u ikizlerdi.
@@ -158,7 +158,7 @@ public sealed class N11ProductRestClient : N11RestClientBase, IN11ProductRestCli
         }
         catch (JsonException ex)
         {
-            // HTTP 200 + JSON olmayan gövde (hata sayfası/proxy yanıtı). Kök nedeni gizlemeden anlaşılır hataya çevir.
+            // HTTP 200 + JSON olmayan body (hata sayfası/proxy yanıtı). Kök nedeni gizlemeden anlaşılır hataya çevir.
             throw new BusinessException("TradeXpress:N11:Rest:TaskNotAccepted", innerException: ex)
                 .WithData("Url", url)
                 .WithData("Status", "UNPARSABLE")

@@ -51,6 +51,19 @@ public class SalesChannelEtsyProductRemover : IProductChannelListingRemover, ITr
         }
     }
 
+    /// <summary>Ana ürün pasifleşince Etsy kanal ürünleri pasif — yalnız yerel bayrak (Etsy dondurulmuş; uzak yol yok).</summary>
+    public virtual async Task DeactivateForProductAsync(Guid productId)
+    {
+        var records = await _asyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync()).Where(r => r.ProductId == productId && r.IsActive));
+
+        foreach (var record in records)
+        {
+            record.SetActive(false);
+            await _repository.UpdateAsync(record, autoSave: true);
+        }
+    }
+
     public virtual async Task RemoveGraphAsync(SalesChannelEtsyProduct entity)
     {
         await _recipeLineRepository.DeleteAsync(r => r.SalesChannelEtsyProductId == entity.Id, autoSave: true);

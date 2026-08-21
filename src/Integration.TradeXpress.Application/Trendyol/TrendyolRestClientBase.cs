@@ -36,7 +36,7 @@ public abstract class TrendyolRestClientBase
     /// tükenince son (429) yanıt döner ve çağıran dostane hata fırlatır (sessiz kısmi sonuç YOK).</summary>
     private const int MaxRetryOn429 = 6;
 
-    /// <summary>İsteği gönderir; (2xx mi, HTTP durumu, gövde) döner. Gövdeyi çağıran parse eder (hata dahil).</summary>
+    /// <summary>İsteği gönderir; (2xx mi, HTTP durumu, body) döner. Body'yi çağıran parse eder (hata dahil).</summary>
     protected static async Task<TrendyolResponse> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         using (request)
@@ -94,5 +94,5 @@ public abstract class TrendyolRestClientBase
     }
 }
 
-/// <summary>Ham Trendyol HTTP yanıtı — başarı bayrağı + durum + gövde.</summary>
+/// <summary>Ham Trendyol HTTP yanıtı — başarı bayrağı + durum + body.</summary>
 public readonly record struct TrendyolResponse(bool Ok, int Status, string Payload);

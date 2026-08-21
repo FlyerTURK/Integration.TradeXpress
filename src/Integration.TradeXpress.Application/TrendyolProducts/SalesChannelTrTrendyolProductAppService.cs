@@ -75,17 +75,17 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly SalesChannelTrTrendyolProductRemover _remover;
     private readonly ImportedProductCategoryResolver _categoryResolver;
 
-    /// <summary>Varyant satış hazırlığı kapısı (N11'deki eşi) — İNSAN onayından geçmemiş varyant push adayı OLMAZ.</summary>
+    /// <summary>Varyant satış hazırlığı guard'ı (N11'deki eşi) — İNSAN onayından geçmemiş varyant push adayı OLMAZ.</summary>
     private readonly VariantSaleReadinessResolver _saleReadiness;
 
-    /// <summary>Toplu varsayilan gorsel cozumu (fiyatlandirma tahtasi) — urun basina cagri yapilmaz.</summary>
+    /// <summary>Toplu varsayilan gorsel cozumu (fiyatlandirma boardsi) — urun basina cagri yapilmaz.</summary>
     private readonly IEntityMediaAppService _entityMedia;
 
     /// <summary>Kodlu hatayı operatörün okuyacağı metne çevirir (teşhis verisi dahil) — LastError'a ham
     /// <c>ex.Message</c> yazmak guard'ların doldurduğu SKU/fiyat/sınır bilgisini çöpe atardı.</summary>
     private readonly BusinessExceptionDescriber _describer;
 
-    /// <summary>Kanal tahtalarının ORTAK gövdesi — karar sinyali iki kanalda da aynı yerden gelir.</summary>
+    /// <summary>Kanal boardlarının ORTAK builder'ı — karar sinyali iki kanalda da aynı yerden gelir.</summary>
     private readonly ChannelProductBoardBuilder _boardBuilder;
 
     /// <summary>Push GEÇMİŞİ yazıcısı — yalnız COMPLETED batch'te çağrılır (delil "kabul edildi" demektir).</summary>
@@ -232,7 +232,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
         var productIds = channelProducts.Select(x => x.ProductId).Distinct().ToList();
 
-        // ORTAK GÖVDE: ürün kimliği + görsel + "karar bekliyor mu" sinyali kanal-agnostiktir
+        // ORTAK BUILDER: ürün kimliği + görsel + "karar bekliyor mu" sinyali kanal-agnostiktir
         // (ChannelProductBoardBuilder). Buraya kopyalansaydı satılabilirlik kuralı değişince N11 ile
         // Trendyol sessizce ayrışırdı.
         var common = await _boardBuilder.BuildAsync(productIds);
@@ -241,7 +241,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             (await _variantRepository.GetQueryableAsync())
                 .Where(v => v.EntityName == ProductEntityName && productIds.Contains(v.EntityId) && v.IsActive));
 
-        // Kanal override stoğu; yoksa çekirdek varyant stoğu (import remote değeri oraya tohumlanır).
+        // Kanal override stoğu; yoksa core varyant stoğu (import remote değeri oraya seed'lenir).
         var overrideStockByVariant = (await AsyncExecuter.ToListAsync(
                 (await _stockItemRepository.GetQueryableAsync())
                     .Where(si => si.ProductVariantId != null && si.OverrideStock != null)
@@ -251,7 +251,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
         var variantsByProduct = variants.GroupBy(v => v.EntityId).ToDictionary(g => g.Key, g => g.ToList());
 
-        // Görseli ortak gövde çözüyor (tek toplu çağrı) — burada ikinci kez sormak aynı sorguyu boşuna koşardı.
+        // Görseli ortak builder çözüyor (tek toplu çağrı) — burada ikinci kez sormak aynı sorguyu boşuna koşardı.
 
         var board = new List<TrendyolPricingBoardItemDto>(channelProducts.Count);
 
@@ -406,7 +406,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return Truncate(productCode, maxCodeLength) + suffix;   // Truncate: partial'ın Import dilimindeki ortak yardımcı
     }
 
-    /// <summary>Kanal ürünü güncelleme. <b>IsActive = kanaldaki ARŞİV durumunun aynası</b> (2026-08-17 Hakan kararı):
+    /// <summary>Kanal ürünü güncelleme. <b>IsActive = kanaldaki ARŞİV durumunun yansıması</b> (2026-08-17 Hakan kararı):
     /// bayrak DEĞİŞTİYSE Trendyol'a archive-state gider (pasif → arşiv, aktif → satışa) — AYNI TRANSACTION'da; kanal
     /// reddederse güncellemenin tamamı geri döner (biz ile kanal farklı şey söyleyemez). Bayrak eskiden yalnız
     /// yazılıp hiçbir yerde okunmuyordu — anlamsız bir kolon şimdi kanal davranışına bağlandı.</summary>
@@ -487,7 +487,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return dto;
     }
 
-    /// <summary>Muadil M4 köprüsü — Top-N BAŞARILI kombinasyonu bu Trendyol ürününün StockItem'larına dönüştürür.
+    /// <summary>Muadil M4 adaptörü — Top-N BAŞARILI kombinasyonu bu Trendyol ürününün StockItem'larına dönüştürür.
     /// N11 adaptörüyle AYNI nötr planı (<see cref="SubstitutionStockItemPlanner"/>, <see cref="SubstitutionChannelPlanProvider"/>)
     /// tüketir; uygulama MEVCUT kartezyen reconcile yolundan (<see cref="SaveAttributesAndReconcileAsync"/>) geçer —
     /// paralel kayıt yolu YOK. Reçete → maliyet zinciri → türetilmiş fiyat; OverrideStock = paket sayısı;
@@ -497,7 +497,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     {
         var entity = await GetOwnedAsync(id);
 
-        // Orkestrasyon KANAL-AGNOSTİK gövdede (SubstitutionChannelPlanProvider.ApplyAsync — N11 ile TEK akış);
+        // Orkestrasyon KANAL-AGNOSTİK sınıfta (SubstitutionChannelPlanProvider.ApplyAsync — N11 ile TEK akış);
         // bu adaptör yalnız Trendyol graf tiplerini bağlar: özellik/değer okuma, upsert planı → Trendyol DTO
         // çevirisi + MEVCUT persist/reconcile yolu (SaveAttributesAndReconcileAsync) ve StockItem
         // paket stoğu + reçete yazımı (ReplaceChannelRecipeLinesAsync).
@@ -553,7 +553,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         };
     }
 
-    /// <summary>Köprü, kombinasyon StockItem REÇETESİNİN sahibidir: mevcut satırlar silinir + plan satırları yazılır.
+    /// <summary>Adaptör, kombinasyon StockItem REÇETESİNİN sahibidir: mevcut satırlar silinir + plan satırları yazılır.
     /// Persist mekaniği MEVCUT <see cref="SaveChannelRecipeLinesAsync"/> (paralel kayıt yolu açılmaz).</summary>
     private async Task ReplaceChannelRecipeLinesAsync(
         SalesChannelTrTrendyolProduct channelProduct, Guid stockItemId, List<ProductRecipeLineGraphDto> freshLines)
@@ -573,6 +573,20 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+
+        // ARŞİVDEKİ KAYDA TAM PUSH YOK (2026-08-21 Hakan onayı — N11 PassiveNoPush'un simetriği): IsActive
+        // burada Trendyol ARŞİV durumunun aynasıdır (pasifleşme aynı transaction'da kanalı arşive çeker).
+        // Guard olmadan elle tam push arşivdeki listing üzerine yeni bir onboarding batch'i açar; MarkSubmitted +
+        // PendingSent* zinciri batch finalize'da LastSent*'i terfi ettirir ve kayıt "arşivde" derken sistem satış
+        // içeriği gönderdiğine inanırdı — ayna ile kanal ayrışırdı. Satışa dönüş yolu push değil, kaydı
+        // AKTİFLEŞTİRMEKTİR (aktifleşme = unarchive; fiyat/stok kolu zaten ArchivedNoSync ile aynı kapıdan kapalı).
+        // try DIŞINDA bilinçli: guard reddi bir senkron hatası değildir, LastError'a yazılmaz.
+        // ÖNİZLEME (GetPushPreviewAsync) bilinçle serbest — kullanıcı arşivdeki kaydın ne göndereceğini görebilmeli.
+        if (!entity.IsActive)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:ArchivedNoPush");
+        }
+
         var pushNotices = new List<string>();
 
         try
@@ -592,7 +606,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             // "Ne gönderdim" — batch COMPLETED olunca LastSent*'e terfi edecek (bkz. FinalizeCompletedBatchAsync).
             // İçerik üçlüsü (başlık/eksen/görsel) da submit anında saklanır: defter satırı finalize'da ancak
             // BURADAN yazılabilir — o anda yeniden hesaplamak "göndermediğini yazma" hatasına girerdi. Görsel
-            // kimlikleri GÖVDEYE FİİLEN GİREN setten (data.SentMediaIds) — adayları yeniden çözmek, geçici link
+            // kimlikleri BODY'YE FİİLEN GİREN setten (data.SentMediaIds) — adayları yeniden çözmek, geçici link
             // alamayıp düşen görseli de "gönderildi" diye yazardı (bağımsız denetim bulgusu, 2026-08-14).
             var pushedMediaIds = string.Join(",", data.SentMediaIds);
             foreach (var item in data.Items)
@@ -643,9 +657,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
 
-        // ARŞİVDEKİ ürüne fiyat/stok yazılmaz (IsActive = kanal arşiv aynası, 2026-08-17): Trendyol arşivdeki
+        // ARŞİVDEKİ ürüne fiyat/stok yazılmaz (IsActive = kanal arşiv yansıması, 2026-08-17): Trendyol arşivdeki
         // listing'e yazımı reddeder, biz de sessizce deneyip defteri "takılı ürün" satırlarıyla doldurmayız.
-        // Stok tetiği (TrendyolChannelStockPusher) zaten IsActive süzer; burası UI'dan doğrudan tıklamanın kapısı.
+        // Stok tetiği (TrendyolChannelStockPusher) zaten IsActive süzer; burası UI'dan doğrudan tıklamanın guard'ı.
         if (!entity.IsActive)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:ArchivedNoSync");
@@ -659,11 +673,11 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
 
         // ÇİFTE BATCH KORUMASI: önceki fiyat/stok batch'i hâlâ işleniyorsa yeni submit YAPILMAZ. Trendyol aynı
-        // gövdeyi 15 dk içinde mükerrer sayıp reddediyor; üstelik iki açık batch'in hangisinin kazandığı belirsiz.
+        // body'yi 15 dk içinde mükerrer sayıp reddediyor; üstelik iki açık batch'in hangisinin kazandığı belirsiz.
         // Tip AYRIMI YAPILMAZ (2026-08-08 düzeltmesi): entity kayıt başına TEK BatchRequestId yuvası taşıyor.
         // Guard yalnız fiyat/stok batch'ini bekleseydi, devam eden bir CREATE batch'i üzerine senkron submit
         // edilir ve create'in makbuzu KALICI olarak kaybolurdu — o push'un akıbeti bir daha sorgulanamazdı.
-        if (entity.Status == "PROCESSING")
+        if (entity.Status == TrendyolProductConsts.ProcessingBatchStatus)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:BatchInProgress")
                 .WithData("BatchType", entity.LastBatchRequestType ?? "-");
@@ -705,7 +719,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
                 {
                     // ÜRÜN KAPSAMDA AMA BU SKU DEĞİL → ADET 0 (2026-08-08 düzeltmesi).
                     //
-                    // Bu satırı SESSİZCE ATLAMAK en sinsi aşırı satış deliğiydi: varyant kapıya takıldığı
+                    // Bu satırı SESSİZCE ATLAMAK en sinsi aşırı satış deliğiydi: varyant guard'a takıldığı
                     // (askıya alındı · doğrulaması bayatladı · yeni ve Draft) için aday olmuyor, ama Trendyol'da
                     // SON GÖNDERİLEN adetle CANLI duruyor ve sipariş almaya devam ediyordu. Üstelik bir daha
                     // ASLA tazelenmiyordu — her turda aynı `continue`. Sistem "bu varyant satılmamalı" kararını
@@ -797,7 +811,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <para><b>FAILED'da <c>LastSent*</c> yazılmaz</b> — reddedilen bir gönderimi kıyas tabanına terfi
     /// ettirmek, hiç ulaşmamış fiyatı "senkron" göstermek olurdu. <b>Geçmişe ise BAŞARISIZ satır yazılır</b>
     /// (2026-08-10): eskiden hiçbir iz kalmıyordu ve "denendi, reddedildi" ile "hiç denenmedi" ayırt
-    /// edilemiyordu. Satır <c>Failed</c> damgası + kanalın kendi gerekçesiyle gider; başarılı görünmez.</para>
+    /// edilemiyordu. Satır <c>Outcome=Failed</c> ve kanalın kendi gerekçesiyle gider; başarılı görünmez.</para>
     ///
     /// <para><b>İdempotent:</b> ikinci çağrıda <c>Status</c> artık PROCESSING olmadığından (ve çağıranlar
     /// yalnız PROCESSING kayıtları seçtiğinden) tekrar yazılmaz. Kısmi başarıda (<c>FailedCount &gt; 0</c>)
@@ -830,8 +844,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             //
             // GEÇMİŞE BAŞARISIZ SATIR YAZILIR (2026-08-10 Hakan kararı). Eskiden hiçbir şey yazılmıyordu ve
             // bu, "denendi ve reddedildi" ile "hiç denenmedi"yi ayırt edilemez kılıyordu — otonom fiyat/stok
-            // güncellemesinde bir fiyatın kanala yansımama sebebi hiçbir yerde kalmıyordu. Satır Failed
-            // damgasıyla ve KANALIN KENDİ mesajıyla yazılır; başarılı görünme riski yok.
+            // güncellemesinde bir fiyatın kanala yansımama sebebi hiçbir yerde kalmıyordu. Satır Outcome=Failed
+            // ve KANALIN KENDİ mesajıyla yazılır; başarılı görünme riski yok.
             //
             // SIRA ÖNEMLİ: bekleyenler temizlenmeden ÖNCE toplanır — temizlik sonrası ne gönderilmeye
             // çalışıldığı bilgisi kaybolur.
@@ -939,7 +953,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             return true;
         }
 
-        return string.Equals(status, "PROCESSING", StringComparison.OrdinalIgnoreCase)
+        return string.Equals(status, TrendyolProductConsts.ProcessingBatchStatus, StringComparison.OrdinalIgnoreCase)
                || string.Equals(status, "IN_PROGRESS", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -1221,15 +1235,15 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         int? Stock,
         Guid? PriceCurrencyUnitId);
 
-    /// <summary>Aday seti + kapıya takılan varyant SAYISI. Sayı taşınır çünkü "hiç aday yok" ile "hepsi doğrulama
+    /// <summary>Aday seti + guard'a takılan varyant SAYISI. Sayı taşınır çünkü "hiç aday yok" ile "hepsi doğrulama
     /// bekliyor" AYRI durumlardır ve hafif senkron ikisine farklı davranır (HK-3 geçiş kipi).</summary>
     private sealed record TrendyolPushRowSet(List<TrendyolPushRow> Rows, int PendingVerificationCount);
 
     /// <summary>Push · önizleme · hafif senkron için ORTAK aday satır kaynağı (N11 <c>BuildPushRowsAsync</c> portu).
     ///
-    /// <para><b>PUSH KAPISI</b> (§6): yalnız İNSAN tarafından doğrulanmış ve doğrulamadan sonra reçetesi değişmemiş
-    /// varyant aday olur. Kapı fiyatlamadan ÖNCEDİR — elle girilen <c>OverridePrice</c> bile kararsızlığı örtemez.
-    /// Trendyol tarafında bu kapı bugüne kadar HİÇ yoktu; N11'de vardı (asimetri kapatıldı).</para>
+    /// <para><b>PUSH GUARD'I</b> (§6): yalnız İNSAN tarafından doğrulanmış ve doğrulamadan sonra reçetesi değişmemiş
+    /// varyant aday olur. Guard fiyatlamadan ÖNCEDİR — elle girilen <c>OverridePrice</c> bile kararsızlığı örtemez.
+    /// Trendyol tarafında bu guard bugüne kadar HİÇ yoktu; N11'de vardı (asimetri kapatıldı).</para>
     ///
     /// <para><b>Emniyet payı</b> tam da bu tek çıkışta uygulanır — üç çağıran da aynı paylı adedi görsün diye
     /// (N11 ile birebir gerekçe: aksi hâlde dirty-check her turda "değişti" der).</para></summary>
@@ -1290,7 +1304,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         // TRENDYOL-ONLY kombinasyonlar (T8 — N11 J3 portu): özellik-modu başlıkları içinde ERP karşılığı
         // olmayanlar da satılabilir satırdır; bugüne dek push'a HİÇ girmiyorlardı. Fiyat = Override ??
         // (kanal reçetesi NetCost × marj); stok YALNIZ Override (ERP fallback yok — ERP'de sayacak varyant
-        // yok; "sınırsız" saymak aşırı satış kapısı olurdu). Satış-hazırlık kapısı ERP varyantına aittir,
+        // yok; "sınırsız" saymak aşırı satış kapısı olurdu). Satış-hazırlık guard'ı ERP varyantına aittir,
         // bu satırlar ondan geçmez (N11 ile aynı duruş). Emniyet payı ve indirim ERP satırlarıyla AYNI
         // kurallarla uygulanır — kaynak farkı emniyet farkı üretmesin.
         var onlyHeaders = await AsyncExecuter.ToListAsync(
@@ -1342,12 +1356,12 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
 
         // "ADAY YOK" kontrolü satırlar TAMAMEN kurulduktan SONRA (Trendyol-only dahil — N11 portuyla aynı yer):
-        // ERP varyantlarının hepsi kapıya takılmış olsa bile override'lı bir kombinasyon tek başına push'u ayakta
+        // ERP varyantlarının hepsi guard'a takılmış olsa bile override'lı bir kombinasyon tek başına push'u ayakta
         // tutar. Kontrol önce olsaydı o ürün push'a başlamadan ölürdü (bağımsız denetim bulgusu, 2026-08-14).
         if (rows.Count == 0)
         {
-            // TEŞHİS DOĞRU SEBEBİ SÖYLER (2026-08-08 düzeltmesi): doğrulama kapısı yeni bir "aday yok" sebebi
-            // ekledi. Fiyatlı varyant VARDI ama hepsi kapıya takıldıysa "fiyatlı varyant yok" demek kullanıcıyı
+            // TEŞHİS DOĞRU SEBEBİ SÖYLER (2026-08-08 düzeltmesi): doğrulama guard'ı yeni bir "aday yok" sebebi
+            // ekledi. Fiyatlı varyant VARDI ama hepsi guard'a takıldıysa "fiyatlı varyant yok" demek kullanıcıyı
             // olmayan bir sorunu aramaya yollar — fiyatları kontrol eder, hepsi doğru görünür, tıkanır.
             var code = priced.Count > 0
                 ? "TradeXpress:Trendyol:Product:NoVerifiedVariant"
@@ -1429,7 +1443,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return pairs;
     }
 
-    /// <summary>Kombinasyon değerlerinden deterministik stok kodu GÖVDESİ — N11 <c>BuildCombinationCode</c>
+    /// <summary>Kombinasyon değerlerinden deterministik stok kodu KÖKÜ — N11 <c>BuildCombinationCode</c>
     /// portu ("SIYAH-42" deseni): yalnız DEĞERLER '-' ile birleşir, UPPER-invariant, "-{SequenceNo}" son eki
     /// payı düşülerek üst sınıra kesilir (son eki entity <c>BuildBarcode</c>/ChannelSequenceCode ekler).</summary>
     private static string BuildCombinationCode(List<(string Name, string Value)> pairs, int sequenceNo)
@@ -1441,7 +1455,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     }
 
     /// <summary>Push satırlarının fiyatı kanal-ürünün <c>[MinPrice, MaxPrice]</c> bandında mı — N11 ile birebir
-    /// kural (gövde <see cref="ChannelPushGuard"/>'da). İhlalde ÜRÜNÜN TÜM push'u düşer; kırpma YOK.
+    /// kural (<see cref="ChannelPushGuard"/>'da). İhlalde ÜRÜNÜN TÜM push'u düşer; kırpma YOK.
     /// Bant kontrolü <b>satış</b> fiyatına uygulanır: müşterinin ödediği sayı odur.</summary>
     private static void EnsurePushRowsWithinPriceBand(SalesChannelTrTrendyolProduct channelProduct, List<TrendyolPushRow> rows)
     {
@@ -1523,7 +1537,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             EnsurePushRowsWithinPriceBand(channelProduct, rowSet.Rows);
         }
 
-        // KISMİ ELEME SESSİZ KALMAZ (2026-08-08 düzeltmesi): varyantların bir kısmı doğrulama kapısına
+        // KISMİ ELEME SESSİZ KALMAZ (2026-08-08 düzeltmesi): varyantların bir kısmı doğrulama guard'ına
         // takıldıysa push YİNE yapılır (kalanları engellemek meşru işi durdururdu) ama kullanıcı kaç varyantın
         // dışarıda kaldığını GÖRÜR. Önceden bu sayı hesaplanıp atılıyordu: push "başarılı" görünüyor, elenen
         // varyantın listelemesi Trendyol'da bayat adetle canlı kalıyordu.
@@ -1582,7 +1596,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
         // İndirim + emniyet payı satır kaynağında UYGULANDI (BuildPushRowsAsync) — burada yalnız taşınır.
         // Item attribute'ları: gerçek push'ta doğrulayıcı çıktısı (foto ?? türetilmiş, kanonik); önizlemede
-        // yalnız foto (tanım yüklenmemiş olabilir — best-effort). OptionLabels = delil defterinin okunur çiftleri.
+        // yalnız foto (tanım yüklenmemiş olabilir — best-effort). OptionLabels = PushHistory'nin okunur çiftleri.
         var items = rowSet.Rows.Select(r =>
         {
             var axis = validated?.VariantAxes.GetValueOrDefault(r.CandidateId);
@@ -1603,7 +1617,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         var images = await ResolvePushImagesAsync(
             channelProduct, product, candidateMediaIds, realPush: warnings is null, notices);
 
-        // Kanalın VARSAYILAN kargo firması (2026-08-10 Hakan kararıyla kanala kondu; sunucu seçer) → gövdede
+        // Kanalın VARSAYILAN kargo firması (2026-08-10 Hakan kararıyla kanala kondu; sunucu seçer) → body'de
         // cargoCompanyId. Trendyol'un sayısal firma id'si sağlayıcının ExternalId'sidir.
         var cargoCompanyId = await ResolveDefaultCargoCompanyIdAsync(channelProduct.SalesChannelId);
 
@@ -1632,7 +1646,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     }
 
     /// <summary>Kanalın varsayılan kargo firmasının Trendyol sayısal id'si — kanalda seçili değilse ya da
-    /// sağlayıcı kaydı silinmişse null (gövdeye yazılmaz; Trendyol satıcı varsayılanına düşer).</summary>
+    /// sağlayıcı kaydı silinmişse null (body'ye yazılmaz; Trendyol satıcı varsayılanına düşer).</summary>
     private async Task<int?> ResolveDefaultCargoCompanyIdAsync(Guid salesChannelId)
     {
         var channel = await _channelRepository.FindAsync(salesChannelId);
@@ -1651,7 +1665,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <summary>
     /// Push görselleri. Önizleme + yayıncı-kapalı gerçek push: imzalı DAM linkleri (dış ağa çıkılmaz).
     /// Yayıncı AÇIK gerçek push: ① bugünkü görsel seti import DAMGASIYLA (<c>RemoteImageMediaIds</c>) birebir ise
-    /// kanalın kendi CDN adresleri gönderilir — kanala aynı görseli yeniden yutturma; kapı DEFTERLE değil damgayla
+    /// kanalın kendi CDN adresleri gönderilir — kanala aynı görseli yeniden yutturma; karar DEFTERLE değil damgayla
     /// kurulur (bayat kanal adresi tuzağı entity doc'unda) ② değilse her medya geçici barındırmaya yüklenir;
     /// yüklenemeyen görsel bildirimle atlanır ve KİMLİĞİ giden listeye GİRMEZ (defter "göndermediğini yazmaz").
     /// Aday varken hiçbiri yüklenemediyse özgül hata: <c>ImageTemporaryLinkFailed</c> — "görsel yok" değil,
@@ -1958,7 +1972,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// ile) mevcut özellik/değer setiyle reconcile eder — diff/sıra mekaniği <see cref="VariantSetReconciler"/>'da
     /// (N11 S4 bağlama şekli BİREBİR): artık üretilemeyen kombinasyonlar (satır + reçetesi) removeAsync'te SİLİNİR
     /// (orphan temizliği), eksik kombinasyonlar addAsync'te İNSERT edilir (fırsatçı ERP eşleştirmesiyle — KANAL
-    /// politikası, çekirdekte değil). Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı
+    /// politikası, core'da değil). Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı
     /// override/reçete verisi korunur.</summary>
     private async Task SynchronizeStockItemsAsync(SalesChannelTrTrendyolProduct channelProduct, List<AttributeWithValues> channelAttributes)
     {

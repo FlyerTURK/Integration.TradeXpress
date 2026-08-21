@@ -14,9 +14,9 @@ namespace Integration.TradeXpress.N11Cities;
 /// N11 il/ilçe SYNC çekirdeği — <b>izinsiz iç servis</b> (2026-08-07 G1 ayrıştırması).
 ///
 /// <para><b>Neden app service'ten çıkarıldı:</b> sync'i hem kullanıcı akışı (app service ucu — artık
-/// <c>[Authorize(SalesChannels.Update)]</c> kapılı) hem <c>N11ReferenceSyncWorker</c> (arka plan, kullanıcı
+/// <c>[Authorize(SalesChannels.Update)]</c> korumalı) hem <c>N11ReferenceSyncWorker</c> (arka plan, kullanıcı
 /// kimliği YOK) tüketiyor. Worker <c>[Authorize]</c>'lı uçtan geçemez — CLAUDE.md §6 materyalizer deseni:
-/// worker bağlamı yetkili yolu KULLANMAZ, çekirdek izinsiz servise iner, kapı yalnız HTTP yüzeyinde durur.</para>
+/// worker bağlamı yetkili yolu KULLANMAZ, izinsiz iç servise iner, [Authorize] yalnız HTTP ucunda durur.</para>
 /// </summary>
 public class N11CitySyncManager : ITransientDependency
 {

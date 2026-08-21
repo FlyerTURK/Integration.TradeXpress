@@ -84,7 +84,7 @@ public sealed class EtsyOrderClient : IEtsyOrderClient, ITransientDependency
     }
 
     /// <summary>Receipts yanıtını parse eder (public static — birim testli): <c>count</c> + <c>results[]</c>. Bozuk JSON
-    /// gövdesi dostane hatayla ÇEKİMİ DURDURUR (sessizce boş sayfa dönmek o ve sonraki sayfaları raporsuz kaybettirirdi).</summary>
+    /// body'si dostane hatayla ÇEKİMİ DURDURUR (sessizce boş sayfa dönmek o ve sonraki sayfaları raporsuz kaybettirirdi).</summary>
     public static (List<RemoteOrder> Items, int Count) ParseReceiptsPage(string payload)
     {
         var items = new List<RemoteOrder>();

@@ -32,7 +32,7 @@ public class SalesChannelSubAccountBinder : ITransientDependency
     /// siparişte görünüyor, sebebi kanalda duruyordu. Eksik veriyi doğduğu yerde reddetmek, sonradan
     /// izi sürülemeyen bir davranışa dönüşmesinden iyidir.</para>
     ///
-    /// <para>Bu metot üç kanalın Create ve Update yollarının TAMAMINDA çağrıldığı için tek kapı — burada
+    /// <para>Bu metot üç kanalın Create ve Update yollarının TAMAMINDA çağrıldığı için tek guard — burada
     /// zorlamak altı ayrı yerde tekrar etmekten güvenli.</para></summary>
     public virtual async Task BindAsync(SalesChannelBase channel, Guid? subAccountId)
     {

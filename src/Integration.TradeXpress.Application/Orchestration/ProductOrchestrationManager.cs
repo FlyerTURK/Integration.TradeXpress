@@ -16,10 +16,10 @@ namespace Integration.TradeXpress.Orchestration;
 
 /// <summary>
 /// ÜRÜN ORKESTRASYON MÜDÜRÜ (ADR-PRODUCT-ORCHESTRATION; ad 2026-07-25 Hakan kararı). Önündeki durum
-/// tahtası EVENT'lerle güncellenir; işi ürün-başına, asenkron, paralel, birbirini KİLİTLEMEYEN job'lara dağıtır.
+/// board'u EVENT'lerle güncellenir; işi ürün-başına, asenkron, paralel, birbirini KİLİTLEMEYEN job'lara dağıtır.
 /// <para><b>Sinyaller:</b> bugün <see cref="CommodityStockChangedEto"/> (VoucherLine — Dilim 1); ileride
 /// RepricingCycleElapsedEto (15-dk fiyat döngüsü — Dilim 2) ve CompetitorSnapshotEto (rakip — Dilim 3)
-/// aynı tahtaya düşer: her sinyal için yeni bir <c>IDistributedEventHandler</c> kolu açılır.</para>
+/// aynı board'a düşer: her sinyal için yeni bir <c>IDistributedEventHandler</c> kolu açılır.</para>
 /// <para><b>Kilitlenmezlik kuyruktan değil İŞ TASARIMINDAN gelir:</b> job ürün-başına dar, idempotent
 /// (aynı event iki kez → aynı sonuç; N11 dirty-check fazla push'u eler). Taşıma ABP soyutlamaları —
 /// production'da RabbitMQ paketiyle sıfır kod değişikliği (ADR kuyruk kararı).</para>

@@ -73,6 +73,18 @@ public interface IEtsyProductClient
         EtsyCredentials credentials, long returnPolicyId, bool acceptsReturns, bool acceptsExchanges, int? returnDeadlineDays,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Listelemenin VARYASYON FOTOĞRAFI bağlarını (<c>getListingVariationImages</c>,
+    /// <c>GET .../shops/{shopId}/listings/{listingId}/variation-images</c>) salt GET ile çeker — hangi varyasyon
+    /// değerine hangi fotoğrafın bağlandığı (Etsy'ye SIFIR yazma; bu dilimde YAZMA YOK). Mağaza kimliği
+    /// <see cref="EtsyCredentials.ShopId"/>'den gelir (kanal kaydında saklı) — diğer shop-scoped uçlarla AYNI
+    /// kimlik/hata deseni.
+    ///
+    /// <para><b>404/boş yanıt İSTİSNA DEĞİLDİR → BOŞ liste:</b> varyasyon fotoğrafı olmayan listeleme normaldir
+    /// (fotoğraflar yalnız kayıt geneli galeride durur). Bunu hata saymak, mağazanın çoğunluğunu oluşturan normal
+    /// listelemelerde içe aktarımı gürültüye boğardı.</para></summary>
+    Task<IReadOnlyList<EtsyVariationImage>> GetVariationImagesAsync(
+        EtsyCredentials credentials, long listingId, CancellationToken cancellationToken = default);
+
     /// <summary>Kanalın erişim token'ının GEÇERLİ ve bir mağazaya bağlı olduğunu doğrular (<c>getMe</c>,
     /// <c>GET .../users/me</c>, salt GET; Etsy'ye SIFIR yazma). Kurulum "auth" adımının kimlik ön-koşulunu teyit eder —
     /// başarılı yanıtta <c>user_id</c> (+ varsa <c>shop_id</c>) döner. Token yenileme <see cref="IEtsyTokenProvider"/>
@@ -114,9 +126,47 @@ public sealed record EtsyRemoteListing(
     EtsyWhoMade? WhoMade,
     ProductMadePeriod? WhenMade,
     EtsyListingType ListingType,
-    IReadOnlyList<string> ImageUrls,
+    IReadOnlyList<EtsyRemoteImage> Images,
     string? CurrencyCode,
-    IReadOnlyList<EtsyRemoteOffering> Offerings);
+    IReadOnlyList<EtsyRemoteOffering> Offerings)
+{
+    /// <summary>Kayıt geneli galeri için DÜZ URL listesi — <see cref="Images"/>'ten TÜRETİLİR, ayrı bir yapıcı
+    /// parametresi DEĞİLDİR (mevcut çağıranlar aynen çalışmaya devam eder).
+    ///
+    /// <para><b>Neden türetilmiş, neden "ikisini birlikte doldur" değil:</b> istemci eksik gelen görselleri
+    /// per-listing fallback ile tamamlarken kaydı <c>listing with { Images = ... }</c> ile kopyalar. <c>with</c>
+    /// kopya-yapıcısı ALANLARI kopyalar, başlatıcıları yeniden koşturmaz → iki ayrı alan tutulsaydı yeni kimlikli
+    /// görsel seti yanına ESKİ (boş) URL listesi taşınır ve fark hiçbir yerde hata vermeden ürün galerisini
+    /// boşaltırdı. Tek gerçek kaynak <see cref="Images"/>'tir; URL görünümü ondan okunur.</para></summary>
+    public IReadOnlyList<string> ImageUrls
+    {
+        get
+        {
+            var urls = new List<string>(Images.Count);
+            foreach (var image in Images)
+            {
+                urls.Add(image.Url);
+            }
+
+            return urls;
+        }
+    }
+}
+
+/// <summary>Uzak listeleme görseli — KİMLİKLİ (<c>listing_image_id</c>) + adres. Kimlik varyasyon fotoğrafı
+/// eşleştirmesinin tek anahtarıdır (<see cref="EtsyVariationImage.ImageId"/>); Etsy kimliği döndürmezse
+/// <see cref="ImageId"/> 0 kalır — görsel kayıt geneli galeriye yine iner ama varyanta BAĞLANAMAZ (uydurma
+/// eşleşme yapılmaz).</summary>
+public sealed record EtsyRemoteImage(long ImageId, string Url);
+
+/// <summary>Listelemenin bir varyasyon fotoğrafı bağı (<c>getListingVariationImages</c>): hangi varyasyon
+/// ekseninin (<see cref="PropertyId"/>) hangi değerine (<see cref="ValueId"/>) hangi fotoğrafın
+/// (<see cref="ImageId"/>) bağlandığı.
+///
+/// <para><b>Etsy kısıtları (resmî v3):</b> bir listelemede fotoğraflar YALNIZ TEK bir varyasyon grubuna bağlanır
+/// (dizide tek distinct <c>property_id</c>), en fazla 20 benzersiz seçenek fotoğraf taşıyabilir ve listeleme başına
+/// en fazla 10 fotoğraf vardır.</para></summary>
+public sealed record EtsyVariationImage(long PropertyId, long ValueId, long ImageId);
 
 /// <summary>Uzak listelemenin BİR offering'i (= inventory <c>product</c>) — varyant kalemi. <see cref="EtsyProductId"/>
 /// = Etsy inventory <c>product_id</c> (offering-düzeyi idempotency; <c>Sku.EtsyProductId</c>). <see cref="Properties"/>
@@ -131,5 +181,10 @@ public sealed record EtsyRemoteOffering(
     IReadOnlyList<EtsyRemoteProperty> Properties);
 
 /// <summary>Bir offering'in tek varyant ekseni seçimi (ör. Renk=Kırmızı) — <c>property_values</c> öğesinden
-/// name + ilk değer.</summary>
-public sealed record EtsyRemoteProperty(string Name, string Value);
+/// name + ilk değer, YANINDA Etsy'nin sayısal kimlikleri.
+///
+/// <para><see cref="PropertyId"/>/<see cref="ValueId"/> yalnız ZENGİNLEŞTİRMEDİR: varyant grafı bugünkü gibi
+/// METİN (ad/değer) üzerinden kurulmaya devam eder — kimlikler gelmezse (eski/kısmi yanıt) <c>null</c> kalır ve
+/// hiçbir mevcut davranış değişmez. Kimliği okumamızın tek sebebi varyasyon fotoğrafı eşleştirmesidir: Etsy o
+/// bağı ADLA değil <c>property_id</c>/<c>value_id</c> ile verir.</para></summary>
+public sealed record EtsyRemoteProperty(string Name, string Value, long? PropertyId = null, long? ValueId = null);

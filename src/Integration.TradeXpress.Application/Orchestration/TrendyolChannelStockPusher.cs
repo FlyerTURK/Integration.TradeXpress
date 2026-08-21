@@ -12,17 +12,17 @@ using Volo.Abp.Uow;
 namespace Integration.TradeXpress.Orchestration;
 
 /// <summary>
-/// TRENDYOL push ayağı — <see cref="N11ChannelStockPusher"/>'ın eşi.
+/// TRENDYOL push üyesi — <see cref="N11ChannelStockPusher"/>'ın eşi.
 ///
-/// <para><b>Neden bu sınıf MVP'nin kapısı:</b> <c>SyncStockAndPriceAsync</c> P4'te yazıldı ama üretimde
+/// <para><b>Neden bu sınıf MVP'nin eksik parçası:</b> <c>SyncStockAndPriceAsync</c> P4'te yazıldı ama üretimde
 /// HİÇBİR ÇAĞIRANI yoktu — yani "çapraz-kanal aşırı satış deliği kapandı" demek erkendi. Stok değişimi
 /// yalnız N11'e yansıyor, Trendyol bayat kalmaya devam ediyordu. Bu sınıf o boşluğu kapatır.</para>
 ///
-/// <para><b>UoW sözleşmesi</b> N11 ayağıyla birebir: DB okuma kendi kısa UoW'unda biter, HTTP çağrıları UoW
+/// <para><b>UoW sözleşmesi</b> N11 üyesiyle birebir: DB okuma kendi kısa UoW'unda biter, HTTP çağrıları UoW
 /// DIŞINDA koşar — dış istek açık bir DB transaction'ını rehin almaz.</para>
 ///
 /// <para><b>Gölge temizliği YOK:</b> <c>ChannelOverrideAuthority.ClearShadowedStockAsync</c> ürün başına
-/// kanal-agnostiktir ve N11 ayağında zaten çağrılıyor. İkinci kez çağırmak aynı işi tekrarlardı.</para>
+/// kanal-agnostiktir ve N11 üyesinde zaten çağrılıyor. İkinci kez çağırmak aynı işi tekrarlardı.</para>
 /// </summary>
 [ExposeServices(typeof(IChannelStockPusherMember))]
 public class TrendyolChannelStockPusher : IChannelStockPusherMember, ITransientDependency
@@ -84,7 +84,7 @@ public class TrendyolChannelStockPusher : IChannelStockPusherMember, ITransientD
 }
 
 /// <summary>
-/// TÜM kanal ayaklarını sırayla çalıştıran composite — orkestrasyon job'ının gördüğü TEK pusher.
+/// TÜM kanal üyelerini sırayla çalıştıran composite — orkestrasyon job'ının gördüğü TEK pusher.
 ///
 /// <para><b>Neden composite:</b> job tek bir <see cref="IChannelStockPusher"/> enjekte ediyor. İki somut sınıf
 /// aynı arayüzü uygulasaydı hangisinin çözüleceği kayıt sırasına kalırdı — bir kanal sessizce hiç push

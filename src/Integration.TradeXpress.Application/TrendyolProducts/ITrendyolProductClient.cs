@@ -35,12 +35,12 @@ public interface ITrendyolProductClient
     Task<TrendyolBatchStatus> GetBatchStatusAsync(string batchRequestId, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
 
     /// <summary>Ürünleri Trendyol'dan SİLER (barcode listesiyle; <c>DELETE /integration/product/sellers/{sellerId}/products</c>,
-    /// gövde <c>{items:[{barcode}]}</c>). ASENKRON: batch id döner. Trendyol yalnız ONAY BEKLEYEN ürünleri ve bir günden
+    /// body <c>{items:[{barcode}]}</c>). ASENKRON: batch id döner. Trendyol yalnız ONAY BEKLEYEN ürünleri ve bir günden
     /// eski ARŞİVLENMİŞ ürünleri siler — onaylı/satıştaki ürünü doğrudan silmez (önce arşiv); red gerekçesi batch
-    /// sonucundan okunur. HTTP başarısızsa BusinessException (kanalın gövdesiyle).</summary>
+    /// sonucundan okunur. HTTP başarısızsa BusinessException (kanalın body'siyle).</summary>
     Task<TrendyolSubmitResult> DeleteProductsAsync(IReadOnlyList<string> barcodes, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
 
-    /// <summary>Ürünleri ARŞİVLER ya da ARŞİVDEN ÇIKARIR (<c>PUT …/products/archive-state</c>, gövde
+    /// <summary>Ürünleri ARŞİVLER ya da ARŞİVDEN ÇIKARIR (<c>PUT …/products/archive-state</c>, body
     /// <c>{items:[{barcode, archived}]}</c>; tek istekte 1000 kalem). <c>archived=true</c> → kanalda görünmez, satışa
     /// kapalı, SİLİNMEZ; <c>false</c> → yeniden aktif (içerik/fiyat/stok Trendyol'da durur). Silmenin aksine TERSİNİR.
     /// Bizde <c>SalesChannelTrTrendyolProduct.IsActive</c>'in kanal karşılığıdır (2026-08-17 Hakan kararı). ASENKRON:
@@ -62,9 +62,9 @@ public interface ITrendyolProductClient
 ///
 /// <para><b>DÜZELTME (2026-08-16, ilk CANLI gönderim):</b> bu özet daha önce "<c>currencyType</c>/<c>cargoCompanyId</c>
 /// V2 create şemasında YOKTUR" diyordu — YANLIŞTI. Trendyol ilk gerçek create'i
-/// <c>productRequest.currencyType.null — "Para Birimi alanı boş olamaz"</c> ile REDDETTİ. Alan zorunludur ve gövdeye
+/// <c>productRequest.currencyType.null — "Para Birimi alanı boş olamaz"</c> ile REDDETTİ. Alan zorunludur ve body'ye
 /// <c>currencyType: "TRY"</c> yazılır (Trendyol yalnız TRY kabul eder — para birimi karışımı zaten fail-fast).
-/// Kargo firması da gövde alanıdır (<c>cargoCompanyId</c>): kanalın varsayılan kargo firması gönderilir
+/// Kargo firması da body alanıdır (<c>cargoCompanyId</c>): kanalın varsayılan kargo firması gönderilir
 /// (<see cref="CargoCompanyId"/>; null ise alan yazılmaz — Trendyol'un satıcı varsayılanına düşer).</para></summary>
 public sealed record TrendyolProductData(
     string ProductMainId,     // varyantları gruplar ("{ÜrünKodu}-{SequenceNo}", frozen)
@@ -81,14 +81,14 @@ public sealed record TrendyolProductData(
     IReadOnlyList<string> ImageUrls,
     IReadOnlyList<TrendyolAttributeValue> Attributes,   // kategori attribute (id-bazlı)
     IReadOnlyList<TrendyolProductItem> Items,           // varyantlar (barcode başına)
-    // ImageUrls'e FİİLEN giren görsellerin DAM kimlikleri (aynı sıra) — delil defteri "ne gönderdim"i BUNDAN
-    // yazar; adayları yeniden çözerek değil (yüklenemeyen görsel deftere "gönderildi" düşerdi). Gövdeye girmez.
+    // ImageUrls'e FİİLEN giren görsellerin DAM kimlikleri (aynı sıra) — PushHistory "ne gönderdim"i BUNDAN
+    // yazar; adayları yeniden çözerek değil (yüklenemeyen görsel deftere "gönderildi" düşerdi). Body'ye girmez.
     IReadOnlyList<Guid> SentMediaIds,
-    // Kanalın varsayılan kargo firması (Trendyol cargoCompanyId) — null ise gövdeye yazılmaz.
+    // Kanalın varsayılan kargo firması (Trendyol cargoCompanyId) — null ise body'ye yazılmaz.
     int? CargoCompanyId = null);
 
 /// <summary>Trendyol satılabilir kalem (= ERP varyantı) — barcode + stok + fiyat (para birimi TRY zımnî).
-/// <para><see cref="Attributes"/> = kalemin KENDİ (varianter/eksen) attribute'ları — gövdede ürün-seviyesi
+/// <para><see cref="Attributes"/> = kalemin KENDİ (varianter/eksen) attribute'ları — body'de ürün-seviyesi
 /// niteliklerin ÜZERİNE yazılır (aynı attributeId'de kalem kazanır: özgül olan geneli yener). Kaynak gerçek
 /// push'ta doğrulayıcı çıktısıdır: import fotoğrafı (<c>RemoteVariantAttributes</c>) öncelikli, yoksa ERP/kanal
 /// çiftlerinden kategori tanımına karşı ad→id türetimi (T6/T8, 2026-08-14); önizlemede yalnız fotoğraf.</para></summary>
@@ -100,13 +100,13 @@ public sealed record TrendyolProductItem(
     decimal SalePrice,
     IReadOnlyList<TrendyolAttributeValue>? Attributes = null,
     IReadOnlyList<(string Name, string Value)>? OptionLabels = null);
-// OptionLabels GÖVDEYE GİRMEZ — delil defterinin okunur "Ad=Değer" çiftleri (N11'de payload'un kendisi ad
+// OptionLabels BODY'YE GİRMEZ — PushHistory'nin okunur "Ad=Değer" çiftleri (N11'de payload'un kendisi ad
 // taşıdığı için ayrı alan gerekmez; Trendyol id-bazlı olduğundan okunur biçim burada yanında taşınır).
 
 /// <summary>Trendyol HAFİF fiyat/stok satırı — kimlik <c>barcode</c> (stok kodu DEĞİL; ikisi Trendyol'da
 /// farklı olabilir ve karıştırmak başka bir SKU'nun stoğunu ezer).
 ///
-/// <para>Dört alan da BAĞIMSIZ gönderilebilir: <c>null</c> = gövdeye yazılmaz (uzak değer korunur), dolu = yazılır.
+/// <para>Dört alan da BAĞIMSIZ gönderilebilir: <c>null</c> = body'ye yazılmaz (uzak değer korunur), dolu = yazılır.
 /// Nullable'lık burada süs değil, kuralın MEKANİK karşılığıdır — alanlar non-nullable olsaydı varsayılan
 /// <c>0</c>/<c>0,00</c> sessizce stoğu ve fiyatı sıfırlardı (N11 tarafında aynı gerekçe).</para></summary>
 public sealed record TrendyolPriceInventoryItem(string Barcode, int? Quantity, decimal? ListPrice, decimal? SalePrice);
@@ -132,7 +132,13 @@ public sealed record TrendyolRemoteAttribute(
     string? CustomValue);
 
 /// <summary>Uzak ürünün BİR satılabilir kalemi (barcode başına) — import'un idempotency anahtarı
-/// <see cref="Barcode"/>'dur. <see cref="ProductContentId"/> = Trendyol içerik kimliği (content-bulk-update).</summary>
+/// <see cref="Barcode"/>'dur. <see cref="ProductContentId"/> = Trendyol içerik kimliği (content-bulk-update).
+///
+/// <para><b><see cref="ImageUrls"/> = KALEMİN KENDİ görselleri.</b> Trendyol listeleme yanıtı <c>images</c>
+/// dizisini <c>content[]</c> öğesi (yani barkod = varyant) başına döndürüyor; kırmızı ve mavi kalem çoğu zaman
+/// FARKLI fotoğraf taşır. Bu alan açılmadan önce kalem görselleri yalnız ürün havuzuna yazılıyordu ve gruplama
+/// sırasında 2..N'inci kalemin fotoğrafları sessizce düşüyordu — varyant bağlamına
+/// (<c>MediaEntityNames.ProductVariant</c>) inecek veri hiç yukarı çıkmıyordu.</para></summary>
 public sealed record TrendyolRemoteVariant(
     string Barcode,
     string? StockCode,
@@ -143,7 +149,15 @@ public sealed record TrendyolRemoteVariant(
     bool? Approved,
     bool? OnSale,
     IReadOnlyList<TrendyolRemoteAttribute> Attributes,
-    TrendyolRemoteListingFlags? Flags = null);
+    TrendyolRemoteListingFlags? Flags = null,
+    IReadOnlyList<string>? ImageUrls = null)
+{
+    /// <summary>Kalemin görselleri — sıra ANLAMLIDIR (ilk görsel vitrin). Görsel bildirmeyen kalemde BOŞ liste
+    /// döner, <c>null</c> DEĞİL: tüketiciyi (import/push zinciri) her okumada null kontrolüne zorlamak, bir gün
+    /// unutulacak bir kontroldür; "görsel yok" hâlini boş listeyle temsil etmek tek ve güvenli okumadır.
+    /// Parametre nullable, çünkü pozisyonel varsayılan yalnız sabit olabilir — normalizasyon burada yapılır.</summary>
+    public IReadOnlyList<string> ImageUrls { get; init; } = ImageUrls ?? Array.Empty<string>();
+}
 
 /// <summary>
 /// Pazaryerinin kalem hakkındaki ENGEL/DURUM beyanı — <c>approved</c>/<c>onSale</c>'in söylemediği kısım.
@@ -173,7 +187,12 @@ public sealed record TrendyolRemoteListingFlags(
 /// <summary>Uzak (Trendyol'daki) satıcı ürünü — <c>productMainId</c> ile gruplanmış varyant seti + ortak alanlar.
 /// <see cref="ProductMainId"/> TRENDYOL'un grup anahtarıdır (satıcının kendi girdiği değer olabilir) — bizim
 /// ürettiğimiz kayıt-bazlı <c>SalesChannelTrTrendyolProduct.ProductMainId</c>'den AYRI kavram; import'ta
-/// <c>RemoteProductMainId</c> alanına yazılır.</summary>
+/// <c>RemoteProductMainId</c> alanına yazılır.
+///
+/// <para><b><see cref="ImageUrls"/> = grubun görsel HAVUZU</b> — gruplanmış kaydda kalemlerin BİRLEŞİMİ
+/// (sıra korunarak tekilleştirilmiş). Kalem bazlı ayrım kaybolmaz; her kalemin kendi listesi
+/// <see cref="TrendyolRemoteVariant.ImageUrls"/>'de durur. İkisi birbirinin yerine geçmez: havuz kayıt-geneli
+/// bağlama (<c>MediaEntityNames.Product</c>), kalem listesi varyant bağlamına aittir.</para></summary>
 public sealed record TrendyolRemoteProduct(
     string? ProductMainId,
     string Title,

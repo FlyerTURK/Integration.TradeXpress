@@ -28,7 +28,7 @@ namespace Integration.TradeXpress.Orchestration;
 ///   <c>Calculated</c> üründe. Fiyat override'ı kullanıcının meşru kanal-özel kararı olabilir, dokunulmaz.</item>
 ///   <item><see cref="TransferAuthorityAsync"/> — sınıflandırma anında BİR KEZ; stok VE fiyat.
 ///   2026-08-05 Hakan kararı: <i>"sistemimize bağlandıktan sonraki stok ve fiyatı sistem belirler"</i> —
-///   içe aktarımın yazdığı pazaryeri aynası o andan itibaren geçersizdir.</item>
+///   içe aktarımın yazdığı pazaryeri yansıması o andan itibaren geçersizdir.</item>
 /// </list></para>
 ///
 /// <para><b>ProductVariantId null olan satıra DOKUNULMAZ</b> (üç kanalda da): o satır ERP'ye bağlı değildir,

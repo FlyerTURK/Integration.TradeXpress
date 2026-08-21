@@ -15,10 +15,10 @@ public class OrderSyncOptions
     /// <para><b>Neden kapalı doğuyor:</b> açık olduğunda worker, canlıdaki gerçek pazaryeri kimliğiyle 2
     /// dakikada bir GERÇEK API'ye çıkmaya başlar ve çektiği her sipariş rezervasyon zincirini tetikler (stok
     /// düşer). Bu, kodun merge edilmesiyle değil <b>bilinçli bir kararla</b> başlamalıdır. Deploy ya da restart
-    /// kapıyı DELEMEZ: açmak tek satırlık açık bir config değişikliğidir.</para>
+    /// bu bayrağı DELEMEZ: açmak tek satırlık açık bir config değişikliğidir.</para>
     ///
-    /// <para>Açmadan önceki koşullar (go-live kapısı): rezervasyon kurulumunun atomikliği · terminal statü
-    /// kapısı · N11 fiyat parse onarımı · kalem↔ürün eşleştirme yolu · iptal kararlarının kullanıcı yüzü.
+    /// <para>Açmadan önceki koşullar (go-live ön koşulları): rezervasyon kurulumunun atomikliği · terminal statü
+    /// guard'ı · N11 fiyat parse onarımı · kalem↔ürün eşleştirme yolu · iptal kararlarının kullanıcı yüzü.
     /// Bunlar olmadan delta, düzeltilmemiş verinin üzerine sürekli yazan bir motor olurdu.</para></summary>
     public bool DeltaEnabled { get; set; }
 

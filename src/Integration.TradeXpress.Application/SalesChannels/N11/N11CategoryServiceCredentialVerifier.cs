@@ -17,16 +17,16 @@ namespace Integration.TradeXpress.SalesChannels.N11;
 /// <summary>
 /// N11 kimlik doğrulayıcı — <b>CategoryService.GetTopLevelCategories</b> SOAP çağrısıyla AppKey/AppSecret'ı sınar.
 /// GÖZLEM (canlı probe): N11 API geçidi (openresty) GEÇERSİZ kimlikte <c>HTTP 403 + "Authentication failed"</c>
-/// döndürür; geçerli kimlikte HTTP 200 + kategori gövdesi. Bu yüzden birincil sinyal HTTP durumudur:
-/// 401/403 (ya da "authentication failed" gövdesi) → geçersiz; 200 → geçerli (gövdede açık <c>status=failure</c>
+/// döndürür; geçerli kimlikte HTTP 200 + kategori body'si. Bu yüzden birincil sinyal HTTP durumudur:
+/// 401/403 (ya da "authentication failed" body'si) → geçersiz; 200 → geçerli (body'de açık <c>status=failure</c>
 /// varsa yine geçersiz). Ağ / timeout / diğer durum kodları → "doğrulanamadı" (transient; çağıran persist ETMEZ).
-/// Kimlik geçitten hem SOAP gövdesinde hem header'da gönderilir (yeni gateway header okuyabilir). Sir ASLA loglanmaz.
+/// Kimlik geçitten hem SOAP body'sinde hem header'da gönderilir (yeni gateway header okuyabilir). Sir ASLA loglanmaz.
 /// </summary>
 // Sınıf adı arayüz-konvansiyonuna (I{ClassName}) uymadığından ABP arayüzü otomatik expose ETMEZ → açıkça bildir.
 [ExposeServices(typeof(IN11CredentialVerifier))]
 public sealed class N11CategoryServiceCredentialVerifier : IN11CredentialVerifier, ITransientDependency
 {
-    // N11 SOAP CategoryService uç noktası (WSDL == servis adresi). Sürüm/uç değişirse tek nokta burasıdır.
+    // N11 SOAP CategoryService endpointsı (WSDL == servis adresi). Sürüm/uç değişirse tek nokta burasıdır.
     private const string N11SchemaNamespace = "http://www.n11.com/ws/schemas";
 
     // Kimlik kontrolü seyrek çağrılır (yalnız yeni anahtar girilince) → paylaşılan tek HttpClient yeterli
@@ -76,7 +76,7 @@ public sealed class N11CategoryServiceCredentialVerifier : IN11CredentialVerifie
                 Content = new StringContent(BuildEnvelope(appKey, appSecret), Encoding.UTF8, "text/xml"),
             };
             request.Headers.TryAddWithoutValidation("SOAPAction", "\"\"");   // SOAP 1.1: boş action
-            request.Headers.TryAddWithoutValidation("appkey", appKey);       // yeni gateway header auth (gövdeye ek)
+            request.Headers.TryAddWithoutValidation("appkey", appKey);       // yeni gateway header auth (body'ye ek)
             request.Headers.TryAddWithoutValidation("appsecret", appSecret);
             request.Headers.TryAddWithoutValidation("User-Agent", "TradeXpress/1.0");
 
@@ -92,7 +92,7 @@ public sealed class N11CategoryServiceCredentialVerifier : IN11CredentialVerifie
 
             if (response.IsSuccessStatusCode)
             {
-                // 200 = geçit kimliği geçirdi → geçerli. Gövdede açık status=failure varsa yine geçersiz say.
+                // 200 = geçit kimliği geçirdi → geçerli. Body'de açık status=failure varsa yine geçersiz say.
                 return ReadStatus(body) == ProbeResult.Invalid ? ProbeResult.Invalid : ProbeResult.Valid;
             }
 

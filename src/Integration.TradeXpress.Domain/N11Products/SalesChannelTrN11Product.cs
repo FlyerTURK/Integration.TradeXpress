@@ -76,6 +76,16 @@ public sealed record N11SkuPushCandidate(
     string VariantCode,
     List<SalesChannelTrN11ProductCategoryAttribute> Attributes);
 
+/// <summary>Mutabakat sapması — <see cref="SalesChannelTrN11Product.ReconcileObservedSkuState"/> çıktısı:
+/// SKU tabanının eski (yerel tahmin) ve yeni (kanal gözlemi) değerleri. Yalnız log içindir; kalıcı değildir
+/// (delil defteri push'a aittir, gözleme değil).</summary>
+public sealed record N11SkuObservedDrift(
+    string SellerStockCode,
+    int? LocalQuantity,
+    decimal? LocalPrice,
+    int? ObservedQuantity,
+    decimal? ObservedPrice);
+
 /// <summary>N11 Seyahat kategorisi özel bilgi (key=TurProgrami/IptalIadeKosullari/EkHizmetler, value=HTML) — owned, JSON.</summary>
 public class SalesChannelTrN11ProductSpecialInfo
 {
@@ -245,7 +255,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     public virtual DateTime? PendingPushTaskAt { get; protected set; }
 
 
-    // ── Push emniyet alanları (kural gövdesi: ChannelPushGuard) ──
+    // ── Push emniyet alanları (kurallar ChannelPushGuard'da) ──
     /// <summary>Kanalda GÖSTERİLMEYEN stok payı (opsiyonel). Push satırının nihai adedinden düşülür
     /// (<c>max(0, satılabilir − pay)</c>); iki senkron turu arasındaki pencerede gelen siparişin elde olmayan
     /// malı satmasını zorlaştırır. Boş/0 = pay yok (bugünkü davranış birebir korunur).</summary>
@@ -303,7 +313,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     }
 
     /// <summary>Emniyet payı (opsiyonel; negatif reddedilir — stok şişirmek aşırı satışın ta kendisidir).
-    /// Kural gövdesi <see cref="ChannelPushGuard"/>'dadır: iki kanal aynı doğrulamayı iki kez tanımlamasın.</summary>
+    /// Kural <see cref="ChannelPushGuard"/>'dadır: iki kanal aynı doğrulamayı iki kez tanımlamasın.</summary>
     public virtual void SetSafetyStock(int? safetyStock)
     {
         SafetyStock = ChannelPushGuard.NormalizeSafetyStock(safetyStock);
@@ -433,7 +443,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
             .ToDictionary(kv => kv.Key, kv => kv.Value!);
     }
 
-    // Ortak eşleme çekirdeği (SSOT): PlanStockCodes (readonly, allowCreate=false) ve ReconcileSkus (allowCreate=true)
+    // Ortak eşleme metodu (SSOT): PlanStockCodes (readonly, allowCreate=false) ve ReconcileSkus (allowCreate=true)
     // aynı iki-aşamalı deterministik atamayı paylaşır → plan ile commit AYNI kodu üretir.
     private Dictionary<Guid, SalesChannelTrN11ProductSku?> AssignSkus(IReadOnlyList<N11SkuPushCandidate> candidates, bool allowCreate)
     {
@@ -515,6 +525,51 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         sku.N11Version = version ?? sku.N11Version;
     }
 
+    /// <summary>GÜNLÜK MUTABAKAT — SKU tabanını kanalın FİİLEN bildirdiği adet/fiyata çeker (2026-08-21).
+    ///
+    /// <para><b>Semantik:</b> <c>LastSent*</c> "kanalda fiilen ne var" bilgisinin en iyi TAHMİNİDİR — normalde
+    /// son başarılı gönderimimiz. Satıcı panelinden elle değişiklik ya da kaçan bir task o tahmini gözlemden
+    /// koparır; dirty-check <c>LastSent</c>'e baktığı için "değişiklik yok" der ve sapma SONSUZA DEK kalırdı.
+    /// Bu metot tahmini GÖZLEMLE düzeltir; doğruyu kanala geri yazan şey normal senkron turudur (otorite devri:
+    /// kanalda elle yapılan değişiklik geçersizdir, değerleri sistem belirler).</para>
+    ///
+    /// <para><b>Push DEĞİLDİR:</b> PushHistory'ye satır düşülmez — biz bir şey göndermedik ("gönderdim kaydı
+    /// fiilen giden setten yazılır" kuralı). <c>AttributeSnapshot</c>/kimlik alanlarına da dokunulmaz.
+    /// Kanalın BİLDİRMEDİĞİ alan (<c>null</c>) yereldekini DEĞİŞTİRMEZ — bilgisizlik gözlem değildir.</para>
+    ///
+    /// <para>Dönüş: SKU bilinmiyorsa ya da sapma yoksa <c>null</c>; sapma varsa eski→yeni değerler
+    /// (çağıran Warning loglar).</para></summary>
+    public virtual N11SkuObservedDrift? ReconcileObservedSkuState(string sellerStockCode, int? observedQuantity, decimal? observedPrice)
+    {
+        var sku = FindSku(sellerStockCode);
+        if (sku is null)
+        {
+            return null;
+        }
+
+        var quantityDrifted = observedQuantity is not null && sku.LastSentQuantity != observedQuantity;
+        var priceDrifted = observedPrice is not null && sku.LastSentOptionPrice != observedPrice;
+        if (!quantityDrifted && !priceDrifted)
+        {
+            return null;
+        }
+
+        var drift = new N11SkuObservedDrift(
+            sku.SellerStockCode, sku.LastSentQuantity, sku.LastSentOptionPrice, observedQuantity, observedPrice);
+
+        if (quantityDrifted)
+        {
+            sku.LastSentQuantity = observedQuantity;
+        }
+
+        if (priceDrifted)
+        {
+            sku.LastSentOptionPrice = observedPrice;
+        }
+
+        return drift;
+    }
+
     /// <summary>N11 yanıtındaki SKU kimliğini (id/version) yerel satıra işler — SKU-düzeyi mutabakat anahtarı.
     /// Yanıtta olmayan alan yereldekini SİLMEZ.</summary>
     public virtual void ApplySkuIdentity(string sellerStockCode, long? n11SkuId, long? version)
@@ -567,7 +622,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     ///
     /// <para><see cref="MarkSynced"/>'den bilinçli olarak ayrı: o "gönderdik ve kabul edildi" der, bu "N11'de ne
     /// olduğunu OKUDUK" der. Aynı metoda bindirmek, hiç push etmediğimiz bir kaydı push edilmiş göstermek olurdu.
-    /// Kaydın uzakla hizalı olduğu ortak, o yüzden <see cref="LastSyncedAt"/> yine damgalanır.</para>
+    /// Kaydın uzakla hizalı olduğu ortak, o yüzden <see cref="LastSyncedAt"/> yine yazılır.</para>
     ///
     /// <para><see cref="LastError"/> TEMİZLENİR: ürünün N11'de canlı olduğunu az önce gördük; yanında duran eski
     /// "push başarısız" mesajı artık gerçeği anlatmıyor.</para></summary>

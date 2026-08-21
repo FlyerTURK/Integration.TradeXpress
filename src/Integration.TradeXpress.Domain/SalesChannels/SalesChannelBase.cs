@@ -61,7 +61,7 @@ public abstract class SalesChannelBase : FullAuditedAggregateRoot<Guid>, IMultiT
     // ── Muhasebe hedefi (2026-07-28 Hakan): "bu kanalın muhasebesi HANGİ cariye yazılır" ──
     // Kanal bir pazaryeriyle olan hesabımızdır (komisyon borcu, hakediş alacağı). Hedef bugüne kadar sistemde
     // HİÇBİR yerde tanımlı değildi; gider satırlarındaki cari alanları vardı ama hiçbir akış onları okumuyordu.
-    // Bugün bu bir TANIM'dır: sipariş→fiş köprüsü olmadığı için kendiliğinden kayıt üretmez.
+    // Bugün bu bir TANIM'dır: sipariş→fiş bağı olmadığı için kendiliğinden kayıt üretmez.
 
     /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>; id-only, nav YOK). Kullanıcının KENDİ
     /// cari planından seçilir — sistem cari üretmez. <c>null</c> = henüz tanımlanmamış.

@@ -19,7 +19,7 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// senkron çözülebiliyor). Trendyol'da yazım <b>batch COMPLETED olduğunda</b> yapılır, submit anında DEĞİL —
 /// çünkü Trendyol yazma uçları asenkron ve <b>batch reddedilebilir</b>. Submit anında yazsaydık delil
 /// "gönderdim" derdi; oysa delilin söylemesi gereken şey "kabul edildi"dir. Reddedilen bir batch'in geçmişte
-/// başarılı görünmesi, delil kaydını delil olmaktan çıkarırdı.</para>
+/// başarılı görünmesi, PushHistory kaydını delil olmaktan çıkarırdı.</para>
 ///
 /// <para><b>BAŞARISIZ GÖNDERİM DE YAZILIR</b> (2026-08-10 Hakan kararı) — <see cref="Outcome"/> +
 /// <see cref="ErrorMessage"/> ile. Eski kural "reddedileni hiç yazma"ydı; amacı reddedileni <b>başarılı
@@ -94,7 +94,7 @@ public class SalesChannelTrTrendyolProductPushHistory : CreationAuditedAggregate
     public virtual string? Title { get; protected set; }
 
     /// <summary>Gönderilen varyant seçenekleri, "ad=değer" biçiminde birleştirilmiş.
-    /// <i>Ayrı tabloya bölünmedi: delil kaydı OKUNUR, sorgulanmaz.</i></summary>
+    /// <i>Ayrı tabloya bölünmedi: PushHistory kaydı OKUNUR, sorgulanmaz.</i></summary>
     public virtual string? VariantOptions { get; protected set; }
 
     /// <summary>Gönderilen görsellerin DAM kimlikleri + içerik hash'leri ("id:hash", sıralı).

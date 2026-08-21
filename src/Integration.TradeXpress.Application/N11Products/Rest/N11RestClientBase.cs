@@ -13,11 +13,11 @@ using Volo.Abp;
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
-/// N11 REST ailesinin ORTAK tabanı (v9.0 dokümanı, <c>/ms/product…</c> uçları). Tek gövdede toplanan üç şey:
+/// N11 REST ailesinin ORTAK tabanı (v9.0 dokümanı, <c>/ms/product…</c> uçları). Bu sınıfta toplanan üç şey:
 /// (1) kimlik başlıkları, (2) tek <see cref="System.Net.Http.HttpClient"/> örneği, (3) ortak JSON sözleşmesi.
 /// <para>
 /// <b>Kimlik:</b> REST tarafında <c>Authorization</c> KULLANILMAZ; kimlik doğrudan <c>appkey</c> + <c>appsecret</c>
-/// HTTP başlıklarıyla taşınır (SOAP'ta gövdedeki <c>&lt;auth&gt;</c> bloğunun karşılığı). Aynı AppKey/AppSecret çifti,
+/// HTTP başlıklarıyla taşınır (SOAP'ta body'deki <c>&lt;auth&gt;</c> bloğunun karşılığı). Aynı AppKey/AppSecret çifti,
 /// aynı başlık adları — <see cref="N11Categories.N11CategoryClient"/> bu deseni bugün canlıda çalıştırıyor.
 /// <b>Sır ASLA loglanmaz ve exception verisine KONMAZ</b> — hata yalnız URL + HTTP statü taşır.
 /// </para>
@@ -56,7 +56,7 @@ public abstract class N11RestClientBase
     /// Tüm N11 REST istemcileri için TEK <see cref="System.Net.Http.HttpClient"/> (socket tükenmesini önler).
     /// <c>PooledConnectionLifetime</c>, statik istemcinin klasik DNS-bayatlaması sorununa karşı bağlantıları
     /// periyodik tazeler. Timeout 100 sn (asenkron uçlar kuyruğa alıp hemen döndüğü için cömert olması gerekmez,
-    /// ama 1000 SKU'luk gövdelerin yüklenmesi zaman alabilir).
+    /// ama 1000 SKU'luk body'lerin yüklenmesi zaman alabilir).
     /// </summary>
     private static readonly HttpClient HttpClient = new(
         new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
@@ -65,7 +65,7 @@ public abstract class N11RestClientBase
     };
 
     /// <summary>
-    /// N11 REST'in ORTAK JSON sözleşmesi. <b>Türetilen istemciler gövdeyi bununla üretmek ZORUNDADIR</b>
+    /// N11 REST'in ORTAK JSON sözleşmesi. <b>Türetilen istemciler body'yi bununla üretmek ZORUNDADIR</b>
     /// (<see cref="SerializeJson{T}"/>).
     /// <list type="bullet">
     /// <item><c>CamelCase</c> — N11 alan adları (<c>stockCode</c>, <c>listPrice</c>, <c>salePrice</c>) camelCase'dir.</item>
@@ -86,14 +86,14 @@ public abstract class N11RestClientBase
         PropertyNameCaseInsensitive = true,   // yanıt okurken N11'in alan adı kasasına bağımlı kalmayalım
     };
 
-    /// <summary>Gövdeyi ORTAK sözleşmeyle (<see cref="JsonOptions"/>) serialize eder — null-atlama kuralı burada garanti altına alınır.</summary>
+    /// <summary>Body'yi ORTAK sözleşmeyle (<see cref="JsonOptions"/>) serialize eder — null-atlama kuralı burada garanti altına alınır.</summary>
     protected static string SerializeJson<T>(T value)
     {
         return JsonSerializer.Serialize(value, JsonOptions);
     }
 
     /// <summary>
-    /// N11 REST'e istek gönderir ve ham yanıt gövdesini döndürür.
+    /// N11 REST'e istek gönderir ve ham yanıt body'sini döndürür.
     /// <para>
     /// <b>DİKKAT — HTTP 200 "işlem başarılı" DEMEK DEĞİLDİR.</b> Yazma uçları (<c>product-create</c>,
     /// <c>product-update</c>, <c>price-stock-update</c>) ASENKRONDUR: 200 yalnız "istek kuyruğa alındı" der ve
@@ -118,7 +118,7 @@ public abstract class N11RestClientBase
         if (jsonBody is not null)
         {
             // Content-Type ELLE kurulur: StringContent'in ürettiği "; charset=utf-8" ekini istemiyoruz
-            // (bazı Java yığınları medya tipini birebir eşler). Gövde yine UTF-8 baytlarla gider.
+            // (bazı Java yığınları medya tipini birebir eşler). Body yine UTF-8 baytlarla gider.
             var content = new StringContent(jsonBody, Encoding.UTF8);
             content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             request.Content = content;
@@ -146,7 +146,7 @@ public abstract class N11RestClientBase
         return body;
     }
 
-    /// <summary>Hata verisine konan yanıt gövdesini sınırlar — N11 bazen çok uzun HTML hata sayfası döner.</summary>
+    /// <summary>Hata verisine konan yanıt body'sini sınırlar — N11 bazen çok uzun HTML hata sayfası döner.</summary>
     private static string Truncate(string? value, int maxLength)
     {
         if (string.IsNullOrEmpty(value))

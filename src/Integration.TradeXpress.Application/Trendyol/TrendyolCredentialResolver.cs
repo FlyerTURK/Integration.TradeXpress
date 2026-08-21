@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.Trendyol;
 /// <c>ResolveCurrentCompanyN11CredentialsAsync</c> deseniyle simetrik; farkı: Trendyol kimliği SellerId+ApiKey+ApiSecret
 /// üçlüsü. <see cref="ApplicationService"/> türetir (CurrentCompany/AsyncExecuter gibi altyapıyı hazır alır).
 ///
-/// <para>⚠ <b>HTTP yüzeyinden ÇEKİLİDİR</b> (2026-08-07 G1 — konvansiyon ağının yakaladığı açık):
+/// <para>⚠ <b>HTTP API'den ÇEKİLİDİR</b> (2026-08-07 G1 — konvansiyon ağının yakaladığı açık):
 /// <c>ApplicationService</c> türetmek ABP'nin otomatik API controller'ına kaydolmak demek; bu sınıfın dönüşü
 /// KANAL SIRLARIDIR (ApiKey/ApiSecret) ve uç anonim erişilebilirdi. Sınıf yalnız SUNUCU-İÇİ bir yardımcıdır —
 /// istemciye hiçbir koşulda sır dökülmez.</para>

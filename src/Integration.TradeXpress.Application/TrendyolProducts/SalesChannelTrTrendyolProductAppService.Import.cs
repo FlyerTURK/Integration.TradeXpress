@@ -34,10 +34,10 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// GÜNCELLENMEZ (kullanıcı düzenlemiş olabilir) — ama remote'ta olup yerelde OLMAYAN barkodlu kalemler şablona
 /// OTOMATİK varyant olarak EKLENİR (eski "Eksik Varyantları Tamamla" ucu import'a gömüldü; ekleme-only, ana varyant
 /// değişmez). Uzak fiyat kanal katmanına <see cref="SalesChannelTrTrendyolProductStockItem.OverridePrice"/> olarak
-/// yazılır (kullanıcı onaylı yön); uzak STOK ise K12 politikasına tabidir (2026-07-23 kesin karar): çekirdek
-/// <c>StockQuantity</c> yalnız İLK kuruluşta (varyant bu importta doğarken) tohumlanır, sonraki importlarda remote
-/// stok çekirdeği EZMEZ — fark varsa <see cref="SalesChannelTrTrendyolProductStockItem.OverrideStock"/>'a yazılır
-/// (kanal gerçeği) + LogWarning + rapor sayacı; çekirdekle AYNIYSA override null kalır (gürültü üretilmez).</para>
+/// yazılır (kullanıcı onaylı yön); uzak STOK ise K12 politikasına tabidir (2026-07-23 kesin karar): core
+/// <c>StockQuantity</c> yalnız İLK kuruluşta (varyant bu importta doğarken) seed'lenir, sonraki importlarda remote
+/// stok core'u EZMEZ — fark varsa <see cref="SalesChannelTrTrendyolProductStockItem.OverrideStock"/>'a yazılır
+/// (kanal gerçeği) + LogWarning + rapor sayacı; core ile AYNIYSA override null kalır (gürültü üretilmez).</para>
 /// </summary>
 public partial class SalesChannelTrTrendyolProductAppService
 {
@@ -70,7 +70,7 @@ public partial class SalesChannelTrTrendyolProductAppService
 
     private async Task<TrendyolImportResultDto> ImportCoreAsync(SalesChannelTrTrendyol channel)
     {
-        // Salt GET: tüm satıcı ürünleri sayfa sayfa çekilir + productMainId'ye göre gruplanır (P1 sarmalayıcı)
+        // Salt GET: tüm satıcı ürünleri sayfa sayfa çekilir + productMainId'ye göre gruplanır (P1: FetchRemoteProductsAsync)
         // + stockCode paylaşan gruplar TEK ürüne birleştirilir (kardeş varyant kuruluşu — canlı vaka düzeltmesi).
         var remoteProducts = await FetchRemoteProductsAsync(channel);
 
@@ -130,6 +130,10 @@ public partial class SalesChannelTrTrendyolProductAppService
             // 2026-07-11 kullanıcı kararı — eski "Eksik Varyantları Tamamla" düğmesi import'a gömüldü).
             await EnsureTemplateVariantsAsync(remote, validVariants, product, variantsByBarcode, tryCurrencyUnitId, report);
 
+            // Trendyol görseli KALEM (barkod) başına verir → varyanta özel görsel VARYANTIN kendi bağlamına iner.
+            // Varyantlar bu satıra kadar tamamlandığı için eşleşme burada en eksiksizdir.
+            await ImportVariantImagesAsync(product, validVariants, variantsByBarcode, report);
+
             var entity = await UpsertChannelRecordAsync(channel, remote, validVariants, existing, product, variantsByBarcode, report);
             if (existing is null)
             {
@@ -148,7 +152,23 @@ public partial class SalesChannelTrTrendyolProductAppService
             await UpsertStockItemsAsync(entity, product, validVariants, variantsByBarcode, tryCurrencyUnitId, sideCostPlan, report);
         }
 
+        ReportSkippedImages(report);
         return report;
+    }
+
+    /// <summary>Görsel sınırına takılıp hiç bağlanmayan pazaryeri görsellerini RAPORA taşır (N11/Etsy ikizi).
+    ///
+    /// <para><b>Neden gerekli:</b> sınır aşımı indiricide yalnız server-log'a düşüyordu; kullanıcı "içe aktarım
+    /// başarılı" raporunu görüp fotoğrafın neden gelmediğini hiçbir ekranda bulamıyordu. Sayı ürün-başı değil
+    /// import-başı TEK satırda verilir — 103 ürünlük bir mağazada ürün başına uyarı raporu okunmaz hâle
+    /// getirirdi.</para></summary>
+    private void ReportSkippedImages(TrendyolImportResultDto report)
+    {
+        if (report.SkippedImages > 0)
+        {
+            report.Warnings.Add(
+                L["TrendyolProduct:Import:ImagesSkippedForLimit", report.SkippedImages, ProductConsts.MaxImageCount].Value);
+        }
     }
 
     // ── Uzak okuma katmanı ──────────────────────────────────────────────────────────────────────────
@@ -185,7 +205,7 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// <summary>stockCode kesişen uzak grupları birleştirir — ortak alanlar İLK gruptan (GroupByProductMainId ile aynı
     /// ilke), varyantlar geliş sırasıyla eklenir. Kod-çakışan kardeşlerin varyant kodları şablon kuruluşunda
     /// <see cref="BuildUniqueVariantCode"/> son-ekiyle ("-2", "-3"...) ayrışır. Bir grup birden fazla önceki gruba
-    /// köprü kuruyorsa İLK eşleşen kazanır (deterministik); zaten eşlenmiş stockCode yeniden eşlenmez.</summary>
+    /// bağ kuruyorsa İLK eşleşen kazanır (deterministik); zaten eşlenmiş stockCode yeniden eşlenmez.</summary>
     private static IReadOnlyList<TrendyolRemoteProduct> MergeGroupsSharingStockCode(IReadOnlyList<TrendyolRemoteProduct> groups)
     {
         var merged = new List<TrendyolRemoteProduct>();
@@ -407,7 +427,7 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// <summary>Uzak üründen şablon <see cref="Product"/> üretir: Code stockCode'dan normalize (benzersizlik döngülü),
     /// Name = Trendyol başlığı CASING KORUNARAK (<c>SetName(name, normalizeTitle:false)</c> — TitleCase import'ta
     /// başlığı bozar), Description (şablon sınırına kırpılır), görseller URL-kaynaklı, para birimi TRY. Her uzak kalem
-    /// için varyant üretilir (ilk kalem MAIN); ana-varyant değişmezi MERKEZİ kapıdan geçer
+    /// için varyant üretilir (ilk kalem MAIN); ana-varyant değişmezi MERKEZİ metottan geçer
     /// (<see cref="EntityVariantManager.EnsureMainVariantAsync"/>).</summary>
     private async Task<Product> CreateTemplateProductAsync(
         SalesChannelTrTrendyol channel,
@@ -427,15 +447,18 @@ public partial class SalesChannelTrTrendyolProductAppService
         product.SetDescription(BuildTemplateDescription(remote.Description));
         product.SetCurrencyUnit(tryCurrencyUnitId);
 
-        // ÇEKİRDEK kategori kanal kategorisinden çözülür/kurulur (2026-08-06 Hakan kararı) — yalnız YENİ üründe:
+        // ÜRÜNÜN KENDİ kategorisi kanal kategorisinden çözülür/kurulur (2026-08-06 Hakan kararı) — yalnız YENİ üründe:
         // mevcut ürünün kategorisi kullanıcı beyanıdır, import EZMEZ (minimal-güncelleme kuralı).
         product.SetProductCategory(await _categoryResolver.ResolveOrCreateAsync(
             channel.CompanyId, SalesChannelType.TrTrendyol, remote.CategoryId, remote.CategoryName));
 
         await _productRepository.InsertAsync(product, autoSave: true);
 
-        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA (dedup + ilk görsel kapak).
-        await _imageDownloader.ImportToProductAsync(product, remote.ImageUrls);
+        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA (dedup + ilk görsel cover).
+        // YALNIZ kuruluşta (N11 ikizi): mevcut ürünün kayıt-geneli galerisi kullanıcı beyanıdır, içe aktarım onu
+        // tazelemez. Kısıt POLİTİKA gereğidir — indirici eklemeli olduğundan teknik bir ezme riski yok.
+        report.SkippedImages += (await _imageDownloader.ImportToProductAsync(product, remote.ImageUrls))
+            .SkippedForCapacityCount;
 
         var usedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < variants.Count; i++)
@@ -466,7 +489,7 @@ public partial class SalesChannelTrTrendyolProductAppService
             variantsByBarcode[remoteVariant.Barcode] = variant;
         }
 
-        // Ana-varyant değişmezi merkezi kapıdan (tekil main garanti; idempotent) — agnostik EntityVariantManager.
+        // Ana-varyant değişmezi merkezi EnsureMainVariantAsync'ten (tekil main garanti; idempotent) — agnostik EntityVariantManager.
         await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
         return product;
     }
@@ -474,7 +497,7 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// <summary>Uzakta olup YEREL şablonda karşılığı OLMAYAN barkodlu kalemleri şablona varyant olarak EKLER
     /// (2026-07-11 kullanıcı kararı: eski "Eksik Varyantları Tamamla" düğmesi geçici çözümdü — davranış import'a
     /// gömüldü). Minimal-güncelleme kuralının kalan kısmı: mevcut hiçbir varyant/şablon ALANI GÜNCELLENMEZ, yalnız
-    /// varyant EKLENİR; ANA VARYANT DEĞİŞMEZ (yeni eklenen main doğmaz; tekil-main değişmezi merkezî kapıdan —
+    /// varyant EKLENİR; ANA VARYANT DEĞİŞMEZ (yeni eklenen main doğmaz; tekil-main değişmezi merkezî metottan —
     /// <see cref="EntityVariantManager.EnsureMainVariantAsync"/>). Barkodu BAŞKA şablonun varyantında kayıtlı kalem
     /// eklenemez (atla+raporla — unique index (TenantId, Barcode) zaten reddederdi). Kod çakışması son-ekle
     /// ("-2", "-3"...) çözülür. İDEMPOTENT: ikinci geçiş 0 ekler. Eklenenler rapora sayı+barkod olarak düşer.</summary>
@@ -526,8 +549,53 @@ public partial class SalesChannelTrTrendyolProductAppService
 
         if (addedAny)
         {
-            // Ana-varyant değişmezi MERKEZÎ kapıdan (idempotent): mevcut main KORUNUR — yeni eklenenler main OLMAZ.
+            // Ana-varyant değişmezi MERKEZÎ EnsureMainVariantAsync'ten (idempotent): mevcut main KORUNUR — yeni eklenenler main OLMAZ.
             await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
+        }
+    }
+
+    /// <summary>Kalem-başına gelen uzak görselleri İLGİLİ ERP VARYANTININ kendi medya bağlamına indirir
+    /// ("ProductVariant" + varyant Id'si).
+    ///
+    /// <para><b>Neden gerekti (2026-08-20):</b> Trendyol görselleri barkod (yani varyant) başına döndürür, ama
+    /// içe aktarım yalnız İLK kalemin görsellerini alıp ürün-geneli bağlama yazıyordu; kalan kalemlerin
+    /// görselleri sessizce DÜŞÜYORDU. Sonuç, "kırmızı kılıf"ın kendi fotoğrafının hiçbir ekranda
+    /// bulunamamasıydı — push zinciri varyant→kayıt-geneli fallback'iyle okuduğu için hata da vermiyordu,
+    /// yalnız yanlış görsel gidiyordu.</para>
+    ///
+    /// <para><b>İkinci bir eşleştirme YOK:</b> hangi uzak kalemin hangi ERP varyantı olduğu zaten
+    /// <paramref name="variantsByBarcode"/> ile çözülmüştür (Sku kimliklerini yazan yolun ta kendisi). Eşleşmeyen
+    /// kalem (kanal-only ya da barkodu BAŞKA şablona ait) ATLANIR: görseli yanlış varyanta bağlamaktansa hiç
+    /// bağlamamak geri alınabilirdir.</para></summary>
+    private async Task ImportVariantImagesAsync(
+        Product product,
+        List<TrendyolRemoteVariant> variants,
+        Dictionary<string, EntityVariant> variantsByBarcode,
+        TrendyolImportResultDto report)
+    {
+        foreach (var remoteVariant in variants)
+        {
+            if (remoteVariant.ImageUrls is not { Count: > 0 } imageUrls)
+            {
+                continue;
+            }
+
+            if (!variantsByBarcode.TryGetValue(remoteVariant.Barcode, out var localVariant)
+                || localVariant.EntityId != product.Id)
+            {
+                continue;   // eşleşme yok (kanal-only kalem ya da başka şablonun barkodu) → görsel de yazılmaz
+            }
+
+            // İndirici kendi içinde URL-başına dayanıklıdır (bozuk görsel atlanır + loglanır) ve EKLEMELİDİR:
+            // kullanıcının varyanta elle bağladığı görseller bu çağrıyla EZİLMEZ. Sınıra takılan görsel RAPORA
+            // taşınır — varyant bağlamı her turda yazıldığı için sınır aşımının en olası yeri burasıdır.
+            report.SkippedImages += (await _imageDownloader.ImportToVariantAsync(
+                    localVariant.Id,
+                    product.CompanyId,
+                    product.Code,
+                    localVariant.Code,
+                    imageUrls))
+                .SkippedForCapacityCount;
         }
     }
 
@@ -592,7 +660,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         return candidate;
     }
 
-    /// <summary>Import kod normalizasyonu — Code konvansiyonuyla aynı çekirdek (<c>NormalizeAsCode</c>: Trim + tek
+    /// <summary>Import kod normalizasyonu — Code konvansiyonuyla aynı taban (<c>NormalizeAsCode</c>: Trim + tek
     /// boşluk + UPPER-invariant), üstüne import dayanıklılığı: boş → "TY", kısa (&lt;3) → "TY-" ön eki, uzun → kırp.
     /// Fail-fast yerine onarım BİLİNÇLİ: uzak veri bizim kontrolümüzde değil, kalem kaybetmek daha kötü.</summary>
     private static string NormalizeImportCode(string rawCode, int maxLength)
@@ -700,9 +768,9 @@ public partial class SalesChannelTrTrendyolProductAppService
 
         // Ürün seviyesine YALNIZ eksen-dışı (tüm kalemlerde aynı) nitelikler yazılır. Önceki davranış ilk
         // kalemin TÜM niteliklerini alıyordu — eksen varsa birinci varyantın değeri ("Kırmızı"/"50 ml") ürünün
-        // beyanı sanılıyor, push gövdesi de ürün niteliklerini her item'a kopyaladığından tüm varyantlar aynı
+        // beyanı sanılıyor, push body'si de ürün niteliklerini her item'a kopyaladığından tüm varyantlar aynı
         // eksen değeriyle gidiyordu. Eksen değerleri KALEM-BAŞINA fotoğraflanır (plan.ValuesByBarcode →
-        // Sku.RemoteVariantAttributes) ve push gövdesi onları item-düzeyi attribute olarak GERİ gönderir.
+        // Sku.RemoteVariantAttributes) ve push body'si onları item-düzeyi attribute olarak GERİ gönderir.
         var axisPlan = TrendyolVariantAxisResolver.Resolve(variants);
         entity.SetAttributes(axisPlan.ProductLevelAttributes.Select(a => new SalesChannelTrTrendyolProductCategoryAttribute(
             a.AttributeId,
@@ -715,13 +783,17 @@ public partial class SalesChannelTrTrendyolProductAppService
             AggregateFlag(variants.Select(v => v.OnSale)),
             first.ListPrice is >= 0 ? first.ListPrice : null);
 
-        // Kanalın KENDİ görsel adresleri (CDN) + o anki YEREL görsel setinin damgası — push'un yeniden-kullanım
+        // Kanalın KENDİ görsel adresleri (CDN) + o anki YEREL görsel setinin RemoteImageMediaIds damgası — push'un yeniden-kullanım
         // dalını besler: bugünkü set damgayla aynıysa geçici link yerine bu adresler gönderilir (kanala aynı
         // görseli yeniden yutturma). Damga olmadan adres tek başına yanıltır: hangi sete ait olduğu bilinemez
         // ve bayat kanal adresi kullanıcının değiştirdiği görselleri geri alabilirdi (entity doc'u).
         // Adres emniyeti: sayı + uzunluk import sınırında (tek anomali kalem partiyi düşürmesin), şema http(s).
+        // Adres kümesi HAVUZ + TÜM VARYANT setlerinin birleşimidir (CollectAllImageUrls) — damganın karşılığı
+        // olan aday medya listesi de iki bağlamı birden kapsıyor. Yalnız havuzu yazsaydık eşleşme yine tutar,
+        // ama varyant fotoğrafları adres listesinde bulunmadığı için sessizce düşer ve defter onları yine de
+        // "gönderildi" diye yazardı.
         entity.SetRemoteImageUrls(
-            SafeRemoteImageUrls(remote.ImageUrls),
+            SafeRemoteImageUrls(TrendyolProductClient.CollectAllImageUrls(remote)),
             await _pushImageResolver.ResolveCandidateMediaIdsAsync(product, ProductConsts.MaxImageCount));
 
         // Sku kimlikleri: yalnız YEREL varyantı çözülen kalemler (barcode remote'tan gelir, FROZEN — yerel
@@ -753,7 +825,7 @@ public partial class SalesChannelTrTrendyolProductAppService
                 BuildRemoteState(remoteVariant, axisPlan));
         }
 
-        // IsActive = KANALDAKİ ARŞİV DURUMUNUN AYNASI (2026-08-17 Hakan kararı) — import ters yönü besler: kanal
+        // IsActive = KANALDAKİ ARŞİV DURUMUNUN YANSIMASI (2026-08-17 Hakan kararı) — import ters yönü besler: kanal
         // "arşivde" diyorsa bizde pasif, "arşivde değil" diyorsa aktif; bildirmiyorsa DOKUNMA (üç durumlu, engel
         // bayraklarıyla aynı okuma). Kayıt seviyesi: kalemlerden herhangi biri arşivdeyse ürün arşivde sayılır
         // (Trendyol arşivi kalem-bazlı ama bizde bayrak kayıt-bazlı; kısmi arşiv "satışta" görünmesin — fail-closed).
@@ -911,9 +983,9 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// <summary>Uzak fiyat/stok kanal override katmanına yazılır (kullanıcı onaylı yön): varyant-başına başlık
     /// upsert edilir; YENİ başlıkta kanal gider satırları da kurulur (<see cref="SideCostRecipeComposer.EnsureLines"/> —
     /// mevcut klon yollarıyla tutarlı). Mevcut başlıkta reçeteye DOKUNULMAZ (kullanıcı emeği), yalnız override tazelenir.
-    /// <b>Stok — K12 politikası (2026-07-23 kesin karar):</b> çekirdek <c>StockQuantity</c> yalnız varyant BU importta
-    /// doğarken tohumlanır (create yolu — <see cref="CreateTemplateProductAsync"/>/<see cref="EnsureTemplateVariantsAsync"/>);
-    /// burada remote stok çekirdeği ASLA EZMEZ. Çekirdek == remote → override null (fark yok, gürültü üretme);
+    /// <b>Stok — K12 politikası (2026-07-23 kesin karar):</b> core <c>StockQuantity</c> yalnız varyant BU importta
+    /// doğarken seed'lenir (create yolu — <see cref="CreateTemplateProductAsync"/>/<see cref="EnsureTemplateVariantsAsync"/>);
+    /// burada remote stok core'u ASLA EZMEZ. Core == remote → override null (fark yok, gürültü üretme);
     /// farklıysa remote değer <see cref="SalesChannelTrTrendyolProductStockItem.OverrideStock"/> olur (kanal gerçeği)
     /// + fark görünür kılınır (<see cref="ResolveOverrideStock"/>: satır-bazında LogWarning + rapor sayacı).</summary>
     private async Task UpsertStockItemsAsync(
@@ -953,9 +1025,9 @@ public partial class SalesChannelTrTrendyolProductAppService
 
             if (headers.TryGetValue(localVariant.Id, out var header))
             {
-                // TASARIM (kullanıcı onaylı yön — SalesChannelTrTrendyolProductImportTests'te pinli): ÇEKİRDEK asla
+                // TASARIM (kullanıcı onaylı yön — SalesChannelTrTrendyolProductImportTests'te pinli): CORE asla
                 // ezilmez (ürün adı, ProductVariantDetail fiyatı korunur), uzak gerçek KANAL katmanına yazılır.
-                // OverridePrice/OverrideStock kullanıcının rezerv alanı DEĞİL, pazaryerinin AYNASIDIR → her import'ta
+                // OverridePrice/OverrideStock kullanıcının rezerv alanı DEĞİL, pazaryerinin YANSIMASIDIR → her import'ta
                 // remote değerle tazelenir.
                 header.SetOverridePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
                 header.SetOverrideStock(overrideStock);
@@ -979,10 +1051,10 @@ public partial class SalesChannelTrTrendyolProductAppService
         }
     }
 
-    /// <summary>K12 stok politikasının karar noktası: remote stok (negatif → 0 clamp'li) çekirdek
+    /// <summary>K12 stok politikasının karar noktası: remote stok (negatif → 0 clamp'li) core
     /// <see cref="EntityVariant.StockQuantity"/> ile AYNIYSA null döner (override yazılmaz — "fark yok" gürültüsüz);
     /// FARKLIYSA remote değer döner (kanal override'ı olur) + fark satır-bazında LogWarning + rapor sayacıyla
-    /// görünür kılınır (sessiz geçilmez). BU importta doğan varyantın çekirdeği remote'la tohumlandığından
+    /// görünür kılınır (sessiz geçilmez). BU importta doğan varyantın core'u remote'la seed'lendiğından
     /// (create yolu) doğal olarak "fark yok" dalına düşer — create/update ayrımı için zaman karşılaştırması GEREKMEZ.</summary>
     private int? ResolveOverrideStock(Product product, EntityVariant localVariant, int remoteQuantity, TrendyolImportResultDto report)
     {

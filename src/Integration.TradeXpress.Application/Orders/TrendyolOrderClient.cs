@@ -113,7 +113,7 @@ public sealed class TrendyolOrderClient : TrendyolRestClientBase, ITrendyolOrder
 
     /// <summary>Sevkiyat paketleri yanıtını parse eder (public static — birim test edilir): sayfalama zarfı +
     /// <c>content[]</c> paketleri. Alan adları defansif okunur (sayı/metin id toleransı; orderDate epoch-ms → UTC;
-    /// müşteri adı ad+soyad birleşimi; tutar grossAmount ?? totalPrice ?? satır toplamı). Bozuk JSON gövdesi dostane
+    /// müşteri adı ad+soyad birleşimi; tutar grossAmount ?? totalPrice ?? satır toplamı). Bozuk JSON body'si dostane
     /// hatayla ÇEKİMİ DURDURUR (sessizce boş sayfa dönmek o ve sonraki sayfaları raporsuz kaybettirirdi).</summary>
     public static TrendyolOrdersPage ParseShipmentPackagesPage(int page, int size, string payload)
     {

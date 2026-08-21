@@ -7,10 +7,10 @@ namespace Integration.TradeXpress.N11Shipments;
 /// N11 kargo firması — <b>HOST-GLOBAL</b> referans (IMultiTenant DEĞİL; TenantId yok → tüm tenant'lar paylaşır).
 /// N11 ShipmentCompanyService.GetShipmentCompanies'ten sync'lenir (~68 firma; SOAP — REST'te yok). Düz liste:
 /// ExternalId + Name + ShortName. Aktif olabildiğinden periyodik re-sync (ekle/güncelle/sil).
-/// <para><b>Çekirdeği BİLMEZ</b> (2026-07-26): eskiden <c>CoreCarrierId</c> ile tekil köprü taşırdı; çekirdek
+/// <para><b>Core'u BİLMEZ</b> (2026-07-26): eskiden <c>CoreCarrierId</c> ile tekil id-only bağ taşırdı; core
 /// <c>TrCarrier</c> company-owned olunca host-global tek satır N şirketin carrier'ından hangisini göstereceğini
-/// adresleyemez hâle geldi. Köprü sahipli tarafa taşındı (<c>TrCarrier.N11ShipmentCompanyId</c>) — ayna artık
-/// tenant/company dünyasından tamamen habersiz, katman yönü temiz.</para>
+/// adresleyemez hâle geldi. Bağ sahipli tarafa taşındı (<c>TrCarrier.N11ShipmentCompanyId</c>) — N11 durumunu
+/// yansıtan bu tablo artık tenant/company dünyasından tamamen habersiz, katman yönü temiz.</para>
 /// </summary>
 public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
 {
@@ -37,8 +37,8 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
     public string Name { get; protected set; } = string.Empty;
 
     /// <summary>Kısa kod (ör. ARAS, YK) — <b>OPSİYONEL</b>: N11 bazı firmaları kısa-kodSUZ döndürür
-    /// (DHL/Asil/Fillo Kargo). Ayna entity N11'in wire gerçeğini olduğu gibi taşır; kod TÜRETME
-    /// (boşsa Name'den) çekirdek tarafın (<c>TrCarrierSeeder</c>) işidir.</summary>
+    /// (DHL/Asil/Fillo Kargo). Bu entity N11'in wire gerçeğini olduğu gibi yansıtır; kod TÜRETME
+    /// (boşsa Name'den) core tarafın (<c>TrCarrierSeeder</c>) işidir.</summary>
     public string? ShortName { get; protected set; }
 
     #endregion
@@ -52,7 +52,7 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
 
     /// <summary>Kısa kodu set eder — BOŞ KABUL EDİLİR (2026-07-26 canlı bulgu). Eskiden zorunluydu ve N11'in
     /// kısa-kodsuz döndürdüğü İLK firmada (DHL/Asil/Fillo) RequiredPropertyException fırlatıp SYNC'İN TAMAMINI
-    /// düşürüyordu → tabloda 0 firma, dolayısıyla çekirdek kargo kataloğu da hiç kurulamıyordu. Worker hatayı
+    /// düşürüyordu → tabloda 0 firma, dolayısıyla core kargo kataloğu da hiç kurulamıyordu. Worker hatayı
     /// "kimlik/ağ?" diye loglayıp yuttuğundan sorun aylarca görünmezdi.</summary>
     public virtual void SetShortName(string? shortName)
     {

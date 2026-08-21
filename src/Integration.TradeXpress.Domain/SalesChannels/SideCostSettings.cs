@@ -6,7 +6,7 @@ namespace Integration.TradeXpress.SalesChannels;
 /// Kanalın <b>yan-maliyet (gider) ayarları</b> — owned VO, <c>AppSalesChannels.SideCosts</c> JSON kolonunda yaşar.
 /// 2026-07-10 yeniden şekillendirme (kullanıcı kararı): sabit-alanlı form yerine ürün reçetesi grid'i tarzı
 /// <b>GİDER SATIRLARI</b> listesi — her satır <see cref="SideCostItem"/> (tür + hesaplama + değer + fiş hedefi).
-/// KANAL-AGNOSTİK: kanal tipine göre varsayılan tohum farklıdır (N11/Trendyol/Etsy), model tektir.
+/// KANAL-AGNOSTİK: kanal tipine göre varsayılan seed farklıdır (N11/Trendyol/Etsy), model tektir.
 /// <c>SideCostRecipeComposer</c> satırlardan kanal varyant reçetesine OTOMATİK satırlar üretir
 /// (<see cref="SideCostKind"/> işaretli; idempotent reconcile; GrossUp satırları HEP EN SONDA).
 ///

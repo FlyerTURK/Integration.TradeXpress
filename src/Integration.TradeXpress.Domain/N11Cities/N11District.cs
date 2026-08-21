@@ -35,7 +35,7 @@ public class N11District : FullAuditedAggregateRoot<Guid>
 
     public string Name { get; protected set; } = string.Empty;
 
-    /// <summary>Çekirdek coğrafyaya gevşek köprü — eşlenen <see cref="Geography.Locality"/> id'si (nav YOK;
+    /// <summary>Core coğrafyaya gevşek id-only bağ — eşlenen <see cref="Geography.Locality"/> id'si (nav YOK;
     /// N11 Country'yi BİLMEZ). GeographySeeder doldurur; null = henüz eşlenmedi.</summary>
     public Guid? CoreLocalityId { get; protected set; }
 
@@ -53,7 +53,7 @@ public class N11District : FullAuditedAggregateRoot<Guid>
         CityCode = StringFieldGuard.EnsureRequiredText(cityCode, nameof(CityCode), 1, N11CityConsts.CodeMaxLength);
     }
 
-    /// <summary>Çekirdek yerellik köprüsünü set eder (boş Guid → null). GeographySeeder çağırır.</summary>
+    /// <summary>Core yerellik bağını (<see cref="CoreLocalityId"/>) set eder (boş Guid → null). GeographySeeder çağırır.</summary>
     public virtual void SetCoreLocality(Guid? localityId)
     {
         CoreLocalityId = localityId == Guid.Empty ? null : localityId;

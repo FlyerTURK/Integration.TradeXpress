@@ -43,10 +43,10 @@ public sealed record TrendyolRemoteListingState(
 /// söylenir. Karaliste belge/itiraz süreci ister, kilit tedarik sorunudur — biri çözülmeden diğeri anlamsızdır.</para>
 ///
 /// <para><b>ENGEL PUSH'U DURDURMAZ — yalnız GÖRÜNÜR KILAR</b> (bilinçli karar, CLAUDE.md "mekanizma ≠ politika"
-/// ile aynı çizgi). İki gerekçe: ① bu bayraklar SON İÇE AKTARIM anının fotoğrafıdır; karaliste kalkmış olabilir
+/// ile aynı çizgi). İki gerekçe: ① bu bayraklar SON İÇE AKTARIM anının snapshot'ıdır; karaliste kalkmış olabilir
 /// ve bayat bir bayrağa dayanıp gönderimi kesmek, çözülmüş bir sorunu kalıcı hâle getirirdi. ② Reddi karşı taraf
-/// zaten veriyor ve artık delil defterine kendi cümlesiyle yazılıyor — bizim ayrıca kesmemiz, kullanıcının
-/// göremediği ikinci bir kapı olurdu. Sistem uyarır, kararı kullanıcı verir.</para>
+/// zaten veriyor ve artık PushHistory'ye kendi cümlesiyle yazılıyor — bizim ayrıca kesmemiz, kullanıcının
+/// göremediği ikinci bir engel olurdu. Sistem uyarır, kararı kullanıcı verir.</para>
 /// </summary>
 public static class TrendyolListingObstacleResolver
 {

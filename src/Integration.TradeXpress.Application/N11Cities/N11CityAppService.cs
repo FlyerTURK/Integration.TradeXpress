@@ -49,7 +49,7 @@ public class N11CityAppService : TradeXpressAppService, IN11CityAppService
     }
 
     /// <summary>Sync çekirdeği <see cref="N11CitySyncManager"/>'da — worker aynı çekirdeği İZİNSİZ tüketir
-    /// (kullanıcı kimliği yok), kapı yalnız bu HTTP ucundadır.</summary>
+    /// (kullanıcı kimliği yok), [Authorize] yalnız bu HTTP ucundadır.</summary>
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual Task<int> SyncCitiesAndDistrictsAsync()
     {

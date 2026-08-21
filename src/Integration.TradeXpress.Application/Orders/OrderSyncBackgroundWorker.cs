@@ -22,7 +22,7 @@ namespace Integration.TradeXpress.Orders;
 ///
 /// <para><b>Delta neden kapalı doğuyor:</b> açık olduğunda worker gerçek pazaryeri kimliğiyle 2 dakikada bir
 /// GERÇEK API'ye çıkar ve çektiği her sipariş rezervasyon zincirini tetikler (stok düşer). Bunun kodun merge
-/// edilmesiyle değil bilinçli bir kararla başlaması gerekir — deploy/restart kapıyı delemez.</para>
+/// edilmesiyle değil bilinçli bir kararla başlaması gerekir — deploy/restart <c>DeltaEnabled</c>'ı delemez.</para>
 /// </summary>
 public class OrderSyncBackgroundWorker : AsyncPeriodicBackgroundWorkerBase
 {

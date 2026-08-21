@@ -9,7 +9,7 @@ using Volo.Abp.DependencyInjection;
 namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>Doğrulayıcıya giren aday kalem — ERP varyantı ya da Trendyol-only kombinasyon (kanal özellik
-/// grafından çözülmüş ad/değer çiftleriyle; ikisi de aynı kapıdan geçer).
+/// grafından çözülmüş ad/değer çiftleriyle; ikisi de aynı doğrulamadan geçer).
 /// <para><see cref="PhotoValues"/> = import fotoğrafı (pazaryerinin KENDİ beyanı, id-bazlı) — doluysa eksen
 /// KAYNAĞI odur ve kategori-tanımı eşleştirmesine GİRMEZ (kanalın verdiğini kanala geri gönderiyoruz;
 /// ad→id türetimi yalnız ERP grafından gelen metin çiftleri için gerekir).</para></summary>
@@ -19,7 +19,7 @@ public sealed record TrendyolPushVariantInput(
     IReadOnlyList<(string Name, string Value)> ErpOptions,
     IReadOnlyList<SalesChannelTrTrendyolProductSkuRemoteAxisValue> PhotoValues);
 
-/// <summary>Bir kalemin ÇÖZÜLMÜŞ ekseni: push gövdesine girecek id-bazlı değerler + delil defterine yazılacak
+/// <summary>Bir kalemin ÇÖZÜLMÜŞ ekseni: push body'sine girecek id-bazlı değerler + PushHistory'ye yazılacak
 /// okunur çiftler + yeniden-bağlama imzası (yalnız id'li değerler — serbest metnin valueId'si yoktur).</summary>
 public sealed record TrendyolResolvedVariantAxis(
     IReadOnlyList<TrendyolAttributeValue> Attributes,
@@ -37,7 +37,7 @@ public sealed record TrendyolPushValidationResult(
 ///
 /// <para><b>Neden gerekliydi:</b> gerçek push kategori attribute tanımına HİÇ bakmıyordu — zorunlu attribute
 /// eksik, eksen değeri listede yok, iki varyant aynı imzada… hepsi Trendyol'a gidiyor ve saatler sonra batch
-/// reddi olarak dönüyordu. N11 bu kapıyı baştan kurmuştu; asimetri burada kapanıyor. Tanım alınamazsa push
+/// reddi olarak dönüyordu. N11 bu doğrulamayı baştan kurmuştu; asimetri burada kapanıyor. Tanım alınamazsa push
 /// DURUR (çağıran fail-fast'i) — doğrulamasız gönderim yok.</para>
 ///
 /// <para><b>Foto-öncelik:</b> import fotoğrafı (<see cref="SalesChannelTrTrendyolProductSkuRemoteAxisValue"/>)

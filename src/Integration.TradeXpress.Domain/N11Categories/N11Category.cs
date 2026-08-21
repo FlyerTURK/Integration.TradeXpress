@@ -59,16 +59,16 @@ public class N11Category : FullAuditedAggregateRoot<Guid>
     /// <summary>Hakediş hesaplama süresi (iş günü) = "otomatik bloke çözme günü" (valör).</summary>
     public int? PayoutDays { get; protected set; }
 
-    /// <summary>Bu satırın son BAŞARILI N11 senkron turunda damgalandığı an (UTC). Pratikte yalnız 9 sentetik
-    /// mega satırında dolu: bayatlık kapısı <c>MAX(LastSyncedAt)</c> okur ve "en son ne zaman N11 ile mutabakat
+    /// <summary>Bu satıra son BAŞARILI N11 senkron turunda yazılan an (UTC). Pratikte yalnız 9 sentetik
+    /// mega satırında dolu: bayatlık kontrolü <c>MAX(LastSyncedAt)</c> okur ve "en son ne zaman N11 ile mutabakat
     /// yaptık" sorusunu buradan cevaplar.
     ///
     /// <para><b><see cref="LastModifiedExternal"/> ile KARIŞTIRMA:</b> o, N11'in kendi <c>lastModifiedDate</c>'i
     /// (REST yolunda pratikte hep null); bu ise BİZİM senkron anımız.</para>
     ///
-    /// <para><b>Neden ayrı bir alan:</b> "veri değişmediyse damga atılamaz" tuzağını kapatmak için. EF, bir
+    /// <para><b>Neden ayrı bir alan:</b> "veri değişmediyse senkron anı yazılamaz" tuzağını kapatmak için. EF, bir
     /// property'yi AYNI değere set etmeyi değişiklik saymaz — UPDATE atılmaz, denetim alanları güncellenmez.
-    /// Bu alan her turda YENİ bir zaman aldığı için damga garanti yazılır.</para></summary>
+    /// Bu alan her turda YENİ bir zaman aldığı için değer garanti yazılır.</para></summary>
     public DateTime? LastSyncedAt { get; protected set; }
 
     #endregion
@@ -104,7 +104,7 @@ public class N11Category : FullAuditedAggregateRoot<Guid>
         PayoutDays = payoutDays;
     }
 
-    /// <summary>Başarılı senkron turunu damgalar. Değer her turda farklı (turun saati) olduğu için EF gerçek bir
+    /// <summary>Başarılı senkron turunun anını <see cref="LastSyncedAt"/>'e yazar. Değer her turda farklı (turun saati) olduğu için EF gerçek bir
     /// UPDATE üretir — "aynı değere set = değişiklik yok" tuzağına düşmez.</summary>
     public virtual void MarkSynced(DateTime syncedAtUtc)
     {

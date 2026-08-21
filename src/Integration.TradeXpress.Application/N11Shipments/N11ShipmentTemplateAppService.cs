@@ -69,15 +69,15 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
     }
 
     /// <summary>Kargo firması satırlarını gösterime hazırlar: düz kimlik listesi (mevcut çoklu-seçim bileşeni için)
-    /// + firma adı (host-global aynadan) + bağlı cari alt hesabın kodu. Adlar/kodlar PERSIST EDİLMEZ — tek kaynak
-    /// ayna ve cari planıdır; burada yalnız okunur.</summary>
+    /// + firma adı (host-global yansıma tablosundan) + bağlı cari alt hesabın kodu. Adlar/kodlar PERSIST EDİLMEZ — tek kaynak
+    /// yansıma tablosu ve cari planıdır; burada yalnız okunur.</summary>
     private async Task EnrichCompaniesAsync(List<N11ShipmentTemplate> entities, List<N11ShipmentTemplateDto> dtos)
     {
         var externalIds = entities.SelectMany(e => e.Companies).Select(c => c.ExternalId).ToHashSet(StringComparer.Ordinal);
         var names = new Dictionary<string, string>(StringComparer.Ordinal);
         if (externalIds.Count > 0)
         {
-            // Ayna HOST-GLOBAL → tenant filtresi kapatılarak okunur (şablon senkronundaki desenle aynı).
+            // Yansıma tablosu HOST-GLOBAL → tenant filtresi kapatılarak okunur (şablon senkronundaki desenle aynı).
             using (CurrentTenant.Change(null))
             {
                 names = (await AsyncExecuter.ToListAsync(
@@ -216,17 +216,17 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         return changed;
     }
 
-    // ── FORWARD taslak (çekirdek → N11 ön-doldurma) ─────────────────────────────────────────────────
+    // ── FORWARD taslak (core → N11 ön-doldurma) ─────────────────────────────────────────────────
 
 
-    // ── REVERSE K1 köprüsü (kanal → çekirdek ters mutabakat) ────────────────────────────────────────
+    // ── REVERSE K1 bağı (kanal → core ters mutabakat) ────────────────────────────────────────
 
 
     // ── Uygulama (DTO/data → entity) ────────────────────────────────────────────────────────────────
 
     private void ApplyInput(N11ShipmentTemplate entity, IN11ShipmentTemplateInput input)
     {
-        // K1 köprüsü — çekirdek şablon referansı (id-only); N11'e push EDİLMEZ, yalnız yerelde tutulur.
+        // K1 bağı — core şablon referansı (id-only kolon); N11'e push EDİLMEZ, yalnız yerelde tutulur.
         entity.SetTemplateName(input.TemplateName);
         entity.SetDeliveryFeeType(input.DeliveryFeeType);
         entity.SetShipmentMethod(input.ShipmentMethod);
@@ -248,7 +248,7 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
     }
 
     // İçe aktarım: N11'den gelen ÇÖZÜLMÜŞ veriyi (isim/kod) id-ref'lere ters-çözer, entity'ye uygular.
-    // NOT: Çekirdek şablon referansı (ShipmentTemplateId, K1 köprüsü) N11'de bilinmez → import'ta DOKUNULMAZ (korunur).
+    // NOT: core şablon referansı (ShipmentTemplateId, K1 id-only kolonu) N11'de bilinmez → import'ta DOKUNULMAZ (korunur).
     private void ApplyData(N11ShipmentTemplate entity, N11ShipmentTemplateData data, IReadOnlyDictionary<string, string> externalIdByShortName)
     {
         entity.SetTemplateName(data.TemplateName);
@@ -266,7 +266,7 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
             .Select(x => x!));
         entity.SetDeliverableCities(data.DeliverableCities.Select(c => c.Code));
 
-        // Şartlı kargo depo adresine gömülü döner → şablon-düzeyine köprüle (push'ta da geri yazılır — canlı doğrulandı).
+        // Şartlı kargo depo adresine gömülü döner → şablon-düzeyine taşınır (push'ta da geri yazılır — canlı doğrulandı).
         entity.SetConditionalShipping(
             data.WarehouseAddress.ConditionalShippingThreshold,
             data.WarehouseAddress.ConditionalShippingUnit ?? N11ConditionalShippingUnit.Amount);
