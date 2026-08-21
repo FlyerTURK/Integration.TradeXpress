@@ -15,8 +15,8 @@ using Volo.Abp.Uow;
 namespace Integration.TradeXpress.Confirmations;
 
 /// <summary>
-/// Teyit bacağının <b>materyalizasyon motoru</b>: bir tarafın KENDİ eliyle yazdığı satırı gerçek bir fişe
-/// dönüştürür. Teyit kapanınca (<c>ConfirmationAppService.ConfirmAsync</c>) iki bacak için iki kez çalışır.
+/// Teyit TARAFININ <b>materyalizasyon motoru</b>: bir tarafın KENDİ eliyle yazdığı satırı gerçek bir fişe
+/// dönüştürür. Teyit kapanınca (<c>ConfirmationAppService.ConfirmAsync</c>) iki taraf için iki kez çalışır.
 ///
 /// <para><b>Process-agnostik (tasarımın kilit taşı):</b> hiçbir +/− kuralı burada yoktur. Satır fişe eklenir,
 /// <see cref="BalanceLedgerSynchronizer"/> onu ProcessType'ın KENDİ poster'ına yönlendirir
@@ -39,7 +39,7 @@ namespace Integration.TradeXpress.Confirmations;
 /// KULLANILMAZ: teyidi gönderen açar, ama alıcının bacağı alıcının kasasına yazılır — gönderenin grant'ıyla
 /// o kasa doğrulanamaz (VaultNotAuthorized). Domain yolu doğru semantiktir.</para>
 ///
-/// <para><b>Atomiklik çağıranın sorumluluğu:</b> iki bacak tek transactional UoW içinde yazılmalıdır
+/// <para><b>Atomiklik çağıranın sorumluluğu:</b> iki taraf tek transactional UoW içinde yazılmalıdır
 /// (çağıran public metot <c>[UnitOfWork(isTransactional: true)]</c> açar).</para>
 /// </summary>
 public class ConfirmationVoucherMaterializer : ITransientDependency
@@ -100,9 +100,9 @@ public class ConfirmationVoucherMaterializer : ITransientDependency
         // Gölge günlük — Teyit materyalizasyonu da CREATE'tir (2026-07-15 kullanıcı isteği: her cari işlem kaydı).
         await _historyRecorder.RecordAsync(voucher, materializedLine, VoucherLineChangeType.Created);
 
-        // Maden stok tetiği (2026-07-25 inceleme bulgusu #15): teyit bacağı VoucherAppService yolunu
+        // Maden stok tetiği (2026-07-25 inceleme bulgusu #15): teyit tarafı VoucherAppService yolunu
         // KULLANMADIĞINDAN oradaki CommodityStockChangedEto tetiği burada da kurulmalı — aksi halde teyitle giren/çıkan
-        // maden, kanal stoklarını GÜNCELLETMEZDİ (oversell kapısı). Aynı sözleşme: commit-SONRASI publish.
+        // maden, kanal stoklarını GÜNCELLETMEZDİ (oversell açığı). Aynı sözleşme: commit-SONRASI publish.
         _stockChangeQueuer.QueueForVoucher(voucher);
 
         return voucher;

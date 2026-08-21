@@ -17,7 +17,7 @@ namespace Integration.TradeXpress.ChannelQuestions;
 ///
 /// <para><b>SLA saati BİZDEN:</b> pazaryeri 24 saat içinde cevap bekler ve gecikme satıcı puanına işler, ama
 /// N11 <c>questionDate</c>'i GÜN hassasiyetindedir (WSDL <c>xs:date</c> — saat yok). Geri sayım bu yüzden
-/// <see cref="FirstSeenAt"/> (bizim UTC damgamız) üzerinden hesaplanır; <see cref="RemoteQuestionDate"/> yalnız
+/// <see cref="FirstSeenAt"/> (bizim UTC timestamp'imiz) üzerinden hesaplanır; <see cref="RemoteQuestionDate"/> yalnız
 /// çapraz kontrol için saklanır.</para>
 ///
 /// <para><b>Müşteri adı ve iletişim bilgisi SAKLANIR ve GÖSTERİLİR (2026-08-01 Hakan kararı):</b> müşteri
@@ -27,7 +27,7 @@ namespace Integration.TradeXpress.ChannelQuestions;
 ///
 /// <para><b>Pazaryerinin gerçek kısıtı BAŞKA:</b> müşteriyi kanal dışına davet etmek yasaktır — cevapta kendi
 /// web sitemize, başka bir pazaryerine ya da harici iletişim kanalına yönlendirme yapılamaz. Bu kısıt
-/// <see cref="AnswerText"/> İÇERİĞİNİ ilgilendirir (kişisel veriyi değil); cevap yazma yüzeyi kullanıcıyı
+/// <see cref="AnswerText"/> İÇERİĞİNİ ilgilendirir (kişisel veriyi değil); cevap yazma ekranı kullanıcıyı
 /// bu konuda uyarmalıdır.</para>
 /// </summary>
 public class ChannelQuestion : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
@@ -83,7 +83,7 @@ public class ChannelQuestion : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICo
     /// <summary>Soru başlığı (kanal alanı).</summary>
     public virtual string? Subject { get; protected set; }
 
-    /// <summary>Soru gövdesi.</summary>
+    /// <summary>Sorunun metni.</summary>
     public virtual string? QuestionText { get; protected set; }
 
     /// <summary>Soruyu soran müşterinin adı (kanaldan geldiği gibi) — cevabı kişiselleştirmek ve aynı müşteriyi
@@ -99,7 +99,7 @@ public class ChannelQuestion : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICo
     public virtual DateTime? RemoteQuestionDate { get; protected set; }
 
     /// <summary>Soruyu İLK gördüğümüz an (UTC) — SLA geri sayımının TEK güvenilir kaynağı (bkz. tip özeti).
-    /// İlk çekimde damgalanır, sonraki çekimler DEĞİŞTİRMEZ.</summary>
+    /// İlk çekimde yazılır, sonraki çekimler DEĞİŞTİRMEZ.</summary>
     public virtual DateTime FirstSeenAt { get; protected set; }
 
     /// <summary>Bu kaydın en son çekildiği an (UTC) — tazelik göstergesi.</summary>
@@ -119,7 +119,7 @@ public class ChannelQuestion : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICo
     /// <summary>Kullanıcı bu soruyu gördü mü — gelen kutusu okunmamış sayacı.</summary>
     public virtual bool IsRead { get; protected set; }
 
-    /// <summary>YEREL cevap gövdesi (taslak ya da gönderilmiş).</summary>
+    /// <summary>YEREL cevap metni (taslak ya da gönderilmiş).</summary>
     public virtual string? AnswerText { get; protected set; }
 
     /// <summary>Cevabın TESLİM durumu — sorunun kanal durumundan bağımsız (bkz. <see cref="ChannelAnswerState"/>).</summary>
@@ -164,7 +164,7 @@ public class ChannelQuestion : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICo
         IsPublic = isPublic;
         FetchedAt = fetchedAt;
 
-        // İlk görülme damgası SET-ONCE: sonraki çekimler SLA geri sayımını sıfırlamamalı.
+        // FirstSeenAt SET-ONCE: sonraki çekimler SLA geri sayımını sıfırlamamalı.
         if (FirstSeenAt == default)
         {
             FirstSeenAt = fetchedAt;

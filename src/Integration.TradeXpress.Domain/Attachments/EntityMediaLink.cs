@@ -57,7 +57,7 @@ public class EntityMediaLink : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICo
     /// <summary>Bu kayıt için varsayılan (ana) medya — tekil garanti AppService normalize'ında. Varsayılan pasif olamaz.</summary>
     public virtual bool IsDefault { get; protected set; }
 
-    /// <summary>Bu kayıt için aktif mi — pasif medya dış yüzeylerde (pazaryeri push vb.) atlanabilir.</summary>
+    /// <summary>Bu kayıt için aktif mi — pasif medya dışa giden yollarda (pazaryeri push vb.) atlanabilir.</summary>
     public virtual bool IsActive { get; protected set; }
 
     #endregion

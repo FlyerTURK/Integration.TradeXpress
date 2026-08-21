@@ -7,7 +7,7 @@ using Integration.TradeXpress.Variants;
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
 /// <summary>
-/// Çekirdek ürün kategorisi mapping'i — company-owned ağaç + nitelik/değer AYRI TABLOLAR.
+/// core ürün kategorisi mapping'i — company-owned ağaç + nitelik/değer AYRI TABLOLAR.
 ///
 /// <para><b>Neden JSON değil tablo:</b> nitelik ve değer ileride pazaryeri niteliğine/değerine eşleştirilecek;
 /// eşleştirme kalıcı bir <c>Id</c>'ye asılır. Owned-JSON'da satırın kimliği yoktur (sıra/ad değişince eşleştirme

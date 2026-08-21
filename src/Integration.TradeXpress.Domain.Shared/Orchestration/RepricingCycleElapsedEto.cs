@@ -3,7 +3,7 @@ using System;
 namespace Integration.TradeXpress.Orchestration;
 
 /// <summary>
-/// 15-DK FİYAT DÖNGÜSÜ DOLDU olayı (ADR-PRODUCT-ORCHESTRATION durum tahtası sinyali #2 — Dilim 2).
+/// 15-DK FİYAT DÖNGÜSÜ DOLDU olayı (ADR-PRODUCT-ORCHESTRATION durum board'u sinyali #2 — Dilim 2).
 /// <see cref="RepricingCycleWorker"/> periyodik yayımlar; <c>ProductOrchestrationManager</c> dinler →
 /// kanal listelemesi OLAN ürünlere ürün-başına senkron job kuyruklar.
 /// <para><b>Neden gerekli:</b> kanal fiyatı push ANINDA türetilir (NetCost×(1+Marj) — canlı kurla); kur/maliyet

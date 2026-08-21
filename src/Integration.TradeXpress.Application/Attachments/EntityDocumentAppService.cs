@@ -67,14 +67,22 @@ public class EntityDocumentAppService : TradeXpressAppService, IEntityDocumentAp
         }
 
         // Delete-all + insert-new (doküman setinin stabil kimliğe ihtiyacı yok — sipariş satırı deseni).
-        await _repository.DeleteManyAsync(existing, autoSave: false);
-        foreach (var doc in normalized)
-        {
-            var entity = new EntityDocument(
+        // FLUSH ZORUNLU (2026-08-20, ProductCommodityProjectionTests'te yakalandı): "replace" sözleşmesi çağrıya döndüğünde setin
+        // SORGULANABİLİR olmasını gerektirir. autoSave:false ile yazıldığında satırlar yalnız değişiklik
+        // izleyicisinde durur ve AYNI UoW içindeki bir SORGU onları GÖRMEZ (EF sorgu öncesi kendiliğinden
+        // flush etmez). Bedeli sessizdi: CreateAsync/UpdateAsync sonunda GetAsync ile geri okunan DTO'da
+        // SON yazılan setin satırları EKSİK geliyordu — kaydeden kullanıcı görselini/dokümanını kaybolmuş
+        // sanıyor, yalnız sayfayı yenileyince geri geliyordu. Önceki satırların kurtulması TESADÜFTÜ: araya
+        // giren başka bir autoSave:true çağrısı onları flush ediyordu, sonuncuyu edecek kimse yoktu.
+        // Silme ÖNCE flush edilir (aynı anahtarı yeniden ekleyen replace tek SaveChanges'te çakışmasın).
+        await _repository.DeleteManyAsync(existing, autoSave: true);
+
+        var replacements = normalized
+            .Select(doc => new EntityDocument(
                 en, entityId, doc.FileName!, doc.BlobName!, doc.ContentType ?? DefaultContentType,
-                doc.Size, doc.Description, doc.DisplayOrder);
-            await _repository.InsertAsync(entity, autoSave: false);
-        }
+                doc.Size, doc.Description, doc.DisplayOrder))
+            .ToList();
+        await _repository.InsertManyAsync(replacements, autoSave: true);
     }
 
     public virtual async Task<EntityDocumentUploadResultDto> UploadAsync(EntityDocumentUploadDto input)

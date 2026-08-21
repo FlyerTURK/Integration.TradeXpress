@@ -20,7 +20,7 @@ namespace Integration.TradeXpress.Substitutions;
 /// Muadil bağlamı yükleyicisi: kombinasyonda geçen madenlerin katalog kayıtları + işçilik sözlükleri
 /// (seçili varyantın işçiliği, varyantsız satırlar için ana-varyant fallback'i).
 ///
-/// <para><b>Neden AYRI servis:</b> bu yükleme üç tüketicinin ortak ihtiyacı — kanal planı köprüsü
+/// <para><b>Neden AYRI servis:</b> bu yükleme üç tüketicinin ortak ihtiyacı — SubstitutionChannelPlanProvider
 /// (<see cref="SubstitutionChannelPlanProvider"/>), ERP varyant materyalizasyonu ve hesap servisinin reçete
 /// önizlemesi. Provider'ın İÇİNDE kalsaydı hesap servisi onu kullanmak için provider'a bağımlı olurdu; provider
 /// ise zaten hesap servisini enjekte ediyor → DÖNGÜSEL BAĞIMLILIK. Yükleyici bağımsız olduğu için üçü de onu

@@ -7,7 +7,7 @@ namespace Integration.TradeXpress.Goods;
 /// Bir varyantın GOOD-ÖZEL fiyat/stok detayı — jenerik <c>EntityVariant</c>'ın Good uzantısı (1:1, <see cref="EntityVariantId"/>
 /// set-once). Perakende fiyat/stok VARYANT seviyesinde (2026-07-13 kullanıcı kararı: fiyat/stok Good'dan varyanta taşındı):
 /// alış (fiyat/birim/vergi) → kâr şekli (Margin) → türetilmiş satış (ExitPrice) + stok birimi/adet-bazlı/min-max.
-/// Company-scoped (varyanttan denormalize) + per-tenant. Jenerik çekirdek (EntityVariant) bu uzantıyı BİLMEZ —
+/// Company-scoped (varyanttan denormalize) + per-tenant. Jenerik <c>EntityVariant</c> bu uzantıyı BİLMEZ —
 /// sahip (GoodAppService) EntityVariantId ile eşleyip saklar/yükler (uzantı mekanizması; Faz C'de Product da kullanır).
 /// </summary>
 public class GoodVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped

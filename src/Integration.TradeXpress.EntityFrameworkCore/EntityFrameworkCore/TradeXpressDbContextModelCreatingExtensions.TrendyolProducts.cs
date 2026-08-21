@@ -32,7 +32,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
         // Domain'deki sınıfa <c>[Owned]</c> attribute'u koymak aynı işi görürdü ama Domain'i EF Core'a
         // bağlardı — katman ihlali (CLAUDE.md §2). Karar bu yüzden EF katmanında yaşıyor.
         //
-        // Mekanik ağ: EF test paketinin TAMAMI. Model kurulamazsa her test kırmızı olur — bu kırılma da
+        // Konvansiyon testi: EF test paketinin TAMAMI. Model kurulamazsa her test kırmızı olur — bu kırılma da
         // zaten oradan çıktı, derlemeden ya da birim testlerden değil.
         builder.Ignore<SalesChannelTrTrendyolProductSku>();
         builder.Owned<SalesChannelTrTrendyolProductSku>();
@@ -166,7 +166,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
-        // Push GEÇMİŞİ — append-only delil kaydı (N11 eşiyle aynı şekil; yazım anı COMPLETED batch'idir).
+        // Push GEÇMİŞİ — append-only PushHistory kaydı (N11 eşiyle aynı şekil; yazım anı COMPLETED batch'idir).
         builder.Entity<SalesChannelTrTrendyolProductPushHistory>(b =>
         {
             b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductPushHistories", TradeXpressConsts.DbSchema);

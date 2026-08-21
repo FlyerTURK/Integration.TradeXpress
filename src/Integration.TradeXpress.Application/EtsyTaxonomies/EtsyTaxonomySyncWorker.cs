@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.EtsyTaxonomies;
 /// Etsy seller taxonomy'yi periyodik (günlük, config <c>Etsy:Taxonomy:SyncIntervalHours</c> → 24s) TAM-RECONCILE eden arka
 /// plan işçisi (ekle/güncelle/HARD-sil). <see cref="AbpAsyncTimer.RunOnStart"/>=true → İLK tur AÇILIŞTA çalışır (ayrı
 /// fire-and-forget gerekmez; <see cref="Orders.OrderSyncBackgroundWorker"/> ile aynı proven desen) — host açılışını
-/// BLOKLAMAZ (timer thread'inde). Gerçek reconcile yalnız <see cref="EtsyTaxonomySyncManager.SyncIfStaleAsync"/> kapısı
+/// BLOKLAMAZ (timer thread'inde). Gerçek reconcile yalnız <see cref="EtsyTaxonomySyncManager.SyncIfStaleAsync"/>
 /// bayat/boş derse tetiklenir. Hata YUTULUR + <c>LogWarning</c> (kanal yoksa/Etsy erişilemezse döngü ölmesin). YALNIZ
 /// Blazor host'ta kayıtlı → çift-çalışma yok.
 /// </summary>

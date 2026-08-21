@@ -12,14 +12,14 @@ using Volo.Abp.Linq;
 namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
-/// ÇİFT-BACAK motoru: birincil satırın doğrulanması/hazırlanması + karşı bacağın (ikiz satır)
-/// bul/oluştur/güncelle/sil senkronu. Karşı hesabın KENDİ voucher'ı açılır ve satırın AYNASI (yön ters)
-/// yazılır. İki bacak AYNI ambient UoW/transaction'da yazılır; etkilenen her fişin ledger'ı ayrıca
+/// ÇİFT-SATIR motoru: birincil satırın doğrulanması/hazırlanması + karşı VoucherLine'ın (ikiz satır)
+/// bul/oluştur/güncelle/sil senkronu. Karşı hesabın KENDİ voucher'ı açılır ve satırın İKİZİ (yön ters)
+/// yazılır. İki satır AYNI ambient UoW/transaction'da yazılır; etkilenen her fişin ledger'ı ayrıca
 /// senkronlanır. Company scope ve fiş-aitlik guard'ları çağıran AppService'te kalır — kaynak alt hesap
 /// parametreyle gelir.
 ///
 /// <para><b>TİP-AGNOSTİK</b> (2026-07-26): ikiz satır birincilin kopyasıdır (yalnız yön + karşı referans +
-/// açıklama değişir), <c>ProcessType</c>'a BAKMAZ. Virman tip gereği çift bacaklıdır (karşı hesap zorunlu);
+/// açıklama değişir), <c>ProcessType</c>'a BAKMAZ. Virman tip gereği çift satırlıdır (karşı hesap zorunlu);
 /// diğer tiplerde karşı hesap opsiyoneldir ve yalnız doluysa bu motor çalışır. Kargo gideri bu yolla işler:
 /// kanal fişinde hizmet çıkışı ↔ kargo firmasının fişinde hizmet girişi (tek firma = tek bakiye).
 /// Sınıf adı legacy'dir (kaynağı virman); kapsam artık daha geniştir.</para>
@@ -68,7 +68,7 @@ public class VoucherTransferService : ITransientDependency
         string CounterCode,
         string RawDescription);
 
-    /// <summary>Çift-bacaklı satırı kaydetmeden ÖNCE doğrular ve sunucu-otoriter alanları doldurur:
+    /// <summary>İkizli satırı kaydetmeden ÖNCE doğrular ve sunucu-otoriter alanları doldurur:
     /// karşı alt hesap zorunlu + kaynaktan farklı + AYNI şirkette (SubAccount→Account→CompanyId) + aktif;
     /// LinkId güncellemede mevcut satırdan okunur (istemciye güvenilmez), yeni satırda üretilir;
     /// açıklama legacy "{kaynak}/{karşı}:{desc}" formatına çevrilir.
@@ -205,7 +205,7 @@ public class VoucherTransferService : ITransientDependency
         Voucher primaryVoucher, VoucherLineInput twinInput, TransferContext ctx)
     {
         // Virman DAİMA cari↔cari'dir (kasa karşı tarafı Teyit yolundan gelir) → karşı taraf CurrentAccount;
-        // kod snapshot'ları sunucu-otoriter çözülür (fişin diğer yazma yollarıyla aynı kapı).
+        // kod snapshot'ları sunucu-otoriter çözülür (fişin diğer yazma yollarıyla aynı yol).
         var counterparty = await _counterpartyResolver.ResolveCurrentAccountAsync(
             primaryVoucher.CompanyId, ctx.CounterParentAccountId, ctx.CounterSubAccountId);
 

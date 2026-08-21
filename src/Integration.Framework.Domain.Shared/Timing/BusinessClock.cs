@@ -10,7 +10,7 @@ namespace Integration.Framework.Timing;
 /// UTC'ye normalize eder (Türkiye'de −3s) → date-only iş tarihleri (fiş tarihi) bir önceki güne
 /// kayabilir. Kaymaması gereken iş tarihleri bu kaynaktan üretilir ve saklandıkları alan
 /// <c>[DisableDateTimeNormalization]</c> ile işaretlenir (SSOT: giriş Unspecified + alan normalize-dışı).</para>
-/// <para>Sistem/audit zaman damgaları (CreationTime vb.) DEĞİL — onlar ABP <c>IClock</c> (UTC) ile kalır.
+/// <para>Sistem/audit timestamp'leri (CreationTime vb.) DEĞİL — onlar ABP <c>IClock</c> (UTC) ile kalır.
 /// Bu kaynak yalnız kullanıcının wall-clock iş tarihleri içindir.</para>
 /// </summary>
 public static class BusinessClock

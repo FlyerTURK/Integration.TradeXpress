@@ -190,7 +190,7 @@ public static class SideCostSettingsJson
             autoRate, isEnabled: true, displayOrder, requiresVariantOptIn);
     }
 
-    /// <summary>Eski sabit-alanlı payload'ın okuma aynası — yalnız dönüşüm için (yazılmaz).</summary>
+    /// <summary>Eski sabit-alanlı payload'ın salt-okuma karşılığı — yalnız dönüşüm için (yazılmaz).</summary>
     private sealed class LegacySideCostSettings
     {
         public decimal? PackagingCost { get; set; }

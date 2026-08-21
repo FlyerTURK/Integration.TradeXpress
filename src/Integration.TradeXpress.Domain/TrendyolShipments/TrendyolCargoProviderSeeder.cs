@@ -22,7 +22,7 @@ namespace Integration.TradeXpress.TrendyolShipments;
 /// Listede olmayan satırlar da silinmez (geçmiş referanslar yaşasın).</para>
 ///
 /// <para><b>Kaynak (2026-08-04 çekimi):</b> Id · Kod · Ad · Vergi No. Trendyol yeni firma yayınlarsa buraya
-/// eklenir; uydurma satır GİRİLMEZ — <c>cargoCompanyId</c> yanlışsa ürün gövdesi Trendyol'da reddedilir.</para>
+/// eklenir; uydurma satır GİRİLMEZ — <c>cargoCompanyId</c> yanlışsa ürün body'si Trendyol'da reddedilir.</para>
 /// </summary>
 public class TrendyolCargoProviderSeeder : IDataSeedContributor, ITransientDependency
 {

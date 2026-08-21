@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Stones;
 /// <para><b>Şirkete AİTTİR</b> (<see cref="ICompanyOwned"/> — güvenlik sınırı, görev #4): katalog tenant-geneli
 /// DEĞİL şirket kapsamlıdır; bir şirketin kullanıcısının düzenlemesi kardeş şirketleri etkilemez.
 /// <see cref="CompanyId"/> ZORUNLU — sahipsiz ("holding") kayıt üretilemez; sahiplik client'tan değil aktif
-/// working company'den damgalanır (<c>CompanyOwnershipGuard</c>).</para>
+/// working company'den <c>CompanyOwnershipGuard.ResolveOwnerCompanyId</c> ile yazılır.</para>
 /// </summary>
 public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {

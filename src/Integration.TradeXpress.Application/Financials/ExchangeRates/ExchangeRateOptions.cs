@@ -9,7 +9,7 @@ namespace Integration.TradeXpress.Financials.ExchangeRates;
 /// Harem feed (<see cref="HaremPlaywrightFeedWorker"/>) ayarları.
 /// Config bölümü <c>"ExchangeRates"</c> — feed'in SAHİBİ Blazor host olduğundan bölüm
 /// Blazor appsettings.json'dadır (keşif turu 2, O4: eskiden yanlışlıkla HttpApi.Host'taydı).
-/// Harem-only (Altınkaynak devre dışı). Eski HaremBridge (HTTP köprü) anahtarları kaldırıldı.
+/// Harem-only (Altınkaynak devre dışı). Eski HaremBridge (HTTP servisi) anahtarları kaldırıldı.
 /// </summary>
 public sealed class ExchangeRateOptions
 {

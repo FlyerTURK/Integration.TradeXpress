@@ -4,11 +4,11 @@ using Integration.TradeXpress.SalesChannels;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// Çekirdek kategorinin bir SATIŞ KANALINDAKİ karşılığı — "bizim <c>Takı › Yüzük › Alyans</c> kategorimiz
+/// Core kategorinin bir SATIŞ KANALINDAKİ karşılığı — "bizim <c>Takı › Yüzük › Alyans</c> kategorimiz
 /// N11'de şu kategoridir" eşleştirmesi. Company-owned (her şirket kendi taksonomisini kendi eşleştirir).
 ///
-/// <para><b>Neden var (2026-07-27 Hakan vizyonu):</b> ürün çekirdek kategoriye bağlandığında kanal kategorisi
-/// artık her kanalda ELLE seçilmez; kanalın kategori KOMİSYONU da bu köprüden çözülüp reçeteye GrossUp maliyet
+/// <para><b>Neden var (2026-07-27 Hakan vizyonu):</b> ürün core kategoriye bağlandığında kanal kategorisi
+/// artık her kanalda ELLE seçilmez; kanalın kategori KOMİSYONU da bu eşleştirmeden çözülüp reçeteye GrossUp maliyet
 /// olarak girer. Bugün komisyon yalnız N11 KANAL ÜRÜNÜ oluşturulduktan sonra biliniyordu; bu eşleştirmeyle
 /// ürünün kendi reçetesinde de bilinir.</para>
 ///

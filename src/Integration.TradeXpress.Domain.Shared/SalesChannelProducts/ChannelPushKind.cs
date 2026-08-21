@@ -4,7 +4,8 @@ namespace Integration.TradeXpress.SalesChannelProducts;
 /// Bir gönderimin TÜRÜ — KANAL-AGNOSTİK. Delil değerini belirler: tam push başlık/görsel de gönderir,
 /// fiyat/stok senkronu yalnız adet/fiyat.
 ///
-/// <para><b>Neden nötr bir enum:</b> defterin okuma yüzeyi birleşiktir (tek grid, üç kanal). Kanalın kendi
+/// <para><b>Neden nötr bir enum:</b> PushHistory'nin okuma tarafı tek bileşende birleşiktir
+/// (<c>ChannelProductPushHistoryPopup</c> — tek grid, üç kanal). Kanalın kendi
 /// enum'unu (<c>N11ProductPushKind</c> / <c>TrendyolProductPushKind</c>) ekrana taşımak, UI'ı kanal başına
 /// dallandırır ve aynı anlamı iki farklı isimle gösterirdi (N11 <c>FullPush</c> ↔ Trendyol <c>Create</c>).
 /// Kanal-özel enum'lar YAZMA tarafında yerinde kalır; bu enum yalnız OKUMA modelinin dilidir.</para>

@@ -27,10 +27,10 @@ public class N11ShipmentAddressDto : IAddressEditModel
     /// <summary>N11 ilçe id'si — <see cref="Integration.TradeXpress.N11Cities.N11DistrictDto.DistrictId"/>.</summary>
     public string? DistrictCode { get; set; }
 
-    /// <summary>Opsiyonel çekirdek coğrafya idari-alan (il/eyalet) id'si — picker doldurur (id-only köprü). N11 push OKUMAZ.</summary>
+    /// <summary>Opsiyonel core coğrafya idari-alan (il/eyalet) id'si — picker doldurur (id-only referans). N11 push OKUMAZ.</summary>
     public Guid? AdministrativeAreaId { get; set; }
 
-    /// <summary>Opsiyonel çekirdek coğrafya yerellik (ilçe) id'si — picker doldurur. N11 push OKUMAZ.</summary>
+    /// <summary>Opsiyonel core coğrafya yerellik (ilçe) id'si — picker doldurur. N11 push OKUMAZ.</summary>
     public Guid? LocalityId { get; set; }
 
     /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (ör. "TR-34") — UBL projeksiyonu için. N11 push OKUMAZ.</summary>
@@ -95,7 +95,7 @@ public class N11ShipmentTemplateDto
     /// Cari bağı için <see cref="Companies"/>'e bakılır (aynı firmalar, cari alanıyla birlikte).</summary>
     public List<string> ShipmentCompanyExternalIds { get; set; } = new();
 
-    /// <summary>Şablonun kargo firmaları (kimlik + aynaıdan okunan ad).</summary>
+    /// <summary>Şablonun kargo firmaları (kimlik + <c>N11ShipmentCompany</c>'den okunan ad).</summary>
     public List<N11ShipmentTemplateCompanyDto> Companies { get; set; } = new();
 
     /// <summary>Şablon N11'de hâlâ var mı. Senkron, N11'den kalkan şablonu silmez → pasifleştirir.</summary>
@@ -112,7 +112,7 @@ public class N11ShipmentTemplateCompanyDto
     /// <summary>N11 kargo firması kimliği (<c>N11ShipmentCompany.ExternalId</c>).</summary>
     public string ExternalId { get; set; } = string.Empty;
 
-    /// <summary>Firma adı — host-global aynadan çözülür (gösterim; persist EDİLMEZ).</summary>
+    /// <summary>Firma adı — host-global <c>N11ShipmentCompany</c> kaydından çözülür (gösterim; persist EDİLMEZ).</summary>
     public string Name { get; set; } = string.Empty;
 
     public override string ToString()
@@ -125,7 +125,7 @@ public class N11ShipmentTemplateCompanyDto
 /// Şartlı kargo dahil (feeCondition push ile yazılabilir — canlı doğrulandı).</summary>
 public interface IN11ShipmentTemplateInput
 {
-    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel).</summary>
+    /// <summary>Core ERP kargo şablonu referansı (K1 bağı; id-only, opsiyonel).</summary>
 
     string TemplateName { get; }
     N11DeliveryFeeType DeliveryFeeType { get; }

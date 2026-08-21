@@ -15,7 +15,7 @@ public sealed record MediaContentPayload(byte[] Bytes, string FileName, string C
 /// MEDYA İÇERİĞİNİN UYGULAMA-İÇİ OKUYUCUSU — blob'u bayt olarak verir.
 ///
 /// <para><b>Neden ayrı sınıf:</b> <c>MediaAppService</c> bilinçli olarak bayt DÖNDÜRMEZ (içerik erişimi
-/// Id-scoped stream controller'ın işi — HTTP yüzeyine bayt açmamak API kararı). Geçici-link yayıncısının
+/// Id-scoped stream controller'ın işi — HTTP endpoint'lerine bayt açmamak API kararı). Geçici-link yayıncısının
 /// ihtiyacı ise UYGULAMA İÇİ okumadır: dışarı açılan bir uç değil, push sırasında blob'u alıp harici
 /// barındırmaya yükleyen iç bileşen. O sınır burada yaşar; app service'in sözleşmesi bozulmaz.</para>
 /// </summary>

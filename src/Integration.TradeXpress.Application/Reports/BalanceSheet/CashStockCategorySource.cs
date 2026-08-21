@@ -7,7 +7,7 @@ using Volo.Abp.DependencyInjection;
 namespace Integration.TradeXpress.Reports.BalanceSheet;
 
 /// <summary>
-/// STOK (nakit) kategorisi — firmanın fiziksel NAKİT holding'i (<see cref="ICashReportAppService"/> iki-bacak nakit
+/// STOK (nakit) kategorisi — firmanın fiziksel NAKİT holding'i (<see cref="ICashReportAppService"/> iki-leg nakit
 /// çıkarımından, asOf gün-sonu net). Cari ledger'dan AYRI: CashBalancePoster fiziksel nakdi ledger'a YAZMAZ
 /// (Peşin/WithCash → yield break, yalnız karşı-taraf cari bacağını yazar) → AccountBalance ile DISJOINT, çift sayım YOK.
 /// İŞARET: +Net AS-IS — fiziksel holding firma-perspektifidir (+); AccountBalance/ServicePL'deki −Σ (hesap-perspektifi)

@@ -109,7 +109,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
     }
 
     /// <summary>
-    /// Kullanıcının ÇALIŞABİLDİĞİ kasalar — <c>BranchAppService.GetMyBranchesAsync</c>'in kasa AYNASI:
+    /// Kullanıcının ÇALIŞABİLDİĞİ kasalar — <c>BranchAppService.GetMyBranchesAsync</c>'in kasa EŞLENİĞİ:
     /// server-side kapsam (scope) daraltması, her satır <see cref="ScopedAccessSet.CanAccessVault"/> ile elenir
     /// (en-spesifik-kazanır). Kendi çalışma kapsamının okunması → yalnız kimliklendirilmiş kullanıcı yeter.
     ///

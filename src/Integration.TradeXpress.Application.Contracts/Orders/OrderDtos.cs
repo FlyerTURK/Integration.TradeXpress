@@ -328,10 +328,10 @@ public class OrderEditAddressDto : IAddressEditModel
     public string? CityCode { get; set; }
     public string? DistrictCode { get; set; }
 
-    /// <summary>Picker ÖN-SEÇİMİ için geçici çekirdek il id'si (isim-eşleşmesinden) — order'a persist EDİLMEZ.</summary>
+    /// <summary>Picker ÖN-SEÇİMİ için geçici core il id'si (isim-eşleşmesinden) — order'a persist EDİLMEZ.</summary>
     public Guid? AdministrativeAreaId { get; set; }
 
-    /// <summary>Picker ÖN-SEÇİMİ için geçici çekirdek ilçe id'si (isim-eşleşmesinden) — order'a persist EDİLMEZ.</summary>
+    /// <summary>Picker ÖN-SEÇİMİ için geçici core ilçe id'si (isim-eşleşmesinden) — order'a persist EDİLMEZ.</summary>
     public Guid? LocalityId { get; set; }
 
     public string? AdministrativeAreaIsoCode { get; set; }
@@ -560,6 +560,15 @@ public interface IOrderAppService : IApplicationService
     /// null = bu sipariş için rezervasyon kaydı hiç açılmamış.</summary>
     Task<OrderReservationDto?> GetReservationAsync(Guid orderId);
 
+    /// <summary>"Karar Bekleyenler" sekmesinin TEK listesi (2026-08-21 Hakan yerleşim kararı): ① kurulamayan
+    /// (<c>Blocked</c>) rezervasyonlar gerekçesiyle ② kanaldan gelen, insan kararı bekleyen İPTAL TALEPLERİ
+    /// ③ yaş eşiğini (<see cref="OrderConsts.AgingReservationThresholdDays"/>) aşan aktif rezervler.
+    /// <para><b>SALT OKUMA</b> — hiçbir eksene yazmaz; karar sipariş formundaki rezervasyon panelinde verilir.
+    /// Tip ayrımı DTO'daki <see cref="OrderPendingDecisionDto.Kind"/> alanıyla — üç ayrı uç YOK. Sıralama:
+    /// en uzun süredir bekleyen ÜSTTE. Çalışılan şirket yoksa boş liste (konsolide bağlamda başka şirketin
+    /// bekleyen işi gösterilmez — inbox kartıyla aynı fail-closed kural).</para></summary>
+    Task<List<OrderPendingDecisionDto>> GetPendingDecisionsAsync();
+
     /// <summary>İptal talebine KARAR verir (2026-08-05 Hakan kararı: hiçbir iptal otomatik değildir).
     /// <para><b>Onay</b> rezervasyonu serbest bırakır → stok yeniden satılabilir olur.
     /// <b>Red</b> rezervasyonu tutmaya devam eder. Çıkış YAPILMIŞSA onay bloklanır (artık iade sürecidir).</para></summary>
@@ -773,4 +782,42 @@ public class OrderReservationReleaseDto
 
     [StringLength(OrderConsts.DetailLongTextMaxLength)]
     public string? Reason { get; set; }
+}
+
+/// <summary>"Karar Bekleyenler" grid satırı — üç kaynak TEK listede (bkz.
+/// <see cref="IOrderAppService.GetPendingDecisionsAsync"/>). Satır aksiyon taşımaz (salt görünürlük);
+/// kullanıcı satırdan siparişi açar, kararı oradaki rezervasyon paneli verir — ikinci bir karar yüzeyi
+/// aynı guard'ların kopyasını doğururdu.</summary>
+public class OrderPendingDecisionDto
+{
+    public Guid OrderId { get; set; }
+
+    /// <summary>Satırın listede olma nedeni (rozet). Birden çok ölçüt uyarsa en acil kazanır:
+    /// iptal talebi &gt; kurulamadı &gt; yaşlandı.</summary>
+    public OrderPendingDecisionKind Kind { get; set; }
+
+    /// <summary>Stok ekseni (ham durum — rozet önceliklendirir, bu alan bağlamı korur).</summary>
+    public OrderReservationStatus ReservationStatus { get; set; }
+
+    /// <summary>İptal ekseni (ham durum).</summary>
+    public OrderCancellationDecision CancellationDecision { get; set; }
+
+    /// <summary>Kurulamama gerekçesi ya da karar notu — "sessiz atlama olmaz" garantisinin görünen yüzü.</summary>
+    public string? Reason { get; set; }
+
+    /// <summary>Yaş kolonunun çıpası (UTC) — tipe göre: iptal talebinin İLK geldiği an · Blocked kaydının
+    /// açıldığı an · rezervin kurulduğu an. Liste bununla eskiden yeniye sıralanır (en uzun bekleyen üstte).</summary>
+    public DateTime PendingSinceUtc { get; set; }
+
+    // ── Sipariş bağlamı — satır tıklanmadan anlamlı olsun (kanal/no/tarih/müşteri/tutar) ──
+    public SalesChannelType ChannelType { get; set; }
+
+    /// <summary>Kanal kodu — AppService'te enrich edilir (id-only referanstan; sipariş listesindeki desen).</summary>
+    public string? SalesChannelCode { get; set; }
+
+    public string OrderNumber { get; set; } = string.Empty;
+    public DateTime OrderDate { get; set; }
+    public OrderStatus NeutralStatus { get; set; }
+    public string? CustomerName { get; set; }
+    public decimal TotalAmount { get; set; }
 }

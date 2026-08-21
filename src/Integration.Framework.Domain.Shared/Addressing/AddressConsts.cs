@@ -23,6 +23,6 @@ public static class AddressConsts
     public const int CodeMaxLength = 16;
 
     /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (<c>AdministrativeAreaIsoCode</c>, ör. "TR-34", "US-AL") — UBL
-    /// <c>CountrySubentityCode</c>'a projekte edilir. Çekirdek coğrafyanın kod uzunluğuyla (Iso3166_2CodeMaxLength) hizalı.</summary>
+    /// <c>CountrySubentityCode</c>'a projekte edilir. Core coğrafyanın kod uzunluğuyla (Iso3166_2CodeMaxLength) hizalı.</summary>
     public const int IsoSubentityCodeMaxLength = 16;
 }

@@ -17,8 +17,8 @@ namespace Integration.TradeXpress.TrendyolShipments;
 /// host-global satıra yazmak onu tüm tenant'lara sızdırırdı. Tahmini maliyet company-owned tarafta durur
 /// (N11'de <c>N11ShipmentTemplate.EstimatedCost</c>'un yaptığı gibi).</para>
 ///
-/// <para><b>Çekirdeği BİLMEZ</b> — <c>N11ShipmentCompany</c> ile aynı katman yönü: ayna entity tenant/company
-/// dünyasından habersizdir, köprü sahipli tarafta kurulur.</para>
+/// <para><b>Core'u BİLMEZ</b> — <c>N11ShipmentCompany</c> ile aynı katman yönü: uzak durumu yansıtan bu entity
+/// tenant/company dünyasından habersizdir, bağ sahipli tarafta kurulur.</para>
 /// </summary>
 public class TrendyolCargoProvider : FullAuditedAggregateRoot<Guid>
 {
@@ -42,7 +42,7 @@ public class TrendyolCargoProvider : FullAuditedAggregateRoot<Guid>
 
     #region Properties
 
-    /// <summary>Trendyol kargo firması id'si (ör. "7"). Ürün gövdesindeki <c>cargoCompanyId</c> bununla eşleşir.
+    /// <summary>Trendyol kargo firması id'si (ör. "7"). Ürün body'sindeki <c>cargoCompanyId</c> bununla eşleşir.
     /// Global benzersiz. Set-once — kimlik.</summary>
     public virtual string ExternalId { get; protected set; } = string.Empty;
 

@@ -72,7 +72,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly ProductRecipeLineWriter _recipeLineWriter;
     private readonly ProductCommodityProvisioner _commodityProvisioner;
     private readonly ProductToGoodProjector _productToGoodProjector;
+    private readonly ProductToCommodityProjector _productToCommodityProjector;   // köprünün kalan ALTI emtia ailesi
     private readonly ProductSaleVerifier _saleVerifier;
+    private readonly ProductSaleReadinessBuilder _saleReadinessBuilder;   // ürünün satışa hazırlık paneli verisi (salt okuma)
 
     /// <summary>Kanal-başı listeleme temizleyicileri — ürün silinirken kanal kayıtları da gitsin diye
     /// (<see cref="IProductChannelListingRemover"/>). <c>IEnumerable</c> ile enjekte edilir: dördüncü pazaryeri
@@ -106,7 +108,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ProductRecipeLineWriter recipeLineWriter,
         ProductCommodityProvisioner commodityProvisioner,
         ProductToGoodProjector productToGoodProjector,
+        ProductToCommodityProjector productToCommodityProjector,
         ProductSaleVerifier saleVerifier,
+        ProductSaleReadinessBuilder saleReadinessBuilder,
         IEnumerable<IProductChannelListingRemover> channelListingRemovers)
     {
         _channelListingRemovers = channelListingRemovers.ToList();
@@ -133,7 +137,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _recipeLineWriter = recipeLineWriter;
         _commodityProvisioner = commodityProvisioner;
         _productToGoodProjector = productToGoodProjector;
+        _productToCommodityProjector = productToCommodityProjector;
         _saleVerifier = saleVerifier;
+        _saleReadinessBuilder = saleReadinessBuilder;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -222,7 +228,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetStockPolicy(input.StockPolicy);   // muadilde no-op: SetSubstitutionConfig Calculated'ı zorladı
         await _repository.InsertAsync(entity, autoSave: true);
 
-        // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
+        // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Core (nitelik/değer/varyant)
         // serviste; Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle ProductVariantDetail'e bağlanır.
         await SaveSpecificationsAsync(entity, input.Specifications);
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
@@ -238,10 +244,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return await ToGetDtoAsync(entity);
     }
 
+    // AÇIK TRANSACTION (2026-08-17): ürün aktif→pasif geçişi kanal ürünlerini de pasifler ve Trendyol'a arşiv
+    // gönderir (aşağıda); kanal reddederse ürünün pasifleşmesi dahil tüm güncelleme geri dönmeli.
     [Authorize(TradeXpressPermissions.Products.Update)]
+    [UnitOfWork(isTransactional: true)]
     public virtual async Task<ProductGetDto> UpdateAsync(Guid id, ProductUpdateDto input)
     {
         var entity = await _repository.GetAsync(id);
+        var wasActive = entity.IsActive;
         await ApplyCodeChangeAsync(entity, input.Code);
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
@@ -261,7 +271,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetStockPolicy(input.StockPolicy);   // muadilde no-op: SetSubstitutionConfig Calculated'ı zorladı
         await _repository.UpdateAsync(entity, autoSave: true);
 
-        // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
+        // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Core (nitelik/değer/varyant)
         // serviste; Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle ProductVariantDetail'e bağlanır.
         await SaveSpecificationsAsync(entity, input.Specifications);
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
@@ -274,6 +284,18 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         await SaveEtsyChannelProductsGraphAsync(entity.Id, input.SalesChannelEtsyProducts);
         // Ürün-seviyesi medya (görsel + video kütüphanesi) link setini persist et (GoodAppService deseni).
         await _entityMedia.ReplaceForAsync(ProductMediaEntityName, entity.Id, entity.CompanyId, input.Media);
+
+        // ÜRÜN AKTİF→PASİF: kanal ürünleri de pasif (Trendyol'da ARŞİV, N11'de ADET-0 — 2026-08-21) — 2026-08-17 Hakan kararı "A", tek yönlü:
+        // pasif→aktif geçişi kanalları AÇMAZ (kanal kanal insan kararı). GRAF KAYITLARINDAN SONRA koşar — graf, kanal
+        // ürününü formdaki bayrakla yeniden yazar; önce koşsaydı pasiflemeyi sessizce geri alırdı.
+        if (wasActive && !entity.IsActive)
+        {
+            foreach (var remover in _channelListingRemovers)
+            {
+                await remover.DeactivateForProductAsync(entity.Id);
+            }
+        }
+
         return await ToGetDtoAsync(entity);
     }
 
@@ -309,6 +331,15 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             else
             {
                 var updateInput = ObjectMapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductUpdateDto>(cp);
+
+                // KANAL ÜRÜNÜNÜN IsActive'İ ÜRÜN GRAFINDAN YAZILMAZ (2026-08-21 hakem bulgusu — Trendyol
+                // ikizindeki koruma buraya PORTLANMAMIŞTI). N11'de bayrağın anlamı artık daha da ağır:
+                // pasifleşme adet-0 gönderir, AKTİFLEŞME ise anında senkronla GERÇEK adetleri geri yazar.
+                // Graf yazsaydı: ürün pasiflenip cascade N11'i sıfırladıktan sonra AYNI AÇIK formun bayat
+                // grafı (kanal satırı hâlâ "aktif") kanalı sessizce yeniden açar ve kapatılmak istenen
+                // oversell deliğini otomatik geri açardı. Bayrak kanal ürününün KENDİ formundan yönetilir.
+                var current = await _channelProductAppService.GetAsync(cp.Id);
+                updateInput.IsActive = current.IsActive;
                 await _channelProductAppService.UpdateAsync(cp.Id, updateInput);
             }
         }
@@ -346,6 +377,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             else
             {
                 var updateInput = ObjectMapper.Map<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductUpdateDto>(cp);
+                // KANAL ÜRÜNÜNÜN IsActive'İ ÜRÜN GRAFINDAN YAZILMAZ — o bayrak Trendyol'daki ARŞİV durumunu
+                // yansıtır (2026-08-17) ve kanal ürününün KENDİ formundan (ya da ürün pasifleşince cascade'den)
+                // yönetilir.
+                // Graf yazsaydı: ürün pasiflenip cascade kanalı arşivledikten sonra formun BAYAT grafı (kanal
+                // satırı hâlâ "aktif") ürünü aktife alırken kanalı sessizce yeniden satışa açar, Trendyol'a
+                // unarchive giderdi — "aktif kanalları OTOMATİK açmaz" kararının ihlali (testle yakalandı).
+                var current = await _trendyolChannelProductAppService.GetAsync(cp.Id);
+                updateInput.IsActive = current.IsActive;
                 await _trendyolChannelProductAppService.UpdateAsync(cp.Id, updateInput);
             }
         }
@@ -383,12 +422,18 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             else
             {
                 var updateInput = ObjectMapper.Map<SalesChannelEtsyProductDto, SalesChannelEtsyProductUpdateDto>(cp);
+
+                // IsActive ürün grafından yazılmaz — N11/Trendyol ile aynı koruma (2026-08-21). Etsy'nin uzak
+                // push'u olmadığından bedeli bugün düşük, ama bayat grafın bayrağı sessizce çevirmesi üç kanalda
+                // da aynı hatadır; Etsy push'u açıldığı gün bu satır delik olurdu.
+                var current = await _etsyChannelProductAppService.GetAsync(cp.Id);
+                updateInput.IsActive = current.IsActive;
                 await _etsyChannelProductAppService.UpdateAsync(cp.Id, updateInput);
             }
         }
     }
 
-    /// <summary>Nitelik grafından varyant ÜRETİMİ — PERSISTSİZ önizleme (DB'ye yazmaz). Çekirdek üretim JENERİK
+    /// <summary>Nitelik grafından varyant ÜRETİMİ — PERSISTSİZ önizleme (DB'ye yazmaz). Core üretim JENERİK
     /// agnostik serviste (<see cref="IEntityVariantGraphService.GenerateVariants"/>); Product türevine re-project
     /// (satış fiyatı/reçete default — kullanıcı sonra düzenler). Kod/ad + CombinationKey serviste (synchronizer paritesi).</summary>
     public virtual Task<List<ProductVariantGraphDto>> GenerateVariantsAsync(ProductVariantGenerateRequestDto input)
@@ -495,10 +540,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     // ── Graf: JENERİK agnostik servise delege (tüm nitelik/değer/varyant mantığı EntityVariantGraphService'te; DRY) ──
 
-    /// <summary>Ürünün varyant grafını saklar: nitelik/değer diff → synchronizer kartezyen → çekirdek varyant
+    /// <summary>Ürünün varyant grafını saklar: nitelik/değer diff → synchronizer kartezyen → core varyant
     /// özelleştirmeleri (Kod/Ad OTOMATİK). Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle
     /// çözülen DB varyantına (ProductVariantDetail + reçete satırları) bağlanır. Ürün zaten kaydedilmiş olmalı.
-    /// <para><b>Mod kapısı (Dilim-3):</b> SingleVariant/Substitution modunda nitelik grafı SUNUCUDA boşaltılır
+    /// <para><b>VariantMode gate'i (Dilim-3):</b> SingleVariant/Substitution modunda nitelik grafı SUNUCUDA boşaltılır
     /// (client güven sınırı DEĞİL) — mevcut DB nitelikleri silinmek üzere işaretlenir, synchronizer'ın 0-nitelik
     /// dalı bağlı varyantları silip tek ana varyanta indirir (hazır yol; ana varyantın reçete/fiyat uzantısı
     /// ResolveTargetVariant IsMain eşlemesiyle yaşamaya devam eder).</para></summary>
@@ -529,7 +574,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     /// <para>Ürün HENÜZ KAYDEDİLMEMİŞ olabilir — bu yüzden özellik değerleri istemciden gelir, DB'den değil.</para>
     /// </summary>
     /// <summary>Sınıflandırılmamış (reçetesiz) ürünler — sihirbazın sınıflandırma adımının kaynağı.
-    /// İş <see cref="ProductCommodityProvisioner"/>'da; burada yalnız yetki kapısı ve dış sözleşme.</summary>
+    /// İş <see cref="ProductCommodityProvisioner"/>'da; burada yalnız [Authorize] kontrolü ve dış sözleşme.</summary>
     public virtual async Task<List<ProductCommodityCandidateDto>> GetUnclassifiedProductsAsync()
     {
         return await _commodityProvisioner.GetCandidatesAsync();
@@ -544,7 +589,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return await _commodityProvisioner.ProvisionAsync(input);
     }
 
-    /// <summary>Satışa doğrulama — iş <see cref="ProductSaleVerifier"/>'da; burada yalnız yetki kapısı.
+    /// <summary>Satışa doğrulama — iş <see cref="ProductSaleVerifier"/>'da; burada yalnız [Authorize] kontrolü.
     /// <para>Update yetkisi ister: ürünün ve varyantlarının satış statüsünü değiştirir, yani ürünü
     /// pazaryerine çıkarılabilir hâle getirir.</para></summary>
     [Authorize(TradeXpressPermissions.Products.Update)]
@@ -553,10 +598,91 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return await _saleVerifier.VerifyAsync(input);
     }
 
-    /// <summary>Ürünün mamül aynası — iş <see cref="ProductToGoodProjector"/>'da; burada yalnız yetki kapısı.</summary>
+    /// <summary>Ürünün satışa hazırlık paneli verisi — iş <see cref="ProductSaleReadinessBuilder"/>'da; burada yalnız [Authorize].
+    /// Salt okumadır (hiçbir statü değişmez) → Default yetkisi yeter.</summary>
+    [Authorize(TradeXpressPermissions.Products.Default)]
+    public virtual async Task<ProductSaleReadinessDto> GetSaleReadinessAsync(Guid productId)
+    {
+        return await _saleReadinessBuilder.BuildAsync(productId);
+    }
+
+    /// <summary>Ürünün mamül projeksiyonu — iş <see cref="ProductToGoodProjector"/>'da; burada yalnız [Authorize] kontrolü.</summary>
     public virtual async Task<Goods.GoodGetDto> ProjectToGoodAsync(Guid productId)
     {
         return await _productToGoodProjector.ProjectAsync(productId);
+    }
+
+    // ── ÜRÜN → EMTİA KÖPRÜSÜNÜN KALAN ALTI AİLESİ (2026-08-20) ───────────────────────────────────────
+    // İş ProductToCommodityProjector'da; burada yalnız yetki denetimi var ve sınıf düzeyi [Authorize] YETER:
+    // hepsi SALT OKUMADIR — hiçbiri emtia kaydı AÇMAZ, yalnız forma seed üretir.
+    public virtual async Task<Metals.MetalGetDto> ProjectToMetalAsync(Guid productId)
+    {
+        return await _productToCommodityProjector.ProjectToMetalAsync(productId);
+    }
+
+    public virtual async Task<Jewelries.JewelryGetDto> ProjectToJewelryAsync(Guid productId)
+    {
+        return await _productToCommodityProjector.ProjectToJewelryAsync(productId);
+    }
+
+    public virtual async Task<Stones.StoneGetDto> ProjectToStoneAsync(Guid productId)
+    {
+        return await _productToCommodityProjector.ProjectToStoneAsync(productId);
+    }
+
+    public virtual async Task<Scraps.ScrapGetDto> ProjectToScrapAsync(Guid productId)
+    {
+        return await _productToCommodityProjector.ProjectToScrapAsync(productId);
+    }
+
+    public virtual async Task<Futures.FutureGetDto> ProjectToFutureAsync(Guid productId)
+    {
+        return await _productToCommodityProjector.ProjectToFutureAsync(productId);
+    }
+
+    public virtual async Task<Services.ServiceGetDto> ProjectToServiceAsync(Guid productId)
+    {
+        return await _productToCommodityProjector.ProjectToServiceAsync(productId);
+    }
+
+    // ── AYNI YEDİ AİLENİN TASLAK (KAYITSIZ ÜRÜN) GİRİŞİ (2026-08-20) ─────────────────────────────────
+    // Seed'in tamamı graftır; kaydı şart koşan tek nokta imzanın Guid almasıydı. Bu endpoint'ler kullanıcının
+    // AÇIK FORMUNDAKİ grafı alır ve DB'ye HİÇ gitmez. Yetki denetimi yine sınıf düzeyi [Authorize]; sahiplik
+    // istemcinin beyanından değil çalışılan şirketten çözülür (CompanyOwnershipGuard.ResolveOwnerCompanyId —
+    // ProductDraftSeedDto'da CompanyId YOK).
+    public virtual async Task<Goods.GoodGetDto> ProjectDraftToGoodAsync(ProductDraftSeedDto input)
+    {
+        return await _productToGoodProjector.ProjectDraftAsync(input);
+    }
+
+    public virtual async Task<Metals.MetalGetDto> ProjectDraftToMetalAsync(ProductDraftSeedDto input)
+    {
+        return await _productToCommodityProjector.ProjectDraftToMetalAsync(input);
+    }
+
+    public virtual async Task<Jewelries.JewelryGetDto> ProjectDraftToJewelryAsync(ProductDraftSeedDto input)
+    {
+        return await _productToCommodityProjector.ProjectDraftToJewelryAsync(input);
+    }
+
+    public virtual async Task<Stones.StoneGetDto> ProjectDraftToStoneAsync(ProductDraftSeedDto input)
+    {
+        return await _productToCommodityProjector.ProjectDraftToStoneAsync(input);
+    }
+
+    public virtual async Task<Scraps.ScrapGetDto> ProjectDraftToScrapAsync(ProductDraftSeedDto input)
+    {
+        return await _productToCommodityProjector.ProjectDraftToScrapAsync(input);
+    }
+
+    public virtual async Task<Futures.FutureGetDto> ProjectDraftToFutureAsync(ProductDraftSeedDto input)
+    {
+        return await _productToCommodityProjector.ProjectDraftToFutureAsync(input);
+    }
+
+    public virtual async Task<Services.ServiceGetDto> ProjectDraftToServiceAsync(ProductDraftSeedDto input)
+    {
+        return await _productToCommodityProjector.ProjectDraftToServiceAsync(input);
     }
 
     public virtual async Task<List<ProductChannelAttributeDto>> ResolveChannelAttributesAsync(
@@ -752,14 +878,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             ownerCode: product.Code);   // niteliksiz tek varyant sahibin kodunu izler ("ANAVARYANT" değil)
     }
 
-    /// <summary>Mod kapısının nitelik grafı: MultiVariant → client grafı olduğu gibi; SingleVariant/Substitution →
+    /// <summary>VariantMode gate'inin nitelik grafı: MultiVariant → client grafı olduğu gibi; SingleVariant/Substitution →
     /// mevcut DB nitelikleri IsDeleted işaretli graf (boş graf YETMEZ — SaveAttributesAsync yalnız işaretlileri
     /// siler; işaretlemeden geçilirse synchronizer DB niteliklerinden kartezyeni yeniden kurardı).</summary>
     private async Task<List<EntityAttributeGraphDto>> BuildEffectiveAttributeGraphAsync(
         Product product, List<EntityAttributeGraphDto> attributes)
     {
         // FromCatalog, MultiVariant'la AYNI üretim mekaniğidir (nitelik×değer kartezyeni) — yalnız
-        // niteliklerin KAYNAĞI farklı (şablon katalogu). Bu kapıdan geçmezse nitelikler IsDeleted
+        // niteliklerin KAYNAĞI farklı (şablon katalogu). Bu erken dönüşe girmezse nitelikler IsDeleted
         // işaretlenir ve şablondan gelen gruplar kayıtta sessizce silinirdi.
         if (product.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog)
         {
@@ -879,7 +1005,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     }
 
     /// <summary>
-    /// Çekirdek kategori bağını atar — kategori ZORUNLUDUR, VAR MI ve AYNI ŞİRKETE Mİ ait doğrulanır. Entity
+    /// Core kategori (<c>ProductCategory</c>) bağını atar — kategori ZORUNLUDUR, VAR MI ve AYNI ŞİRKETE Mİ ait doğrulanır. Entity
     /// katalog kaydını göremediğinden bu kontrol burada: doğrulanmasaydı ürün var olmayan (ya da başka şirketin)
     /// bir kategoriye asılı kalır, kanal kategorisi/komisyon çözümü de sessizce boş dönerdi.
     ///
@@ -912,7 +1038,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     private async Task<ProductGetDto> ToGetDtoAsync(Product p)
     {
-        // Varyant grafı — JENERİK agnostik servisten (çekirdek: nitelik/değer/varyant, AttributeSummary dolu) +
+        // Varyant grafı — JENERİK agnostik servisten (core: nitelik/değer/varyant, AttributeSummary dolu) +
         // Product-özel satış fiyatı/reçete uzantısı. ProjectVariantsAsync ProductVariantDetail + reçete satırlarını serer
         // + türev kaynak ClientKey çevirisi + CANLI net maliyet hesabını yapar (GoodAppService.ProjectVariantsAsync deseni).
         var graph = await _entityVariant.LoadGraphAsync(ProductEntityName, p.Id);
@@ -1017,9 +1143,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         }
     }
 
-    // ── Varyant projeksiyonu (jenerik çekirdek → Product türevi + fiyat/reçete uzantısı; GoodAppService deseni) ──
+    // ── Varyant projeksiyonu (jenerik core → Product türevi + fiyat/reçete uzantısı; GoodAppService deseni) ──
 
-    /// <summary>Jenerik çekirdek varyantları (base) Product türevine + satış fiyatı/reçete uzantısıyla zenginleştirir:
+    /// <summary>Jenerik core varyantları (base) Product türevine + satış fiyatı/reçete uzantısıyla zenginleştirir:
     /// <see cref="ProductVariantDetail"/> (SalePrice) + reçete satırları (EntityVariant.Id) batch yüklenir; türev
     /// SelectedLines kaynak Id'leri taze ClientKey'lere çevrilir; CANLI net maliyet ÜRÜN başına tek hesaplanır.</summary>
     /// <summary>
@@ -1086,7 +1212,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return result;
     }
 
-    // Jenerik çekirdek alanlarını (EntityVariantGraphDto) Product türevine kopyalar (fiyat/reçete overlay ProjectVariantsAsync'te).
+    // Jenerik core alanlarını (EntityVariantGraphDto) Product türevine kopyalar (fiyat/reçete overlay ProjectVariantsAsync'te).
     private static ProductVariantGraphDto CopyCore(EntityVariantGraphDto v)
     {
         return new ProductVariantGraphDto

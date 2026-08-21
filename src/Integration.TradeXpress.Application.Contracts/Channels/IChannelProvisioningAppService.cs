@@ -5,7 +5,7 @@ using Volo.Abp.Application.Services;
 namespace Integration.TradeXpress.Channels;
 
 /// <summary>
-/// Kanal kurulum ORKESTRATÖRÜ (kanal-nötr yüzey) — bir satış kanalı için o tipe özgü TÜM ilk-kurulum
+/// Kanal kurulum ORKESTRATÖRÜ (kanal-nötr servis arayüzü) — bir satış kanalı için o tipe özgü TÜM ilk-kurulum
 /// senkronizasyonlarını resilient + idempotent yürütür ve adım-adım sonuç raporunu döner. UI "Kurulum" paneli
 /// bunu çağırır (create-success'te otomatik; sonra elle "Yeniden Kur"). Kanal tipine göre uygun
 /// <c>IChannelProvisioner</c>'a delege eder; provisioner yoksa dostane "desteklenmiyor" adımı döner.

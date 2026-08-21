@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.HttpApi.Host.MultiCompany;
 /// <c>NullCompanyContextProvider</c> devredeydi → <c>ICurrentCompany.Id</c> DAİMA <c>null</c> → DbContext'in
 /// şirket filtresi <b>PERMISSIVE</b> (konsolide) kola düşüyordu. Yani tenant'ı olan bir token'la API'ye giren
 /// istemci, tenant içindeki <b>TÜM şirketlerin</b> kayıtlarını okuyabiliyor, güncelleyebiliyor ve
-/// silebiliyordu — Blazor UI'da imkânsız olan şey API yüzeyinden serbestti.</para>
+/// silebiliyordu — Blazor UI'da imkânsız olan şey HTTP API üzerinden serbestti.</para>
 ///
 /// <para><b>Neden null değil sentinel:</b> <c>null</c> filtrede "kısıtlama yok" demektir (§ konsolide okuma);
 /// güvenlik açığının ta kendisi odur. <see cref="WorkingCompanyScope"/>'un "erişim yok" temsilcisi

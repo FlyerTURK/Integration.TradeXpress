@@ -3,11 +3,11 @@ using Integration.TradeXpress.MultiCompany;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// ÇEKİRDEK ürün kategorisi — şirkete ait (company-owned) kendi taksonomimiz. Pazaryeri kategorilerinden
+/// CORE ürün kategorisi — şirkete ait (company-owned) kendi taksonomimiz. Pazaryeri kategorilerinden
 /// (<c>N11Category</c>/<c>TrendyolCategory</c>) BAĞIMSIZDIR: onlar kanaldan senkronlanan dış ağaçlardır, bu ise
 /// bizim kataloğumuzdur ve ileride her kanalın kategorisine EŞLEŞTİRİLİR.
 ///
-/// <para><b>Neden var (2026-07-27 Hakan vizyonu):</b> ürün bir kez çekirdek kategoriye bağlanınca (a) her satış
+/// <para><b>Neden var (2026-07-27 Hakan vizyonu):</b> ürün bir kez core kategoriye bağlanınca (a) her satış
 /// kanalında kategori ayrı ayrı seçilmez, (b) kanal nitelikleri elle doldurulmaz, (c) kanalın kategori komisyonu
 /// otomatik çözülüp reçeteye brüt maliyet olarak girer. Bugün bu üçü her kanalda tek tek yapılıyor.</para>
 ///

@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.Geography;
 
 /// <summary>
-/// Alt-yerellik (mahalle) — <b>çekirdek HOST-GLOBAL</b> coğrafya referansı (IMultiTenant DEĞİL; TenantId yok →
+/// Alt-yerellik (mahalle) — <b>core HOST-GLOBAL</b> coğrafya referansı (IMultiTenant DEĞİL; TenantId yok →
 /// tüm tenant'lar paylaşır; N11City deseniyle hizalı). Yerelliğe id-only bağlı
 /// (<see cref="LocalityId"/>, nav YOK; aggregate sınırı). Entity şimdi tanımlanır; veri on-demand sonraki dilimde
 /// (N11 GetNeighborhoods) doldurulur.

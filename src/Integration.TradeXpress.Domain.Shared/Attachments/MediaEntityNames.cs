@@ -41,7 +41,8 @@ public static class MediaEntityNames
     /// varyant→kayıt fallback'iyle okur (<c>MarketplacePushImageResolver</c>), yani ikisi de meşrudur ve biri
     /// diğerinin yerine geçmez. Tek bağlamı bağlayıp diğerini unutmak istisna fırlatmaz — medya sessizce "yok"
     /// görünür. Canlıda tam bu oldu: 185 medya bağının tamamı <c>Product</c> bağlamındaydı, <c>ProductVariant</c>'ta
-    /// sıfır, Good'da ise ne DTO alanı ne panel vardı; "ürünün aynası" olması gereken mamül formu görselsiz açılıyordu.</para>
+    /// sıfır, Good'da ise ne DTO alanı ne panel vardı; "ürünün projeksiyonu" (<c>ProjectToGoodAsync</c>) olması
+    /// gereken mamül formu görselsiz açılıyordu.</para>
     ///
     /// <para>Yeni bir medya tipi eklerken buraya da satır ekle — <c>MediaContextPairingTests</c> listeyi okuyup
     /// her çiftin gerçekten bağlandığını doğrular.</para>

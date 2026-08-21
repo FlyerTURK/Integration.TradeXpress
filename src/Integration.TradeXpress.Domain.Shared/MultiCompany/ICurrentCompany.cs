@@ -4,7 +4,7 @@ namespace Integration.TradeXpress.MultiCompany;
 
 /// <summary>
 /// Aktif (çalışılan) şirket — ABP'nin <c>ICurrentTenant</c>'ının company eşdeğeri. Değer
-/// <see cref="ICompanyContextProvider"/>'dan gelir (Blazor'da working-context köprüsü); sunucu işlemleri
+/// <see cref="ICompanyContextProvider"/>'dan gelir (Blazor'da bunu <c>WorkingCompanyContextProvider</c> karşılar); sunucu işlemleri
 /// <see cref="Change"/> ile geçici override edebilir (seed / cross-company).
 /// </summary>
 public interface ICurrentCompany
@@ -16,7 +16,8 @@ public interface ICurrentCompany
 }
 
 /// <summary>
-/// Aktif şirketin kaynağı. Varsayılan (host/API): null. Blazor circuit'inde working-context'e köprülenir.
+/// Aktif şirketin kaynağı. Varsayılan (host/API): null. Blazor circuit'inde <c>WorkingCompanyContextProvider</c>
+/// bunu working-context'e bağlar.
 /// </summary>
 public interface ICompanyContextProvider
 {

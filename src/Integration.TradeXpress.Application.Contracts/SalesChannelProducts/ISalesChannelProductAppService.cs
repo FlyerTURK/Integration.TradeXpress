@@ -16,7 +16,7 @@ namespace Integration.TradeXpress.SalesChannelProducts;
 /// başkadır. Buraya bir "güncelle" eklemek, üç kuralı tek imzada birleştirme baskısı yaratır ve o
 /// birleştirme kaçınılmaz olarak en zayıf kanalın kurallarına iner.</para>
 ///
-/// <para><b>İki yüzey, tek sorgu:</b> kanal edit formundaki liste ile standalone liste AYNI ucu
+/// <para><b>İki liste, tek sorgu:</b> kanal edit formundaki liste ile standalone liste AYNI ucu
 /// tüketir; tek fark <c>SalesChannelId</c>'nin dolu olup olmamasıdır. Ayrı iki uç açmak, kolon/durum
 /// mantığını ikiye bölerdi.</para>
 /// </summary>
@@ -25,7 +25,7 @@ public interface ISalesChannelProductAppService : IApplicationService
     /// <summary>Birleşik, sayfalı kanal-ürün listesi (şirket kapsamı sunucuda zorlanır).</summary>
     Task<PagedResultDto<SalesChannelProductListDto>> GetListAsync(SalesChannelProductListRequestDto input);
 
-    /// <summary>Bir kanal-ürünün GÖNDERİM GEÇMİŞİ — append-only delil defterinin okunuşu, en yeni üstte.
+    /// <summary>Bir kanal-ürünün GÖNDERİM GEÇMİŞİ — append-only PushHistory'nin okunuşu, en yeni üstte.
     ///
     /// <para><paramref name="channelType"/> ZORUNLUDUR: geçmiş kanal başına AYRI tabloda tutulur (üç kanalın
     /// alanları farklı) ve id tek başına hangi tabloya bakılacağını söylemez. Tipi tahmin etmek için üç tabloyu

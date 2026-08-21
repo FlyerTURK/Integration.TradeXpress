@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
 /// Fiş satırı değişim günlüğü — okuma yüzü. Yetki <see cref="VoucherAppService"/>'in okuma metotlarıyla
-/// AYNI kapıdır ([Authorize] sınıf düzeyinde; ek per-tip guard yok — tarihçe salt-okunur görüntüdür).
+/// AYNI [Authorize] denetimidir (sınıf düzeyinde; ek per-tip guard yok — tarihçe salt-okunur görüntüdür).
 /// </summary>
 [Authorize]
 public class VoucherLineHistoryAppService : TradeXpressAppService, IVoucherLineHistoryAppService

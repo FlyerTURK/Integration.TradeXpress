@@ -6,7 +6,7 @@ using Integration.TradeXpress.ProductCategories;
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
 /// <summary>
-/// Çekirdek kategori ↔ kanal kategorisi eşleştirmesi mapping'i. Kanal kategorisine SERT FK YOKTUR: hedef
+/// core kategori ↔ kanal kategorisi eşleştirmesi mapping'i. Kanal kategorisine SERT FK YOKTUR: hedef
 /// taksonomiler host-global tablolarda yaşar (<c>AppN11Categories</c> vb.) ve yeniden senkronlandıklarında
 /// satırları değişebilir — sert FK, kanal senkronunu eşleştirmelerimiz yüzünden kilitlerdi.
 /// </summary>

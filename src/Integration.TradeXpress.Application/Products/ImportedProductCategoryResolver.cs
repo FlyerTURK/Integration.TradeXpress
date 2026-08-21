@@ -11,20 +11,20 @@ using Volo.Abp.Linq;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// İçe aktarılan ürünün ÇEKİRDEK ürün kategorisini çözer/kurar (2026-08-06 Hakan kararı: <i>"madem sihirbaz
+/// İçe aktarılan ürünün CORE ürün kategorisini (<c>ProductCategory</c>) çözer/kurar (2026-08-06 Hakan kararı: <i>"madem sihirbaz
 /// kullanıyoruz, o zaman sihirbaz kategorileri de otomatik olarak oluştursun"</i>).
 ///
-/// <para><b>Boşluk neydi:</b> içe aktarım kanal kategorisini KANAL kaydına yazıyordu ama çekirdek
+/// <para><b>Boşluk neydi:</b> içe aktarım kanal kategorisini KANAL kaydına yazıyordu ama core
 /// <c>Product.ProductCategoryId</c> hep boş kalıyordu — kullanıcı yüzlerce ürünü elle kategorilemek zorundaydı ve
-/// çekirdek kategori ↔ kanal kategorisi eşlemesi (<see cref="ProductCategoryChannelMapping"/>) hiç dolmuyordu.</para>
+/// core kategori ↔ kanal kategorisi eşlemesi (<see cref="ProductCategoryChannelMapping"/>) hiç dolmuyordu.</para>
 ///
-/// <para><b>Kural:</b> eşleme (Company, Channel, ExternalId) anahtarıyla aranır; varsa çekirdek kategori ODUR.
-/// Yoksa kanal kategorisinin ADIYLA kök seviyede bir çekirdek kategori bulunur-ya-da-açılır ve eşleme yazılır —
-/// ikinci import aynı kategoriyi bulur, dublike üretmez. Ad çakışması meşru birleşmedir: "Kolye" adlı çekirdek
+/// <para><b>Kural:</b> eşleme (Company, Channel, ExternalId) anahtarıyla aranır; varsa core kategori ODUR.
+/// Yoksa kanal kategorisinin ADIYLA kök seviyede bir core kategori bulunur-ya-da-açılır ve eşleme yazılır —
+/// ikinci import aynı kategoriyi bulur, dublike üretmez. Ad çakışması meşru birleşmedir: "Kolye" adlı core
 /// kategori zaten varsa yeni kanal kategorisi ona bağlanır.</para>
 ///
 /// <para><b>Bilinçli sınır — DÜZ liste, ağaç değil:</b> pazaryeri ağacının tam yolunu ("Kozmetik &gt; Kadın
-/// Hijyen &gt; …") çekirdek ağaca kopyalamak, kullanıcının kendi kategori düzenini pazaryerininkine teslim etmek
+/// Hijyen &gt; …") core ağaca kopyalamak, kullanıcının kendi kategori düzenini pazaryerininkine teslim etmek
 /// olurdu. Yaprak adıyla kök kategori açılır; kullanıcı isterse sonradan taşır (ağaç yönetimi zaten var).
 /// Yalnız YENİ ürüne atanır — mevcut ürünün kategorisi kullanıcı beyanıdır, EZİLMEZ (minimal-güncelleme kuralı).</para>
 /// </summary>
@@ -44,7 +44,7 @@ public class ImportedProductCategoryResolver : ITransientDependency
         _asyncExecuter = asyncExecuter;
     }
 
-    /// <summary>Kanal kategorisine karşılık gelen çekirdek kategori id'si — yoksa kurar. Kategori bilgisi hiç
+    /// <summary>Kanal kategorisine karşılık gelen core kategori id'si — yoksa kurar. Kategori bilgisi hiç
     /// yoksa null (ürün kategorisiz kalır; import raporu eşleşmeyen kategoriyi zaten gösteriyor).</summary>
     public virtual async Task<Guid?> ResolveOrCreateAsync(
         Guid companyId, SalesChannelType channel, string? channelCategoryExternalId, string? channelCategoryName)

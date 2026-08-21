@@ -148,14 +148,15 @@ public class RecipeTemplateAppService : TradeXpressAppService, IRecipeTemplateAp
             throw new BusinessException("TradeXpress:RecipeTemplate:Inactive");
         }
 
-        var affected = await _applier.ApplyToProductAsync(product, templateId);
+        var outcome = await _applier.ApplyToProductAsync(product, templateId);
 
         return new RecipeTemplateApplyResultDto
         {
             TemplateId = template.Id,
             TemplateName = template.Name,
-            AffectedVariantCount = affected,
+            AffectedVariantCount = outcome.AffectedVariantCount,
             AppliedLineCount = template.Lines.Count,
+            PreservedEditedLineCount = outcome.PreservedEditedLineCount,
         };
     }
 

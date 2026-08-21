@@ -15,17 +15,17 @@ namespace Integration.TradeXpress.Products;
 /// <summary>
 /// SATIŞA DOĞRULAMANIN İNSAN YOLU — <c>Draft/Closed/Suspended → Ready</c>.
 ///
-/// <para><b>Kapatılan açık:</b> push kapısı (<see cref="VariantSaleReadinessResolver"/>) fail-closed
+/// <para><b>Kapatılan açık:</b> push guard'ı (<see cref="VariantSaleReadinessResolver"/>) fail-closed
 /// ÇALIŞIYORDU, ama onayı verecek yol hiç yoktu: <c>ProductVariantDetail.MarkVerified</c> ve
 /// <c>Product.MarkSaleReady</c>'nin üretim kodunda SIFIR çağıranı vardı. Sonuç canlıda 165/165 varyantın
-/// <c>Draft</c> kalması ve hiçbir ürünün pazaryerine çıkamamasıydı. Hata sessizdi: kapı tam da tasarlandığı
+/// <c>Draft</c> kalması ve hiçbir ürünün pazaryerine çıkamamasıydı. Hata sessizdi: guard tam da tasarlandığı
 /// gibi çalışıyor, yalnız kimse açamıyordu.</para>
 ///
-/// <para><b>Damga TEK KAYNAKTAN</b> (<see cref="VariantSaleReadinessResolver.ComputeStampsAsync"/>): onay
-/// anındaki reçete damgasını burada YAZIYORUZ, kapı sonradan OKUYOR. İkisi damgayı ayrı ayrı hesaplasaydı en
+/// <para><b><c>VerifiedRecipeStamp</c> TEK KAYNAKTAN</b> (<see cref="VariantSaleReadinessResolver.ComputeStampsAsync"/>):
+/// onay anındaki reçete stamp'ini burada YAZIYORUZ, guard sonradan OKUYOR. İkisi stamp'i ayrı ayrı hesaplasaydı en
 /// küçük formül farkı "onaylandı ama hiçbir zaman geçerli sayılmıyor" gibi mesajsız bir kilit üretirdi.</para>
 ///
-/// <para><b>Kapı fail-closed KALIR</b> — burada eklenen yalnız insan yolu. Reçete sonradan değişirse damga
+/// <para><b>Guard fail-closed KALIR</b> — burada eklenen yalnız insan yolu. Reçete sonradan değişirse stamp
 /// eskir ve onay KENDİLİĞİNDEN düşer; ayrı bir olay altyapısı bilinçli olarak yoktur.</para>
 /// </summary>
 public class ProductSaleVerifier : ITransientDependency
@@ -36,6 +36,7 @@ public class ProductSaleVerifier : ITransientDependency
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _detailRepository;
     private readonly VariantSaleReadinessResolver _readinessResolver;
+    private readonly ProductSaleReadinessBuilder _readinessBuilder;
     private readonly ICurrentCompany _currentCompany;
     private readonly ICurrentUser _currentUser;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
@@ -46,6 +47,7 @@ public class ProductSaleVerifier : ITransientDependency
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantDetail, Guid> detailRepository,
         VariantSaleReadinessResolver readinessResolver,
+        ProductSaleReadinessBuilder readinessBuilder,
         ICurrentCompany currentCompany,
         ICurrentUser currentUser,
         IAsyncQueryableExecuter asyncExecuter,
@@ -55,6 +57,7 @@ public class ProductSaleVerifier : ITransientDependency
         _variantRepository  = variantRepository;
         _detailRepository   = detailRepository;
         _readinessResolver  = readinessResolver;
+        _readinessBuilder   = readinessBuilder;
         _currentCompany     = currentCompany;
         _currentUser        = currentUser;
         _asyncExecuter      = asyncExecuter;
@@ -103,6 +106,52 @@ public class ProductSaleVerifier : ITransientDependency
             return result;
         }
 
+        // OTOMATİK VALİDASYON (2026-08-19 satışa hazırlık paneli): doğrulamadan ÖNCE aynı kural sınıfı koşar. Error taşıyan varyant
+        // Ready YAPILMAZ (Issues'a yazılır); ürün-düzeyi Error varsa HİÇBİR varyant doğrulanmaz. Warning durdurmaz,
+        // yalnız raporlanır — KDV eksikliği burada en fazla Warning'dir (Hakan kararı). Kural satışa hazırlık paneliyle AYNI sınıfta
+        // (ProductSaleValidator) yaşar: satışa hazırlık paneli "doğrulanabilir" derken doğrulama reddedemez.
+        var verdict = await _readinessBuilder.ValidateAsync(product.Id);
+        var requestedSet = activeIds.ToHashSet();
+
+        foreach (var warning in verdict.Issues.Where(i => i.Severity == SaleReadinessSeverity.Warning))
+        {
+            // Varyant-düzeyi uyarı yalnız doğrulanmak istenen varyantlar için; ürün/kanal uyarıları her zaman.
+            if (warning.TargetId is { } targetId && ProductSaleValidator.IsVariantScoped(warning.Code)
+                && !requestedSet.Contains(targetId))
+            {
+                continue;
+            }
+
+            result.Warnings.Add($"{warning.Code}: {warning.Message}");
+        }
+
+        if (verdict.HasBlockingProductIssue())
+        {
+            foreach (var error in verdict.Issues.Where(i =>
+                         i.Severity == SaleReadinessSeverity.Error && ProductSaleValidator.IsProductScoped(i.Code)))
+            {
+                result.Issues.Add($"{error.Code}: {error.Message}");
+            }
+
+            return result;
+        }
+
+        var blockedIds = new HashSet<Guid>();
+        foreach (var error in verdict.Issues.Where(i =>
+                     i.Severity == SaleReadinessSeverity.Error
+                     && i.TargetId is { } id && requestedSet.Contains(id)
+                     && ProductSaleValidator.IsVariantScoped(i.Code)))
+        {
+            blockedIds.Add(error.TargetId!.Value);
+            result.Issues.Add($"{error.Code}: {error.Message}");
+        }
+
+        activeIds = activeIds.Where(id => !blockedIds.Contains(id)).ToList();
+        if (activeIds.Count == 0)
+        {
+            return result;
+        }
+
         var stamps = await _readinessResolver.ComputeStampsAsync(activeIds);
         var now = _clock.Now.ToUniversalTime();
         var verifiedBy = _currentUser.Id;
@@ -119,7 +168,7 @@ public class ProductSaleVerifier : ITransientDependency
             if (detail is null)
             {
                 // Detay kaydı yoksa AÇILIR: varyantın satış statüsü orada yaşar, kaydı olmayan varyant
-                // kapının gözünde "bilinmiyor" = satılamaz demektir.
+                // guard'ın gözünde "bilinmiyor" = satılamaz demektir.
                 detail = new ProductVariantDetail(product.CompanyId, variantId);
                 detail.MarkVerified(stamp, now, verifiedBy);
                 await _detailRepository.InsertAsync(detail, autoSave: true);

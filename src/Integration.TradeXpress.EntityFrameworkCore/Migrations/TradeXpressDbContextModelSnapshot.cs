@@ -6187,6 +6187,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<byte?>("SideCostKind")
                         .HasColumnType("tinyint");
 
+                    b.Property<Guid?>("SourceTemplateLineId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");

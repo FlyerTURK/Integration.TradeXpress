@@ -18,7 +18,7 @@ using Volo.Abp.Uow;
 namespace Integration.TradeXpress.EtsyTaxonomies;
 
 /// <summary>
-/// Etsy seller taxonomy TAM-RECONCILE + bayatlık kapısı — worker/açılış HOST bağlamında çağırır (bu yüzden AppService
+/// Etsy seller taxonomy TAM-RECONCILE + bayatlık kontrolü (SyncIfStaleAsync) — worker/açılış HOST bağlamında çağırır (bu yüzden AppService
 /// DEĞİL: <c>[Authorize]</c> interceptor'ı kullanıcısız worker'da patlardı; <see cref="Orders.OrderSyncManager"/> ikizi).
 /// Katalog HOST-GLOBAL (<c>CurrentTenant.Change(null)</c>); kanal ise tenant-owned → kimlik <see cref="IDataFilter"/> ile
 /// <c>IMultiTenant</c> filtresi DISABLE edilerek bulunur (Etsy app keystring'i tüm kanallarda AYNI → herhangi biri yeter).

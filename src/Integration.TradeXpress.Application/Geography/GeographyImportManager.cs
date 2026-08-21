@@ -26,7 +26,7 @@ namespace Integration.TradeXpress.Geography;
 /// (DbContext'i TUTMADAN) → tek toplu write-UoW (upsert + import işareti).
 ///
 /// <para>Guard'lar (eyalet): <see cref="Country.GeographyImportedAt"/> dolu → no-op (idempotent). Kod "TR" → no-op:
-/// TR il/ilçe N11-kaynaklı + N11 köprülü (operasyonel gerçek, <see cref="GeographySeeder"/> doldurur) —
+/// TR il/ilçe N11-kaynaklı + N11 id-only kolonlarıyla bağlı (operasyonel gerçek, <see cref="GeographySeeder"/> doldurur) —
 /// dataset'in TR'nin üstüne yazması YASAK. Dataset'te alt-bölümü olmayan ülkede tek SEMBOLİK ana alan
 /// (Code=MAIN) oluşturulur ve <see cref="Country.UsesAdministrativeArea"/>=false yapılır (UI state katmanını
 /// gizler — kullanıcı kararı).</para>
@@ -81,7 +81,7 @@ public class GeographyImportManager : DomainService
 
             if (IsTurkey(country.Code))
             {
-                // TR guard: il/ilçe N11-kaynaklı ve N11 köprü kolonlarıyla bağlı (GeographySeeder). Dataset importu
+                // TR guard: il/ilçe N11-kaynaklı ve N11 id-only kolonlarıyla bağlı (GeographySeeder). Dataset importu
                 // TR'ye DOKUNMAZ — işaretleme de seeder'ın işi (N11 verisi dolunca kendisi set eder).
                 Logger.LogInformation("Coğrafya importu: TR idari alanları atlandı (N11-kaynaklı; seeder yönetir).");
                 await readUow.CompleteAsync(cancellationToken);

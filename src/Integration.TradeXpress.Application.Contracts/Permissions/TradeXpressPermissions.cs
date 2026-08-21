@@ -260,8 +260,8 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
-    /// <summary>Teyit (organizasyon-içi karşılıklı ayna onayı) — karşı taraf bir iç kasa olduğunda process'i
-    /// postlamadan önce iki tarafın el sıkışması. Her taraf KENDİ kaydını kendi eliyle yazar (sistem aynalamaz);
+    /// <summary>Teyit (organizasyon-içi karşılıklı mirror onayı) — karşı taraf bir iç kasa olduğunda process'i
+    /// postlamadan önce iki tarafın el sıkışması. Her taraf KENDİ kaydını kendi eliyle yazar (sistem mirror'lamaz);
     /// <b>iptal yoktur</b> — süreci yalnız alıcı <see cref="Reject"/> ile durdurur.</summary>
     public static class Confirmations
     {
@@ -270,10 +270,10 @@ public static class TradeXpressPermissions
         /// <summary>Teklif: gönderen kendi çıkışını yazar (postlama yok).</summary>
         public const string Propose = Default + ".Propose";
 
-        /// <summary>Beyan: alıcı kendi girişini kendi eliyle yazar (sunucu ayna doğrular).</summary>
+        /// <summary>Beyan: alıcı kendi girişini kendi eliyle yazar (sunucu mirror doğrular).</summary>
         public const string Declare = Default + ".Declare";
 
-        /// <summary>Teyit: gönderen alıcının kaydını teyit eder → iki bacak postlanır.</summary>
+        /// <summary>Teyit: gönderen alıcının kaydını teyit eder → iki fiş satırı postlanır.</summary>
         public const string Confirm = Default + ".Confirm";
 
         /// <summary>Red: alıcı kabul etmez.</summary>

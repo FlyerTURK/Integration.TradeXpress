@@ -38,8 +38,8 @@ namespace Integration.TradeXpress.Products;
 /// STATÜDEN gelir — reçete kurulduktan sonra bir insan doğrular
 /// (<c>IProductAppService.VerifySaleReadinessAsync</c> → <c>ProductVariantDetail.MarkVerified</c>).</para>
 ///
-/// <para><b>Emtia kaydı ailenin KENDİ app service'iyle açılır</b> (repository ile DEĞİL): şirket sahipliği
-/// damgası (<c>CompanyOwnershipGuard</c>), kod normalizasyonu ve benzersizlik kontrolü orada yaşıyor;
+/// <para><b>Emtia kaydı ailenin KENDİ app service'iyle açılır</b> (repository ile DEĞİL): şirket sahipliğinin
+/// çözümü (<c>CompanyOwnershipGuard.ResolveOwnerCompanyId</c>), kod normalizasyonu ve benzersizlik kontrolü orada yaşıyor;
 /// repository'ye inmek üçünü birden atlardı.</para>
 /// </summary>
 public class ProductCommodityProvisioner : ITransientDependency
@@ -236,6 +236,25 @@ public class ProductCommodityProvisioner : ITransientDependency
 
         var isService = item.Family == ProcessType.Service;
 
+        // ── SIFIR ADET + SIFIR MİKTAR GUARD'I, KATALOG KAYDI AÇILMADAN ÖNCE (2026-08-19) ────────────────
+        //
+        // Kural ProductRecipeLineWriter'da zaten fırlatılıyor; ama bu yol yazıcıya ulaşmadan ÖNCE
+        // CreateCommodityAsync ile yeni emtia kaydını autoSave'le yazıyor. Guard yalnız yazıcıda kalsaydı
+        // 0/0'lık karar önce katalog kaydını açar, sonra yazıcı reddeder; ProvisionAsync'in satır-başı
+        // catch'i hatayı Issues'a yazıp yoluna devam ettiği için UoW geri almaz → YETİM EMTİA kalır, ürün
+        // reçetesiz/Draft kalır ve rapora kodlu BusinessException'ın anlamsız .Message'ı düşerdi.
+        // Başlık formu 0/0'ı engelliyor ama satır-başı düzenleme (SetRowAmount/SetRowQuantity) kararı sonradan
+        // 0/0'a çekebiliyor; sunucu tarafı UI'a güvenmez. Kuralın kendisi Domain'de TEK yerde
+        // (RecipeLineQuantityRule), burada yalnız sorulur. Diğer ön-kontrollerle aynı dil: Issues + return.
+        var componentType = isService ? RecipeComponentType.Service : RecipeComponentType.CatalogCommodity;
+        if (!RecipeLineQuantityRule.IsSatisfied(componentType, item.Quantity, item.Amount))
+        {
+            result.Issues.Add(
+                $"{product.Code}: {item.Family} ailesinde adet ya da miktardan en az biri sıfırdan büyük olmalıdır "
+                + "(0 adet + 0 miktar hiçbir şey temsil etmez; emtia kaydı açılmadı).");
+            return;
+        }
+
         var commodityId = item.Mode switch
         {
             ProductCommodityProvisionMode.UseExisting => item.ExistingCommodityId,
@@ -268,7 +287,7 @@ public class ProductCommodityProvisioner : ITransientDependency
         product.SetStockPolicy(isService ? ProductStockPolicy.Unlimited : ProductStockPolicy.Calculated);
         await _productRepository.UpdateAsync(product, autoSave: true);
 
-        // OTORİTE DEVRİ: pazaryerinin içe aktarımda yazdığı stok/fiyat aynası artık geçersiz.
+        // OTORİTE DEVRİ: pazaryerinin içe aktarımda yazdığı stok/fiyat yansıması artık geçersiz.
         result.ClearedChannelOverrides += await _overrideAuthority.TransferAuthorityAsync(product.Id);
 
         // Stok yeniden-hesabı: Unlimited üründe job stok adımını zaten atlar, push'u yapar (fiyat tazeleme).
@@ -288,7 +307,7 @@ public class ProductCommodityProvisioner : ITransientDependency
     /// kaldığı için satışa çıkmaz; bedel varyant ekranında girilir.</para></summary>
     /// <summary>Satırın DEĞERLEME BİRİMİ — maliyet motorunun fiyatı hangi birimden rebase edeceği.
     /// <list type="bullet">
-    ///   <item><b>Metal-bacaklı</b> (Metal/Scrap/Future): doğal birim = <c>FollowingUnitId</c>.</item>
+    ///   <item><b>Metal-legged</b> (<c>ProductRecipeCostCalculator.IsMetalLegged</c>; Metal/Scrap/Future): doğal birim = <c>FollowingUnitId</c>.</item>
     ///   <item><b>Parasal</b> (Good/Jewelry/Stone): giriş fiyatının birimi. Mamülde fiyat VARYANTTA
     ///   yaşadığı için ana varyanttan okunur (yoksa ilk varyant).</item>
     ///   <item><b>Hizmet</b>: null — bedel <c>ManualUnitId</c> yolundan gelir.</item>
@@ -297,7 +316,7 @@ public class ProductCommodityProvisioner : ITransientDependency
     /// <summary>Satırın KATALOG SNAPSHOT'I: değerleme birimi + milyem/çarpan.
     ///
     /// <para><b>İkisi de KATALOG KAYDINDAN okunur, uydurulmaz</b> (2026-08-06). Milyem sabit <c>1</c>
-    /// yazılıyordu ve maliyet motoru metal-bacaklı satırda <c>gram × Factor</c> hesapladığı için 22 ayar
+    /// yazılıyordu ve maliyet motoru metal-legged satırda <c>gram × Factor</c> hesapladığı için 22 ayar
     /// (0.916) yerine 1 kullanmak maden bacağını ~%9 ŞİŞİRİYORDU — hatasız, uyarısız. Kullanıcının beyan
     /// ettiği değer varsa o esastır; yoksa kaydın kendi değeri alınır.</para>
     ///
@@ -389,8 +408,8 @@ public class ProductCommodityProvisioner : ITransientDependency
         // her değerleme, her reçete maliyeti yanlış milyemle hesaplanır. Bu, oturum boyunca avlanan
         // "eksik veriye makul bir sayı koy" hatasının ta kendisiydi.
         //
-        // Önce metal-bacaklıda hızlı-açmayı YASAKLAMAYI önerdim; kullanıcı kısıtı kaldırdı
-        // ("createnew de serbest olmalı metalde"). Delik yasakla değil BEYANLA kapandı: metal-bacaklı
+        // Önce metal-legged ailede hızlı-açmayı YASAKLAMAYI önerdim; kullanıcı kısıtı kaldırdı
+        // ("createnew de serbest olmalı metalde"). Delik yasakla değil BEYANLA kapandı: metal-legged
         // ailede yeni kayıt açmak için Factor ZORUNLU. Sistem tahmin etmez, kullanıcı söyler.
         //
         // KLON bu şartın dışındadır — kopya değeri GERÇEK bir kayıttan devralır, uydurma yoktur.
@@ -426,7 +445,7 @@ public class ProductCommodityProvisioner : ITransientDependency
 
     /// <summary>KLON: mevcut kaydı ŞABLON alıp yeni kod/adla kopyalar (2026-08-06 Hakan isteği).
     /// <para>Değerler GERÇEK bir kayıttan gelir — milyem, adet-gram katsayısı, işçilik/fiyat ayarları
-    /// kullanıcının daha önce doğruladığı hâliyle taşınır. Bu yüzden klon, metal-bacaklı ailelerde de
+    /// kullanıcının daha önce doğruladığı hâliyle taşınır. Bu yüzden klon, metal-legged ailelerde de
     /// güvenlidir: ortada uydurulmuş sayı yoktur.</para></summary>
     private async Task<Guid?> CloneWithUniqueCodeAsync(
         ProductCommodityProvisionItemDto item, string baseCode, string name,
@@ -475,8 +494,8 @@ public class ProductCommodityProvisioner : ITransientDependency
         return ex.Code is { Length: > 0 } code && code.EndsWith("CodeAlreadyExists", StringComparison.Ordinal);
     }
 
-    /// <summary>Yeni katalog kaydı — ailenin KENDİ app service'iyle (şirket damgası + kod benzersizliği orada).
-    /// <para>Metal-bacaklı ailelerde <c>Factor</c> çağıran tarafından ZORUNLU kılınmıştır; buraya null
+    /// <summary>Yeni katalog kaydı — ailenin KENDİ app service'iyle (<c>CompanyOwnershipGuard</c> + kod benzersizliği orada).
+    /// <para>Metal-legged ailelerde <c>Factor</c> çağıran tarafından ZORUNLU kılınmıştır; buraya null
     /// geldiğinde entity varsayılanı devreye girerdi, o yüzden guard yukarıda.</para></summary>
     private async Task<Guid?> CreateOfFamilyAsync(ProductCommodityProvisionItemDto item, string code, string name, Guid productId)
     {
@@ -515,7 +534,7 @@ public class ProductCommodityProvisioner : ITransientDependency
 
             case ProcessType.Good:
             {
-                // MAMUL URUNUN AYNASIDIR (2026-08-10 Hakan): ciplak kod+ad ile acmak, urunun gorsellerini ve
+                // MAMUL URUNUN PROJEKSIYONUDUR (2026-08-10 Hakan): ciplak kod+ad ile acmak, urunun gorsellerini ve
                 // varyantlarini KAYBEDIYORDU; ustelik varyant grafi bos gidince ana varyant "ANAVARYANT"
                 // sentinel koduyla doguyordu. Projeksiyon ZATEN vardi (ProductToGoodProjector) ve dogru
                 // davranisi biliyor - burada kullanilmiyordu.
@@ -542,7 +561,7 @@ public class ProductCommodityProvisioner : ITransientDependency
         }
     }
 
-    /// <summary>KLON gövdesi: kaynağı ailenin app service'iyle OKUR, alanlarını yeni kod/adla kopyalar.
+    /// <summary>KLON'un aile dalı: kaynağı ailenin app service'iyle OKUR, alanlarını yeni kod/adla kopyalar.
     /// <para><b>Graf (varyant/belge/not/nitelik) KOPYALANMAZ</b> — bilinçli. Klonun amacı ölçü/ayar
     /// devralmaktır; kaynağın varyantlarını da taşımak, kullanıcının istemediği kayıtları sessizce
     /// çoğaltırdı. Varyantlar yeni emtianın kendi ekranında kurulur.</para></summary>

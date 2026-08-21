@@ -7,7 +7,9 @@ using Integration.Framework.Application;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.Products;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Integration.TradeXpress.Vouchers;
 using Integration.TradeXpress.Commodities;
@@ -116,5 +118,23 @@ public class ServiceAppService
         entity.SetName(updateInput.Name);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
+    }
+
+    /// <summary>Hizmetin ürün projeksiyonu — iş <see cref="CommodityToProductProjector"/>'da; burada yalnız kaydı
+    /// okuma + [Authorize] denetimi (mamüldeki <c>GoodAppService.ProjectToProductAsync</c> ile birebir simetrik).
+    ///
+    /// <para><b>Şekil <c>Family</c>'den okunur:</b> aile bu sınıfta ZATEN beyanlıdır; ikinci kez yazılsaydı
+    /// iki beyan zamanla ayrışabilir ve projeksiyon sessizce yanlış kolu çalıştırırdı (connascence).</para></summary>
+    public virtual async Task<ProductGetDto> ProjectToProductAsync(Guid serviceId)
+    {
+        var entity = await Repository.FindAsync(serviceId)
+            ?? throw new BusinessException("TradeXpress:Service:NotFound");
+
+        return await CommodityToProduct.ProjectAsync(new CommodityProjectionSource(
+            entity.Id,
+            entity.Code,
+            entity.Name,
+            entity.Description,
+            CommodityProjectionShapes.Of(Family)));
     }
 }

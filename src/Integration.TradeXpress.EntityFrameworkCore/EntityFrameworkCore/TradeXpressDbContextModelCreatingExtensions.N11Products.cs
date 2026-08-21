@@ -143,7 +143,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
-        // PUSH GEÇMİŞİ — append-only delil kaydı (2026-08-05). N11 ürünün her versiyonunu fotoğrafıyla
+        // PUSH GEÇMİŞİ — append-only PushHistory kaydı (2026-08-05). N11 ürünün her versiyonunu fotoğrafıyla
         // saklıyor; bizde LastSent* üzerine yazıldığı için tarihli kayıt yoktu.
         builder.Entity<SalesChannelTrN11ProductPushHistory>(b =>
         {

@@ -31,13 +31,13 @@ public class CashStockRowDto
     public decimal Net { get; set; }
 }
 
-/// <summary>Nakit hareket satırı — bir satırın nakit bacağı. <see cref="CashAmount"/> işaretli (+ kasaya girer, − çıkar).</summary>
+/// <summary>Nakit hareket satırı — bir satırın nakit tarafı. <see cref="CashAmount"/> işaretli (+ kasaya girer, − çıkar).</summary>
 public class CashMovementRowDto
 {
     public DateTime VoucherDate { get; set; }
     public long VoucherNumber { get; set; }
     public ProcessType ProcessType { get; set; }
-    /// <summary>Nakit bacağı kaynağı: "Nakit" (Cash sol bacak) veya "Peşin" (sağ bacak). Devreden satırı için "Devreden".</summary>
+    /// <summary>Nakit tarafının kaynağı: "Nakit" (Cash sol taraf) veya "Peşin" (sağ taraf). Devreden satırı için "Devreden".</summary>
     public string Source { get; set; } = string.Empty;
     public string? CompanyCode { get; set; }
     public string? BranchCode { get; set; }

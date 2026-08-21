@@ -4,12 +4,12 @@ namespace Integration.TradeXpress.MarketplaceShipmentTariffs;
 public static class MarketplaceShipmentTariffConsts
 {
     /// <summary>Tarifenin KENDİ nötr taşıyıcı kodu (ARAS/SURAT/PTT/YURTICI/KOLAYGELSIN/DHL).
-    /// Pazaryerinin firma kimliğinden BAĞIMSIZDIR — o kimlik gevşek köprüde tutulur.</summary>
+    /// Pazaryerinin firma kimliğinden BAĞIMSIZDIR — o kimlik ayrıca <c>ChannelCompanyExternalId</c>'de tutulur.</summary>
     public const int CarrierCodeMaxLength = 32;
 
     public const int CarrierNameMaxLength = 128;
 
-    /// <summary>Pazaryerindeki kargo firması kimliği (ör. N11ShipmentCompany.ExternalId) — gevşek köprü.</summary>
+    /// <summary>Pazaryerindeki kargo firması kimliği (ör. N11ShipmentCompany.ExternalId) — id-only gevşek bağ.</summary>
     public const int ChannelCompanyExternalIdMaxLength = 16;
 
     /// <summary>Tarife sürüm etiketi (ör. "2026-07-26") — hangi yayından geldiği izlenebilsin.</summary>

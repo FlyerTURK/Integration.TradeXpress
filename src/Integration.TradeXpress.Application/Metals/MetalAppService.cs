@@ -13,6 +13,7 @@ using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Integration.TradeXpress.MultiCompany;
@@ -490,6 +491,24 @@ public class MetalAppService
             .OrderBy(x => x.MetalCode)
             .ThenBy(x => x.VariantCode)
             .ToList();
+    }
+
+    /// <summary>Madenin ürün projeksiyonu — iş <see cref="CommodityToProductProjector"/>'da; burada yalnız kaydı
+    /// okuma + [Authorize] denetimi (mamüldeki <c>GoodAppService.ProjectToProductAsync</c> ile birebir simetrik).
+    ///
+    /// <para><b>Şekil <c>Family</c>'den okunur:</b> aile bu sınıfta ZATEN beyanlıdır; ikinci kez yazılsaydı
+    /// iki beyan zamanla ayrışabilir ve projeksiyon sessizce yanlış kolu çalıştırırdı (connascence).</para></summary>
+    public virtual async Task<ProductGetDto> ProjectToProductAsync(Guid metalId)
+    {
+        var entity = await Repository.FindAsync(metalId)
+            ?? throw new BusinessException("TradeXpress:Metal:NotFound");
+
+        return await CommodityToProduct.ProjectAsync(new CommodityProjectionSource(
+            entity.Id,
+            entity.Code,
+            entity.Name,
+            entity.Description,
+            CommodityProjectionShapes.Of(Family)));
     }
 }
 

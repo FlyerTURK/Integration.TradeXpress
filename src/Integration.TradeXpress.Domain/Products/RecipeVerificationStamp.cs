@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Integration.TradeXpress.Products;
 
-/// <summary>Damga hesabının girdisi — bir reçete satırının KİMLİĞİNİ ve MİKTARINI özetler.
+/// <summary>Stamp hesabının girdisi — bir reçete satırının KİMLİĞİNİ ve MİKTARINI özetler.
 /// Entity'ye bağımlı değildir ki hesap saf kalsın ve doğrudan test edilebilsin.</summary>
 public readonly record struct RecipeStampLine(
     int LineOrder,
@@ -21,10 +21,10 @@ public readonly record struct RecipeStampLine(
     DateTime? LastChangedUtc);
 
 /// <summary>
-/// REÇETE DOĞRULAMA DAMGASI — "bu varyantın onayı hâlâ geçerli mi?" sorusunun saf hesabı.
+/// REÇETE DOĞRULAMA STAMP'İ — "bu varyantın onayı hâlâ geçerli mi?" sorusunun saf hesabı.
 ///
 /// <para><b>Neden var:</b> varyant doğrulaması bir kereye mahsus tik olursa emniyet değil SÜS olur — reçete
-/// sonradan değişir, ürün "onaylı" görünmeye devam eder ve yanlış fiyatla satılır. Damga onay anında
+/// sonradan değişir, ürün "onaylı" görünmeye devam eder ve yanlış fiyatla satılır. Stamp onay anında
 /// saklanır, push anında yeniden hesaplanır; tutmuyorsa varyant doğrulanmamış sayılır. Böylece reçeteye
 /// dokunan herkes onayı düşürmüş olur ve <b>ayrı bir olay/tetik altyapısı gerekmez</b>.</para>
 ///
@@ -34,7 +34,7 @@ public readonly record struct RecipeStampLine(
 ///   <item><b>İçerik kısmı:</b> (sıra, tür, aile, emtia, varyant, miktar, tutar, milyem) alanlarının
 ///   sıralı hash'i. Yalnız zaman kısmı değiştiğinde kıyaslanır.</item>
 /// </list>
-/// <b>Neden ikisi birden:</b> salt zaman damgası, dokunulup aynı bırakılan satırda YANLIŞ POZİTİF üretir
+/// <b>Neden ikisi birden:</b> salt timestamp, dokunulup aynı bırakılan satırda YANLIŞ POZİTİF üretir
 /// (onay boşuna düşer, kullanıcı bıkar). Salt içerik hash'i ise sıralama/yuvarlama/null detaylarında
 /// sessizce yanlış olabilir — ve sessiz yanlış, bu projede en pahalı hata sınıfıdır. Birlikte kullanınca
 /// biri diğerinin zayıflığını kapatır: içerik aynıysa hash aynı çıkar, zaman değişse bile onay AYAKTA kalır.</para>
@@ -45,7 +45,7 @@ public readonly record struct RecipeStampLine(
 /// </summary>
 public static class RecipeVerificationStamp
 {
-    /// <summary>Reçetesiz varyantın damgası — boş liste ile onay verilirse de tutarlı kıyaslansın.</summary>
+    /// <summary>Reçetesiz varyantın stamp'i — boş liste ile onay verilirse de tutarlı kıyaslansın.</summary>
     public const string EmptyRecipe = "0|-";
 
     private const char SectionSeparator = '|';
@@ -55,8 +55,8 @@ public static class RecipeVerificationStamp
     /// <summary>Miktar alanlarının SABİT biçimi — N5 milyem hassasiyetini korur, kültürden bağımsızdır.</summary>
     private const string DecimalFormat = "0.#####";
 
-    /// <summary>Verilen reçete satırlarından damga üretir. Satır sırası GİRDİDEN bağımsızdır —
-    /// aynı reçete farklı sırada gelse de aynı damga çıkar (aksi halde salt yeniden sıralama onayı düşürürdü).</summary>
+    /// <summary>Verilen reçete satırlarından stamp üretir. Satır sırası GİRDİDEN bağımsızdır —
+    /// aynı reçete farklı sırada gelse de aynı stamp çıkar (aksi halde salt yeniden sıralama onayı düşürürdü).</summary>
     public static string Compute(IEnumerable<RecipeStampLine> lines)
     {
         ArgumentNullException.ThrowIfNull(lines);
@@ -96,10 +96,10 @@ public static class RecipeVerificationStamp
         return ticks.ToString(CultureInfo.InvariantCulture) + SectionSeparator + hash;
     }
 
-    /// <summary>İki damga aynı reçeteyi mi anlatıyor.
+    /// <summary>İki stamp aynı reçeteyi mi anlatıyor.
     /// <para><b>Kademeli kıyas:</b> zaman kısmı aynıysa içerik de aynıdır (kısa devre). Zaman değişmişse
-    /// İÇERİK kısmına bakılır — satıra dokunulup aynı bırakıldıysa onay AYAKTA kalır. Bu, salt zaman
-    /// damgasının yanlış pozitifini kapatan yerdir.</para></summary>
+    /// İÇERİK kısmına bakılır — satıra dokunulup aynı bırakıldıysa onay AYAKTA kalır. Bu, salt
+    /// timestamp'in yanlış pozitifini kapatan yerdir.</para></summary>
     public static bool Matches(string? stored, string? current)
     {
         if (stored is null || current is null)
@@ -115,7 +115,7 @@ public static class RecipeVerificationStamp
         return string.Equals(ContentOf(stored), ContentOf(current), StringComparison.Ordinal);
     }
 
-    /// <summary>Damganın içerik (hash) kısmı; ayraç yoksa tamamı içerik sayılır (ileri uyumluluk).</summary>
+    /// <summary>Stamp'in içerik (hash) kısmı; ayraç yoksa tamamı içerik sayılır (ileri uyumluluk).</summary>
     private static string ContentOf(string stamp)
     {
         var index = stamp.IndexOf(SectionSeparator);

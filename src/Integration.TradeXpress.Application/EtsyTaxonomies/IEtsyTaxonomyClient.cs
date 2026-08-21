@@ -47,7 +47,7 @@ public sealed record EtsyTaxonomyPropertyResult(
 /// <summary>Property için önceden tanımlı değer — id-bazlı ({value_id, name}).</summary>
 public sealed record EtsyTaxonomyPropertyValue(long ValueId, string Name);
 
-/// <summary>Bir taksonomi düğümünün property setinin cache sarmalayıcısı (Trendyol <c>TrendyolLeafAttributes</c> ikizi) —
+/// <summary>Bir taksonomi düğümünün property setini cache'te taşıyan <c>EtsyTaxonomyProperties</c> (Trendyol <c>TrendyolLeafAttributes</c> ikizi) —
 /// KALICI TABLO YOK, yalnız <c>IDistributedCache</c>'te tutulur.</summary>
 public sealed record EtsyTaxonomyProperties(
     long TaxonomyId, IReadOnlyList<EtsyTaxonomyPropertyResult> Properties);

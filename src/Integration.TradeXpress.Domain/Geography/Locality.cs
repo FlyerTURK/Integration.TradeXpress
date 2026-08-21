@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.Geography;
 
 /// <summary>
-/// Yerellik (ilçe/şehir) — <b>çekirdek HOST-GLOBAL</b> coğrafya referansı (IMultiTenant DEĞİL; TenantId yok →
+/// Yerellik (ilçe/şehir) — <b>core HOST-GLOBAL</b> coğrafya referansı (IMultiTenant DEĞİL; TenantId yok →
 /// tüm tenant'lar paylaşır; N11City deseniyle hizalı). İdari alana id-only bağlı
 /// (<see cref="AdministrativeAreaId"/>, nav YOK). <see cref="CountryId"/> denormalize (idari alandan türetilir;
 /// ülke-geneli sorgu/filtreyi hızlandırır). <see cref="Code"/> kaynak kod (N11 ilçe id'si). Mahalleler

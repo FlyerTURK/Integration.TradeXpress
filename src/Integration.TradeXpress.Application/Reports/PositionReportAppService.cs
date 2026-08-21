@@ -49,7 +49,7 @@ public class PositionReportAppService : TradeXpressAppService, IPositionReportAp
     public virtual async Task<PositionReportResultDto> GetAsync(PositionReportFilterDto filter)
     {
         // SIZINTI ÖNLEME: rapor DAİMA çalışılan (working) şirketle sınırlı. Client'ın CompanyId'si GÜVENİLMEZ →
-        // ambient ICurrentCompany (working-context köprüsü) ile EZİLİR. Çalışılan şirket yoksa (host/API) boş.
+        // ambient ICurrentCompany (WorkingCompanyContextProvider) ile EZİLİR. Çalışılan şirket yoksa (host/API) boş.
         if (_currentCompany.Id is not { } companyId)
             return new PositionReportResultDto();
 

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Muadil M4 köprü girdisi — bir KANAL ürününe Top-N kombinasyonu varyant (StockItem) olarak uygular.
+/// Muadil M4 <c>ApplySubstitutionAsync</c> girdisi — bir KANAL ürününe Top-N kombinasyonu varyant (StockItem) olarak uygular.
 /// Hesap TEK motor zincirinden yeniden koşulur (<see cref="ISubstitutionCalculationAppService"/>);
 /// tolerans DAİMA grup ayarından. N11 ve Trendyol adaptörleri AYNI girdiyi kullanır.
 /// </summary>
@@ -26,7 +26,7 @@ public class SubstitutionApplyInput
 }
 
 /// <summary>
-/// Köprü uygulama sonucu — uygulanan kombinasyon özetleri + ticari tolerans bildirimi
+/// <c>ApplySubstitutionAsync</c> sonucu — uygulanan kombinasyon özetleri + ticari tolerans bildirimi
 /// (push açıklamasına iliştirilecek metin; push entegrasyonu ayrı dilim — burada yalnız üretim).
 /// </summary>
 public class SubstitutionApplyResultDto
@@ -34,7 +34,7 @@ public class SubstitutionApplyResultDto
     /// <summary>Ticari tolerans bildirimi (grup toleransı &gt; 0 ise; ör. "+/− binde 1 tolerans hakkı saklıdır") — yoksa null.</summary>
     public string? ToleranceNotice { get; set; }
 
-    /// <summary>Kanal ürünündeki "Kombinasyon" özelliğinin id'si (köprünün yönettiği tek özellik).</summary>
+    /// <summary>Kanal ürünündeki "Kombinasyon" özelliğinin id'si (<c>ApplySubstitutionAsync</c>'in yönettiği tek özellik).</summary>
     public Guid CombinationAttributeId { get; set; }
 
     /// <summary>Uygulanan kombinasyonlar, Rank artan sırayla (ilki = ana varyant).</summary>

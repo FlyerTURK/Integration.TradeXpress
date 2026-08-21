@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Products;
 /// </summary>
 public enum RecipeComponentType : byte
 {
-    /// <summary>Katalog emtiası — Metal/Scrap/Future (metal-bacaklı, milyem×miktar) ya da Jewelry/Stone
+    /// <summary>Katalog emtiası — Metal/Scrap/Future (milyem×miktar) ya da Jewelry/Stone
     /// (parasal, giriş fiyatı×miktar). Hangi aile olduğu <c>CommodityProcessType</c> ile taşınır.</summary>
     CatalogCommodity = 1,
 

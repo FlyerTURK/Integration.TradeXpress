@@ -18,6 +18,20 @@ public static class RecipeTemplateLineMerger
             .OrderBy(l => l.LineOrder)
             .ToList();
 
+        // GİRİŞ GUARD'I (RecipeLineQuantityGate; 2026-08-19 Hakan kuralı): şablondaki katalog emtiası satırı da 0 adet + 0 miktar olamaz —
+        // şablon ürüne uygulandığında bu satır reçeteye AYNEN kopyalanır (RecipeTemplateApplier), yani sıfır
+        // satırı şablon üzerinden arka kapıdan reçeteye girerdi. Şablona HİÇ dokunmadan ÖNCE tüm satırlar
+        // denetlenir (fail-fast; satır silme/ekleme başlamadan). Ürün reçetesi yazıcısıyla (ProductRecipeLineWriter) aynı guard.
+        for (var index = 0; index < incoming.Count; index++)
+        {
+            RecipeLineQuantityGate.EnsureSatisfied(
+                incoming[index].ComponentType,
+                incoming[index].Quantity,
+                incoming[index].Amount,
+                index,
+                incoming[index].CommodityProcessType);
+        }
+
         template.RemoveLinesExcept(incoming.Select(l => l.Id).Where(id => id != Guid.Empty).ToHashSet());
 
         // Sıra 0..n-1 yeniden numaralanır: hizmet satırları "üstümdeki her şey" üzerinden hesapladığından

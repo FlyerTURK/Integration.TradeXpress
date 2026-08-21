@@ -43,6 +43,6 @@ public class TradeXpressApplicationModule : AbpModule
         context.Services.Configure<Orders.OrderSyncOptions>(
             configuration.GetSection(Orders.OrderSyncOptions.SectionName));
         // NOT: eski HaremBridge HttpClient kaydı kaldırıldı — feed artık in-process Playwright
-        // (HaremPlaywrightFeedWorker); HTTP köprü yolu ölü koddu (keşif turu 2, O5).
+        // (HaremPlaywrightFeedWorker); HaremBridge HTTP yolu ölü koddu (keşif turu 2, O5).
     }
 }

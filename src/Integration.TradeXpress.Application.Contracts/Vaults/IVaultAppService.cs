@@ -17,7 +17,7 @@ public interface IVaultAppService : ICrudAppService<
     // çözüyordu. Kasa artık fişte doğrudan karşı taraftır (Voucher.AccountType=Vault) → çözüm gerekmez.
 
     /// <summary>
-    /// Kullanıcının ÇALIŞABİLDİĞİ kasalar (<c>IBranchAppService.GetMyBranchesAsync</c>'in kasa aynası) —
+    /// Kullanıcının ÇALIŞABİLDİĞİ kasalar (<c>IBranchAppService.GetMyBranchesAsync</c>'in kasa karşılığı) —
     /// server-side kapsam daraltması: her satır <c>ScopedAccessSet.CanAccessVault</c> ile elenir. Working-context
     /// kasa seçicisi ve fiş formunun kasa listesi bunu tüketir. Client'a güvenilmez; filtre sunucudadır.
     /// <para><paramref name="branchId"/> verilirse yalnız o şubenin kasaları (fiş formu: "o şubede + yetkili

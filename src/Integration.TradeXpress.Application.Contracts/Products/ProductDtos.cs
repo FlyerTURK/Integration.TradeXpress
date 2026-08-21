@@ -119,7 +119,7 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     // Kişiselleştirme alanları 2026-07-28'de kaldırıldı — kişiselleştirmenin taşıyıcısı artık SpecialInfo.
 
     /// <summary>Varyant üretim tercihi — varsayılan MultiVariant (statüko). SingleVariant/Substitution'da
-    /// nitelik-tabanlı üretim BYPASS (sunucu kapısı nitelik grafını boşaltır → tek ana varyant).</summary>
+    /// nitelik-tabanlı üretim BYPASS (sunucu guard'ı nitelik grafını boşaltır → tek ana varyant).</summary>
     public ProductVariantMode VariantMode { get; set; } = ProductVariantMode.MultiVariant;
 
     /// <summary>Muadil grubu referansı (id-only) — yalnız Substitution modunda anlamlı (zorunlu; sunucu fail-fast).</summary>
@@ -145,7 +145,7 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public ProductStockPolicy StockPolicy { get; set; }
 
     /// <summary>Ürün MEDYA linkleri (merkezi kütüphane; görsel + video birlikte — <see cref="IEntityMediaAppService"/>).
-    /// Pazaryeri push görselleri de BURADAN gider (legacy Images 2026-07-31'de emekli): pasif elenir, kapak önce.</summary>
+    /// Pazaryeri push görselleri de BURADAN gider (legacy Images 2026-07-31'de emekli): pasif elenir, cover (<c>IsDefault</c>) önce.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 
     /// <summary>N11 satış kanalı ürünleri (graf düğümleri; ClientKey/Id + IsDeleted diff) — ürün 'Kaydet'inde
@@ -396,10 +396,10 @@ public class ProductAddOnDto
 }
 
 /// <summary>
-/// Product grafının varyant DÜĞÜMÜ — jenerik <see cref="EntityVariantGraphDto"/> (çekirdek: Kod/Ad/Barkod/Stok/…)
+/// Product grafının varyant DÜĞÜMÜ — jenerik <see cref="EntityVariantGraphDto"/> (Kod/Ad/Barkod/Stok/…)
 /// + Product-ÖZEL satış fiyatı + reçete UZANTISI. Satış fiyatı VARYANT seviyesinde (ProductVariantDetail tablosu),
 /// reçete satırları EntityVariantId'ye bağlı. <c>EntityVariantsPanel&lt;ProductVariantGraphDto&gt;</c>'ın ExtraFields
-/// slot'unda bu alanlar bind edilir; ProductAppService jenerik çekirdeği kaydettikten sonra bu alanları
+/// slot'unda bu alanlar bind edilir; ProductAppService jenerik <c>EntityVariantGraphDto</c> alanlarını kaydettikten sonra bu alanları
 /// ProductVariantDetail + reçete satırlarına (EntityVariantId ile) saklar/yükler. GoodVariantGraphDto deseni.
 /// </summary>
 public class ProductVariantGraphDto : EntityVariantGraphDto
@@ -426,7 +426,7 @@ public class ProductVariantGraphDto : EntityVariantGraphDto
 
     /// <summary>Varyantın SATIŞ statüsü (SALT-OKUNUR; save'de YOKSAYILIR — <see cref="NetCost"/> deseni).
     /// <para>Statüyü form değil <c>VerifySaleReadinessAsync</c> değiştirir; buraya yazılabilir olsaydı
-    /// kullanıcı bir alanı düzenleyerek push kapısını dolaylı yoldan açabilirdi.</para></summary>
+    /// kullanıcı bir alanı düzenleyerek push guard'ını dolaylı yoldan açabilirdi.</para></summary>
     public ProductSaleStatus SaleStatus { get; set; }
 
     /// <summary>Son doğrulama anı (UTC; SALT-OKUNUR). Null = hiç doğrulanmamış.</summary>
@@ -468,29 +468,29 @@ public class ProductRecipeLineGraphDto
     public decimal Amount { get; set; }
     public decimal Factor { get; set; }
 
-    /// <summary>Doğal-birim snapshot'ı (rebase kaynağı; VoucherLine.MainUnitId rolü) — metal-bacaklıda
+    /// <summary>Doğal-birim snapshot'ı (rebase kaynağı; VoucherLine.MainUnitId rolü) — metal tarafında
     /// FollowingUnit, parasalda EntryPrice birimi.</summary>
     public Guid? ValuationUnitId { get; set; }
 
     /// <summary>Ana (doğal) birimin kodu (ör. "HAS") — SALT-OKUNUR görüntü (GetAsync projeksiyonu).</summary>
     public string MainUnitCode { get; set; } = string.Empty;
 
-    /// <summary>Ödeme tipi — reçetede yalnız Normal (metal + işçilik bacağı) ve WithCurrency/Bedelli (sabit bedel = tek bacak).</summary>
+    /// <summary>Ödeme tipi — reçetede yalnız Normal (metal + işçilik tarafı) ve WithCurrency/Bedelli (sabit bedel = tek taraf).</summary>
     public ProcessPaymentType PaymentType { get; set; } = ProcessPaymentType.Normal;
 
-    /// <summary>Ana bacak toplamı (Amount×Factor, doğal birimde) — TÜRETİLMİŞ, SALT-OKUNUR (persist yok).</summary>
+    /// <summary>Ana tarafın toplamı (Amount×Factor, doğal birimde) — TÜRETİLMİŞ, SALT-OKUNUR (persist yok).</summary>
     public decimal Total { get; set; }
 
-    /// <summary>Karşı bacak birim fiyatı (N5) — Normal'de işçilik rate'i (adet/miktar başına), Bedelli'de 1 ana-birim başına bedel.</summary>
+    /// <summary>Karşı tarafın birim fiyatı (N5) — Normal'de işçilik rate'i (adet/miktar başına), Bedelli'de 1 ana-birim başına bedel.</summary>
     public decimal PayFactor { get; set; }
 
-    /// <summary>Karşı bacak toplamı — TÜRETİLMİŞ, SALT-OKUNUR: Normal'de PayFactor×(adet|miktar), Bedelli'de Total×PayFactor.</summary>
+    /// <summary>Karşı tarafın toplamı — TÜRETİLMİŞ, SALT-OKUNUR: Normal'de PayFactor×(adet|miktar), Bedelli'de Total×PayFactor.</summary>
     public decimal PayTotal { get; set; }
 
-    /// <summary>Karşı bacak birimi (işçilik/bedel birimi) — snapshot.</summary>
+    /// <summary>Karşı tarafın birimi (işçilik/bedel birimi) — snapshot.</summary>
     public Guid? PayUnitId { get; set; }
 
-    /// <summary>Karşı bacak biriminin kodu — SALT-OKUNUR görüntü (GetAsync projeksiyonu).</summary>
+    /// <summary>Karşı taraf biriminin kodu — SALT-OKUNUR görüntü (GetAsync projeksiyonu).</summary>
     public string PayUnitCode { get; set; } = string.Empty;
 
     /// <summary>Hizmet/manuel sabit tutar (non-null → NumericSpinEdit ValueExpression için 0m default).</summary>

@@ -65,7 +65,7 @@ public class EntityMediaAppService : TradeXpressAppService, IEntityMediaAppServi
         return links
             .Where(l => mediaById.ContainsKey(l.MediaId))   // yetim link (medya kütüphaneden silinmiş) → atla
             .Where(l => mediaType is null || mediaById[l.MediaId].MediaType == mediaType)
-            .OrderByDescending(l => l.IsDefault)            // kapak HER ZAMAN ilk — DisplayOrder'ı büyük olsa bile
+            .OrderByDescending(l => l.IsDefault)            // cover HER ZAMAN ilk — DisplayOrder'ı büyük olsa bile
             .ThenBy(l => l.DisplayOrder)
             .ThenBy(l => l.Id)                             // eşit sırada kararlı düzen (push çıktısı tekrarlanabilir olsun)
             .Select(l => new PushMediaDto
@@ -84,12 +84,20 @@ public class EntityMediaAppService : TradeXpressAppService, IEntityMediaAppServi
         var normalized = Normalize(links);
         var existing = await LoadOrderedAsync(en, entityId);
 
-        await _repository.DeleteManyAsync(existing, autoSave: false);
-        foreach (var l in normalized)
-        {
-            var link = new EntityMediaLink(companyId, en, entityId, l.MediaId, l.DisplayOrder, l.IsDefault, l.IsActive);
-            await _repository.InsertAsync(link, autoSave: false);
-        }
+        // FLUSH ZORUNLU (2026-08-20, ProductCommodityProjectionTests'te yakalandı): "replace" sözleşmesi çağrıya döndüğünde setin
+        // SORGULANABİLİR olmasını gerektirir. autoSave:false ile yazıldığında satırlar yalnız değişiklik
+        // izleyicisinde durur ve AYNI UoW içindeki bir SORGU onları GÖRMEZ (EF sorgu öncesi kendiliğinden
+        // flush etmez). Bedeli sessizdi: CreateAsync/UpdateAsync sonunda GetAsync ile geri okunan DTO'da
+        // SON yazılan setin satırları EKSİK geliyordu — kaydeden kullanıcı görselini/dokümanını kaybolmuş
+        // sanıyor, yalnız sayfayı yenileyince geri geliyordu. Önceki satırların kurtulması TESADÜFTÜ: araya
+        // giren başka bir autoSave:true çağrısı onları flush ediyordu, sonuncuyu edecek kimse yoktu.
+        // Silme ÖNCE flush edilir (aynı anahtarı yeniden ekleyen replace tek SaveChanges'te çakışmasın).
+        await _repository.DeleteManyAsync(existing, autoSave: true);
+
+        var replacements = normalized
+            .Select(l => new EntityMediaLink(companyId, en, entityId, l.MediaId, l.DisplayOrder, l.IsDefault, l.IsActive))
+            .ToList();
+        await _repository.InsertManyAsync(replacements, autoSave: true);
     }
 
     public virtual async Task<Dictionary<Guid, string?>> GetDefaultPosterMapAsync(string entityName, IReadOnlyCollection<Guid> ownerIds)

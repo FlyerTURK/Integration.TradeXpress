@@ -20,7 +20,7 @@ namespace Integration.TradeXpress.Inbox;
 /// <para><b>İzin:</b> özel izin YOKTUR (yalın <see cref="AuthorizeAttribute"/> = kimliği doğrulanmış olmak
 /// yeter). Gerçek yetki kart SEVİYESİNDE, sağlayıcının kendi kaynağının izniyle uygulanır: göremediği tür
 /// için sağlayıcı <c>null</c> döner. Panoya ayrı bir izin koymak, kullanıcının zaten göremeyeceği kartlar
-/// için ikinci ve kayması kolay bir kapı açardı.</para>
+/// için ikinci ve kayması kolay bir yol açardı.</para>
 /// </summary>
 [Authorize]
 public class InboxAppService : TradeXpressAppService, IInboxAppService
@@ -59,7 +59,7 @@ public class InboxAppService : TradeXpressAppService, IInboxAppService
     ///
     /// <para><b>Neden yutuluyor:</b> pano N bağımsız kaynağı tek çağrıda toplar; birinin sorgusu (ör. teyit
     /// tarafı) hata verdiğinde kullanıcının diğer TÜM kartlarını kaybetmesi orantısızdır — özet ekranı en
-    /// kırılgan kaynağı kadar kırılgan olmamalı. <b>Kök neden GİZLENMİYOR:</b> istisna tam gövdesiyle sunucu
+    /// kırılgan kaynağı kadar kırılgan olmamalı. <b>Kök neden GİZLENMİYOR:</b> istisna tam metniyle sunucu
     /// loguna yazılır (boş <c>catch</c> DEĞİL). Aksiyon yolları bu servisten geçmez — orada hatalar normal
     /// şekilde kullanıcıya yükselir.</para></summary>
     private async Task<InboxCardDto?> BuildCardSafelyAsync(IInboxSummaryProvider provider)

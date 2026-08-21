@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Commodities;
 
 /// <summary>
 /// Emtia (Jewelry/Stone/Metal…) kartlarının AGNOSTİK graf orkestrasyonu — doküman + not + varyant sistemi
-/// (nitelik/değer kartezyeni → çekirdek varyantlar) + varyant-özel MEDYA. Sahip AppService yalnız birkaç satır
+/// (nitelik/değer kartezyeni → core varyantlar) + varyant-özel MEDYA. Sahip AppService yalnız birkaç satır
 /// delege eder (DRY): Save / Load / Delete + varyant picker.
 /// <para>Good AYRI orkestrasyon tutar (kendi tedarikçi drill'i + varyant-başı fiyat uzantısı GoodVariantDetail olduğundan);
 /// bu yardımcı fiyat-uzantısı OLMAYAN emtialar içindir (fiyat entity seviyesinde kalır).</para>
@@ -35,7 +35,7 @@ public class CommodityAgnosticGraph : ITransientDependency
     }
 
     /// <summary>Grafı saklar (sahip entity zaten kaydedilmiş olmalı): KAYIT-GENELİ medya + doküman/not replace-all
-    /// + varyant çekirdeği (nitelik/değer → synchronizer kartezyen) + her varyantın KENDİ medyası
+    /// + core varyantlar (nitelik/değer → synchronizer kartezyen) + her varyantın KENDİ medyası
     /// (<paramref name="variantImageEntityName"/> bağlamı).
     ///
     /// <para><b><paramref name="media"/> kayıt geneli, varyant medyası ondan AYRIDIR</b> (CLAUDE.md §6 "her medya
@@ -130,7 +130,7 @@ public class CommodityAgnosticGraph : ITransientDependency
     }
 
     /// <summary>Persistsiz varyant önizlemesi (nitelik×değer kartezyeni) — jenerik servise delege (DB'ye YAZMAZ). Sahip AppService
-    /// "Varyantları Oluştur" akışında çağırır; fiyat uzantısı olmayan emtiada çekirdek DTO doğrudan kullanılır (re-project YOK).</summary>
+    /// "Varyantları Oluştur" akışında çağırır; fiyat uzantısı olmayan emtiada <c>EntityVariantGraphDto</c> (core DTO) doğrudan kullanılır (re-project YOK).</summary>
     public List<EntityVariantGraphDto> GenerateVariants(EntityVariantGenerateRequestDto input)
     {
         return _variants.GenerateVariants(input);

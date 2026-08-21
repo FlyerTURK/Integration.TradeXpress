@@ -18,7 +18,7 @@ using Volo.Abp.MultiTenancy;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Muadil M4 köprüsünün KANAL-AGNOSTİK çekirdek servisi — N11 ve Trendyol adaptörleri AYNI sağlayıcıyı kullanır:
+/// Muadil M4 akışının KANAL-AGNOSTİK çekirdek servisi — N11 ve Trendyol adaptörleri AYNI sağlayıcıyı kullanır:
 /// <list type="number">
 ///   <item><b>Tek motor zinciri:</b> hesap <see cref="ISubstitutionCalculationAppService"/>'ten yeniden koşulur
 ///   (paralel hesap yolu YOK), başarılılar Rank sırasıyla saf <see cref="SubstitutionStockItemPlanner"/>'a verilir.</item>
@@ -27,7 +27,7 @@ namespace Integration.TradeXpress.Substitutions;
 ///   <item><b>Statik yardımcılar:</b> plan↔mevcut değer diff'i + plan reçetesi → graf DTO dönüşümü — iki kanal
 ///   adaptörünün ortak metin/eşleme mantığı burada, kanal graf tipleri adaptörde kalır.</item>
 ///   <item><b>Uygula orkestrasyonu:</b> <see cref="ApplyAsync{THeader}"/> — plan kur → "Kombinasyon" özelliği
-///   diff/upsert → StockItem'lara reçete + paket stoğu akışının TEK gövdesi; persist/graf işleri
+///   diff/upsert → StockItem'lara reçete + paket stoğu akışının TEK yeri; persist/graf işleri
 ///   <c>VariantSetReconciler</c> emsaliyle delegate'lerle adaptöre bırakılır.</item>
 /// </list>
 /// Fiyat YAZMAZ — reçete kurulur, fiyat mevcut maliyet zincirinden (RecipeCostPopulator → marj → türetilmiş) doğar.
@@ -94,7 +94,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
     }
 
     /// <summary>
-    /// KANAL-AGNOSTİK uygula orkestrasyonu — N11/Trendyol <c>ApplySubstitutionAsync</c>'lerinin TEK gövdesi:
+    /// KANAL-AGNOSTİK uygula orkestrasyonu — N11/Trendyol <c>ApplySubstitutionAsync</c>'lerinin TEK ortak metodu:
     /// plan kur (<see cref="BuildAsync"/>) → "Kombinasyon" özelliği + değer diff'i → upsert planını adaptöre
     /// persist ettir (adaptör MEVCUT persist + kartezyen reconcile yolundan geçirir; guard'lar dahil, paralel
     /// kayıt yolu YOK) → her kombinasyon değerini imzasında taşıyan StockItem'lara reçete + paket stoğu uygula.
@@ -169,7 +169,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
         return result;
     }
 
-    /// <summary>Köprünün yönettiği "Kombinasyon" özelliğinin KANAL-NÖTR upsert planını kurar: plan değerleri
+    /// <summary>SubstitutionChannelPlanProvider'ın yönettiği "Kombinasyon" özelliğinin KANAL-NÖTR upsert planını kurar: plan değerleri
     /// Rank sırasıyla (DisplayOrder = sıra; 0 = ANA varyant) + plan dışı kalan mevcut değerler IsDeleted işaretli.
     /// Özellik yoksa DisplayOrder mevcut özelliklerin sonuna eklenir.</summary>
     private static SubstitutionCombinationAttributeUpsert BuildCombinationAttributeUpsert(
@@ -307,10 +307,10 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
         return context with { Plan = plan };
     }
 
-    /// <summary>Maden + işçilik bağlamını id kümelerinden yükler — gövde ayrı servise taşındı
+    /// <summary>Maden + işçilik bağlamını id kümelerinden yükler — yükleme kodu ayrı servise taşındı
     /// (<see cref="SubstitutionPlanContextLoader"/>): hesap servisi de aynı bağlama ihtiyaç duyuyor ama bu
     /// provider zaten hesap servisini enjekte ettiğinden, buradan çağırmak döngüsel bağımlılık olurdu.
-    /// Bu ince sarmalayıcı mevcut çağıranları kırmamak için duruyor.</summary>
+    /// Bu ince delege metot mevcut çağıranları kırmamak için duruyor.</summary>
     public virtual async Task<SubstitutionChannelPlanContext> LoadPlanContextAsync(
         IReadOnlyCollection<Guid> metalIdSet, IReadOnlyCollection<Guid> variantIdSet)
     {
@@ -322,7 +322,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
     private const string MetalEntityName = "Metal";
 }
 
-/// <summary>Köprü bağlamı — nötr plan + plandaki madenlerin çözülmüş katalog kayıtları + işçilik sözlükleri
+/// <summary>Plan bağlamı — nötr plan + plandaki madenlerin çözülmüş katalog kayıtları + işçilik sözlükleri
 /// (varyant-anahtarlı seçili-varyant işçiliği ve varyantsız legacy satırlar için ana-varyant fallback'i).</summary>
 public sealed record SubstitutionChannelPlanContext(
     SubstitutionStockItemPlan? Plan,
@@ -347,7 +347,7 @@ public sealed record SubstitutionCombinationValueBinding(
 /// (orkestrasyon "Kombinasyon"u adıyla bulur + yeni özellik sırasını türetir).</summary>
 public sealed record SubstitutionChannelAttributeRef(Guid Id, string Name, int DisplayOrder);
 
-/// <summary>Köprünün yönettiği "Kombinasyon" özelliğinin KANAL-NÖTR upsert planı — adaptör kendi kanal
+/// <summary>SubstitutionChannelPlanProvider'ın yönettiği "Kombinasyon" özelliğinin KANAL-NÖTR upsert planı — adaptör kendi kanal
 /// attribute DTO'suna çevirip MEVCUT persist + reconcile yolundan geçirir. <see cref="AttributeId"/> boş =
 /// özellik ilk kez oluşturuluyor; <see cref="Values"/> plan değerleri Rank sırasıyla + silinecek işaretliler.</summary>
 public sealed record SubstitutionCombinationAttributeUpsert(

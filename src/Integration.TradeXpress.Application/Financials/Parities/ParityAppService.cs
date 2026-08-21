@@ -22,7 +22,7 @@ namespace Integration.TradeXpress.Financials.Parities;
 ///
 /// <para>Çift = base/quote; oran saklanmaz (birim fiyatından türetilir). <b>Ters-çift kuralı</b>
 /// (<see cref="ParityManager"/>): USDTRY varken TRYUSD oluşturulamaz — kapsam host‖own. Create tek
-/// kapıdan (manager) geçer. Liste özel: Parity id-only olduğundan birim kodları join'le gerçek kolon
+/// yoldan (ParityManager) geçer. Liste özel: Parity id-only olduğundan birim kodları join'le gerçek kolon
 /// yapılır (server-side sort/filter/arama) — GetListAsync burada override.</para>
 /// </summary>
 [Authorize(TradeXpressPermissions.Parities.Default)]
@@ -119,7 +119,7 @@ public class ParityAppService
     {
         await CheckCreatePolicyAsync();
 
-        // Tek create kapısı manager: ön-kontrol (ters/aynı çift, base==quote) + insert. TenantId'yi ABP atar.
+        // Tek create yolu ParityManager: ön-kontrol (ters/aynı çift, base==quote) + insert. TenantId'yi ABP atar.
         var entity = await _parityManager.CreateAsync(
             input.BaseCurrencyUnitId,
             input.QuoteCurrencyUnitId,

@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// Ürün kategorisi (çekirdek, şirkete ait) alan sınırları. Nitelik adı/değer uzunlukları agnostik nitelik
+/// Ürün kategorisi (core taraf — pazaryeri kategorisi değil; şirkete ait) alan sınırları. Nitelik adı/değer uzunlukları agnostik nitelik
 /// sistemiyle (<c>EntityVariantConsts</c>) HİZALI: kategori nitelikleri ürünün nitelik grafına yansıyacağı
 /// için aynı sınırlara tabi olmalı — daha geniş bir sınır, yansıma anında sessiz kırpılmaya yol açardı.
 ///

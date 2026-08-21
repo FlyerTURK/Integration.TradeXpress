@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Branches;
 
 /// <summary>Şube adresi — <see cref="Integration.Framework.Addressing.Address"/> VO'nun düz (flat) yansıması,
 /// ortak <c>AddressFields</c> bileşenine bind için <see cref="IAddressEditModel"/>. Picker İl/İlçe/Mahalle +
-/// kodları + id-only köprüleri doldurur; serbest-metin yalnız Line/PostalCode/Title.</summary>
+/// kodları + id-only referansları doldurur; serbest-metin yalnız Line/PostalCode/Title.</summary>
 public class BranchAddressDto : IAddressEditModel
 {
     public string? Title { get; set; }

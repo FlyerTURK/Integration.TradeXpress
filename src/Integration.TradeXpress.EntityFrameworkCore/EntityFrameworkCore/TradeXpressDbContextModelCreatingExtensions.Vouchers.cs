@@ -140,7 +140,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // çeşni stoğunda Amount olarak toplanır → Amount ailesiyle aynı hassasiyet (N2).
             b.Property(x => x.AssayAmount).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
 
-            // N5: takoz metal işçilik oranları (altın işçilik = PayFactor N5; PT/PD/AG bacakları aynı aile).
+            // N5: takoz metal işçilik oranları (altın işçilik = PayFactor N5; PT/PD/AG *LaborRate alanları aynı aile).
             b.Property(x => x.SilverLaborRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
             b.Property(x => x.PlatinumLaborRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
             b.Property(x => x.PalladiumLaborRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
@@ -159,7 +159,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             b.HasIndex(x => x.VoucherId);
 
-            // Virman ikiz araması: LinkId (legacy RefNo) ile zıt bacak bulunur (güncelle/sil senkronu).
+            // Virman ikiz araması: LinkId (legacy RefNo) ile zıt VoucherLine bulunur (güncelle/sil senkronu).
             b.HasIndex(x => x.LinkId);
         });
 

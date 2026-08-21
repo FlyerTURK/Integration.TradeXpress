@@ -16,7 +16,7 @@ namespace Integration.TradeXpress.Commodities;
 
 /// <summary>
 /// FollowingUnit (takip edilen para birimi) taşıyan katalog CRUD ara tabanı — Metal/Scrap/Future ortak
-/// iskeleti tek yerde: liste (kolon sıralaması yoksa Code artan; katalog küçük → materialize + in-memory),
+/// üyeleri tek yerde: liste (kolon sıralaması yoksa Code artan; katalog küçük → materialize + in-memory),
 /// picker (birim düzeni: global önce → AlwaysShowInBalance desc → DisplayOrder asc → birim Code asc →
 /// faktör desc → Code asc) ve FollowingUnitCode zenginleştirmesi.
 /// </summary>

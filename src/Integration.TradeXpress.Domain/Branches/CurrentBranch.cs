@@ -5,7 +5,7 @@ namespace Integration.TradeXpress.Branches;
 /// <summary>
 /// <see cref="ICurrentBranch"/> uygulaması (<c>CurrentCompany</c> deseninin birebir aynası). Değer önceliği:
 /// <see cref="Change"/> override (AsyncLocal) → yoksa <see cref="IBranchContextProvider"/> (Blazor
-/// working-context köprüsü / API'de null).
+/// working-context sağlayıcısı / API'de null).
 /// </summary>
 public class CurrentBranch : ICurrentBranch, ITransientDependency
 {
@@ -30,7 +30,8 @@ public class CurrentBranch : ICurrentBranch, ITransientDependency
     private sealed record BranchOverride(Guid? BranchId);
 }
 
-/// <summary>Varsayılan kaynak (host / HTTP API): aktif şube yok → null. Blazor köprüsü bunu değiştirir.</summary>
+/// <summary>Varsayılan kaynak (host / HTTP API): aktif şube yok → null. Blazor'daki
+/// <see cref="IBranchContextProvider"/> uygulaması bunu değiştirir.</summary>
 public class NullBranchContextProvider : IBranchContextProvider, ISingletonDependency
 {
     public Guid? GetCurrentBranchId()

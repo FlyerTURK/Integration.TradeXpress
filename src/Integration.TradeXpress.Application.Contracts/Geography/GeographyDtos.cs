@@ -42,7 +42,7 @@ public class LocalityDto
 /// <see cref="Name"/>'i serbest-metin olarak tutar.</summary>
 public class NeighborhoodDto
 {
-    /// <summary>N11 mahalle id'si (canlı; kalıcı çekirdek id değil).</summary>
+    /// <summary>N11 mahalle id'si (canlı; kalıcı core id değil).</summary>
     public string Id { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;

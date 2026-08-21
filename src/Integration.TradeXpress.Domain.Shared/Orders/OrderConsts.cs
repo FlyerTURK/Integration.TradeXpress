@@ -49,4 +49,10 @@ public static class OrderConsts
 
     /// <summary>N11 kargo firması id'si (shipmentCompany.id) — MakeOrderItemShipment isteği.</summary>
     public const int ShipmentCompanyIdMaxLength = 32;
+
+    // ── OrderReservation — "Karar Bekleyenler" görünümü ────────────────────────
+    /// <summary>YAŞLANAN rezerv eşiği (gün). ⛔ Süre AŞIMI DEĞİLDİR — zaman aşımı kavramı yok ("sipariş
+    /// siparıştir"), eşiği aşan rezervasyon KENDİLİĞİNDEN bırakılmaz. Yalnız GÖRÜNÜRLÜK: bu yaştan eski aktif
+    /// rezervler "Karar Bekleyenler" sekmesine düşer ki unutulmuş sipariş kendini göstersin (2026-08-21).</summary>
+    public const int AgingReservationThresholdDays = 7;
 }

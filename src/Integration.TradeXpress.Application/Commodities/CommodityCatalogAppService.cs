@@ -26,7 +26,7 @@ namespace Integration.TradeXpress.Commodities;
 /// guard'ın 7 servis dosyasına KOPYALANMASINI da önler (§4: en merkezi yerleşim).</para>
 ///
 /// <para><b>Bağımlılık property injection ile:</b> guard'ı ctor'a eklemek yedi türevin ctor imzasını
-/// değiştirmeyi gerektirirdi (geniş yüzey, sıfır kazanç). ABP'nin <c>LazyServiceProvider</c>'ı bu iş için
+/// değiştirmeyi gerektirirdi (yedi dosyada değişiklik, sıfır kazanç). ABP'nin <c>LazyServiceProvider</c>'ı bu iş için
 /// vardır ve kod tabanında yerleşik desendir (ör. <c>GoodReportAppService</c>).</para>
 ///
 /// <para><b>Kapsam (2026-08-05 Hakan kararı):</b> SİLME sert bloktur — reçetede kullanılan emtia silinemez,
@@ -66,16 +66,28 @@ public abstract class CommodityCatalogAppService<TEntity, TGetDto, TListDto, TLi
     }
 
     /// <summary>
+    /// EMTİA → ÜRÜN köprüsünün ortak servisi (CommodityToProductProjector) — lazy (aynı gerekçe: yedi türevin ctor imzasını değiştirmemek).
+    ///
+    /// <para>Türevler <c>ProjectToProductAsync</c>'lerini bunun üzerinden kurar; şekli
+    /// <c>CommodityProjectionShapes.Of(<see cref="Family"/>)</c> verir — aile bilgisi burada ZATEN var,
+    /// ikinci kez beyan edilirse ikisi ayrışabilir (connascence).</para>
+    /// </summary>
+    protected CommodityToProductProjector CommodityToProduct
+    {
+        get { return LazyServiceProvider.LazyGetRequiredService<CommodityToProductProjector>(); }
+    }
+
+    /// <summary>
     /// SİLME GUARD'I — reçetede kullanılan emtia silinemez.
     ///
     /// <para><b>⚠ Neden <c>BeforeDeleteAsync</c> DEĞİL (2026-08-05'te test yakaladı):</b> ilk denemede guard
     /// oraya konmuştu — ama Good/Metal/Jewelry/Stone o hook'u override ediyor ve <b>hiçbiri
     /// <c>base.BeforeDeleteAsync</c> çağırmıyor</b>. Guard sessizce baypas oluyordu; yalnız override etmeyen
     /// üç ailede (Scrap/Future/Service) çalışıyordu. Genişletme noktasının İÇİNE konan guard, türevin onu
-    /// çağırmayı hatırlamasına bağımlıdır — bu, sessiz baypas kapısıdır.</para>
+    /// çağırmayı hatırlamasına bağımlıdır — bu, sessiz baypas yoludur.</para>
     ///
     /// <para><b>Çözüm:</b> guard genişletme noktasının ÜSTÜNE konur. Türevlerin hiçbiri <c>DeleteAsync</c>'i
-    /// override etmiyor (mekanik ağ: <c>CommodityGuardConventionTests</c> bunu KİLİTLER), dolayısıyla buradan
+    /// override etmiyor (konvansiyon testi: <c>CommodityGuardConventionTests</c> bunu KİLİTLER), dolayısıyla buradan
     /// atlanamaz. Türev temizliği <c>BeforeDeleteAsync</c>'te olduğu gibi çalışmaya devam eder —
     /// <c>base.DeleteAsync</c> onu zaten çağırır.</para>
     ///

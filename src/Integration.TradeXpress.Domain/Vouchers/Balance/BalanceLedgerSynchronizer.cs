@@ -9,7 +9,7 @@ using Volo.Abp.Guids;
 namespace Integration.TradeXpress.Vouchers.Balance;
 
 /// <summary>
-/// Bir voucher'ın bakiye ledger kayıtlarını fiş durumuyla SENKRON tutan TEK kapı.
+/// Bir voucher'ın bakiye ledger kayıtlarını fiş durumuyla SENKRON tutan TEK yol.
 /// Strateji: VoucherId bazında <b>sil + yeniden yaz</b> — delta hesabı yok, sapma riski yok,
 /// idempotent (aynı voucher'ı tekrar sync etmek sonucu değiştirmez).
 ///

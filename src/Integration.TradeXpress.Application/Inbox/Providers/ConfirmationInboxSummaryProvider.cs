@@ -24,7 +24,7 @@ namespace Integration.TradeXpress.Inbox.Providers;
 /// <para><b>Teyit modülüne DOKUNULMAZ (2026-08-01 Hakan kararı):</b> mevcut ekran/entity/servis TAŞINMAZ ve
 /// DEĞİŞTİRİLMEZ; pano ondan yalnız sayı + son birkaç satır okur. Bu yüzden burada
 /// <see cref="IConfirmationAppService"/> DEĞİL doğrudan repository kullanılır — app service çağırmak Teyit'in
-/// yetki/DTO yüzeyini panoya bağlar ve o modülün sözleşmesini panonun ihtiyacına göre büyütme baskısı yaratırdı.
+/// yetki/DTO sözleşmesini panoya bağlar ve o modülün sözleşmesini panonun ihtiyacına göre büyütme baskısı yaratırdı.
 /// Karşılığında GÖRÜNÜRLÜK KURALINI burada TEKRAR uygulamak zorundayız (aşağı bak) — sapmaması gereken tek yer.</para>
 ///
 /// <para><b>Görünürlük = <c>ConfirmationAppService.GetListAsync</c> ile AYNI kural:</b> working şirketin teyitleri
@@ -208,7 +208,7 @@ public class ConfirmationInboxSummaryProvider : IInboxSummaryProvider, ITransien
                 Id            = confirmation.Id,
                 PrimaryText   = BuildVaultPairText(confirmation, vaultCodes),
                 SecondaryText = _localizer[$"Enum:ProcessType:{confirmation.ProcessType}"],
-                // Damga UTC saklanır; yerel saate çeviri UI'nın işi (kayıt=UTC / görüntü=yerel kuralı).
+                // Timestamp UTC saklanır; yerel saate çeviri UI'nın işi (kayıt=UTC / görüntü=yerel kuralı).
                 OccurredAt    = confirmation.CreationTime,
                 IsPending     = IsPending(confirmation),
             })

@@ -397,9 +397,15 @@ public class N11ImportResultDto
     /// <summary>Eklenen varyantların uzak stok kodları (kullanıcı doğrulaması için).</summary>
     public List<string> AddedStockCodes { get; set; } = new();
 
-    /// <summary>Uzak stoğu çekirdek (ERP) stoktan FARKLI olan kalem sayısı. Çekirdek EZİLMEZ — fark kanal
+    /// <summary>Uzak stoğu core (ERP) stoktan FARKLI olan kalem sayısı. Core stok EZİLMEZ — fark kanal
     /// OverrideStock'una yazılır (Trendyol importuyla aynı K12 politikası).</summary>
     public int StockDifferenceCount { get; set; }
+
+    /// <summary>Görsel SINIRI (<c>ProductConsts.MaxImageCount</c>) dolduğu için hiç bağlanmayan pazaryeri görseli
+    /// sayısı. Mevcut (kullanıcı) bağlarını korumak uğruna ödenen bedeldir ve SESSİZ GEÇİLMEZ: sıfırdan büyükse
+    /// rapora ayrıca bir uyarı satırı düşer — aksi hâlde kullanıcı "import başarılı" görüp fotoğrafın neden
+    /// gelmediğini hiçbir yerde bulamazdı (yalnız server-log'da kalırdı).</summary>
+    public int SkippedImages { get; set; }
 
     /// <summary>Atlanan satırlar + gerekçeleri (LOKALİZE).</summary>
     public List<N11ImportIssueDto> SkippedRows { get; set; } = new();
@@ -411,9 +417,9 @@ public class N11ImportResultDto
     public List<string> Warnings { get; set; } = new();
 }
 
-/// <summary>N11 çalışma tahtası satırı — ürün kimliği + N11'in döndürdüğü durum + "daha ne yapılacak" sinyali.
+/// <summary>N11 çalışma board'u satırı — ürün kimliği + N11'in döndürdüğü durum + "daha ne yapılacak" sinyali.
 ///
-/// <para>Trendyol tahtasındaki <c>RemoteListPrice</c>/<c>RemoteOnSale</c>/<c>RemoteQuantity</c> alanlarının
+/// <para>Trendyol board'undaki <c>RemoteListPrice</c>/<c>RemoteOnSale</c>/<c>RemoteQuantity</c> alanlarının
 /// karşılığı BİLEREK YOK: N11 kanal-ürünü o verileri saklamıyor. Boş kolon göstermek yerine N11'in gerçekten
 /// taşıdığı bilgi (satış/onay durumu) gösterilir — uydurma paralellik kurulmaz.</para></summary>
 public class N11PricingBoardItemDto
@@ -440,7 +446,7 @@ public class N11PricingBoardItemDto
     /// <summary>Ürünün HERHANGİ bir varyantında reçete satırı var mı — "sınıflandırıldı mı" sinyali.</summary>
     public bool HasRecipe { get; set; }
 
-    /// <summary>Satış kapısından BUGÜN geçen varyant sayısı (damga tazeliği dahil).</summary>
+    /// <summary><c>VariantSaleReadinessResolver</c>'dan BUGÜN geçen varyant sayısı (<c>VerifiedRecipeStamp</c> tazeliği dahil).</summary>
     public int ReadyVariantCount { get; set; }
 }
 
@@ -451,12 +457,12 @@ public class N11PricingBoardItemDto
 /// </summary>
 public interface ISalesChannelTrN11ProductAppService : IApplicationService
 {
-    /// <summary>Kanalın ÇALIŞMA TAHTASI — listelemeleri "daha ne yapılacak" sinyaliyle gösterir
+    /// <summary>Kanalın ÇALIŞMA BOARD'U — listelemeleri "daha ne yapılacak" sinyaliyle gösterir
     /// (reçete var mı · kaç varyant satışa hazır). Salt okuma; N11'e çıkmaz.
     ///
     /// <para><b>Trendyol'dan FARKI:</b> N11 kanal-ürünü pazaryeri fiyatı/adedi TAŞIMAZ (Trendyol'daki
     /// <c>ListPrice</c>/<c>RemoteOnSale</c> karşılığı yok) — onların yerine N11'in kendi döndürdüğü
-    /// satış/onay durumu gösterilir. Karar sinyali ise ORTAK gövdeden gelir.</para></summary>
+    /// satış/onay durumu gösterilir. Karar sinyali ise ORTAK <c>ChannelProductBoardBuilder</c>'dan gelir.</para></summary>
     Task<List<N11PricingBoardItemDto>> GetPricingBoardAsync(Guid salesChannelId);
 
     /// <summary>Bir ÜRÜNE ait tüm N11 kanal ürünleri (ürün-merkezli drill). Aynı kanalda birden fazla kayıt
@@ -506,7 +512,7 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
     /// satırlarına dokunulmaz. Kanal ayarı değişince / silinen otomatik satırı geri getirmek için. İdempotent.</summary>
     Task<SalesChannelTrN11ProductDto> ReapplySideCostsAsync(Guid id);
 
-    /// <summary>Muadil M4 köprüsü: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
+    /// <summary>Muadil M4 uygulaması: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
     /// (reçete + paket stoğu) olarak uygular — tek motor zinciri; yeniden uygulama imza-bazlı reconcile'dır.</summary>
     Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input);
 

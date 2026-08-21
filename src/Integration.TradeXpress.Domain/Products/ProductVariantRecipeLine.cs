@@ -125,6 +125,17 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// (gerekçe: <see cref="RecipeLineOrigin"/>). Varsayılan <see cref="RecipeLineOrigin.Manual"/>.</summary>
     public virtual RecipeLineOrigin Origin { get; protected set; }
 
+    /// <summary>Satırı doğuran şablon satırı (<c>RecipeTemplateLine.Id</c>) — FK'sız snapshot. Null = şablondan
+    /// gelmedi (Manual/Substitution) ya da özellik öncesi eski satır (kimliksiz — yeniden uygulama eski
+    /// davranışla, düşür + yeniden kur, çalışır).
+    /// <para><b>Neden var (2026-08-21 Hakan onayı):</b> <see cref="Origin"/> "şablondan geldi" der ama HANGİ
+    /// şablon satırından geldiğini söyleyemez; kimlik bağı olmadan yeniden uygulama, kullanıcının sahiplendiği
+    /// (<see cref="RecipeLineOrigin.TemplateEdited"/>) satırın şablon karşılığını tanıyamıyor ve yenisini
+    /// ekliyordu — satır her uygulamada ÇOĞALIYORDU. "Şablon ürünle kalıcı bağ kurmaz" kuralı bozulmaz: bu alan
+    /// canlı bir bağ değil yalnız EŞLEME anahtarıdır (şablondaki değişiklik ürüne kendiliğinden yayılmaz,
+    /// şablon silinse de satır yaşar).</para></summary>
+    public virtual Guid? SourceTemplateLineId { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -236,6 +247,14 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     public virtual void SetOrigin(RecipeLineOrigin origin)
     {
         Origin = origin;
+    }
+
+    /// <summary>Şablon soy kimliğini atar — yalnız şablon uygulayıcısı çağırır (<c>RecipeTemplateApplier</c>).
+    /// <c>Guid.Empty</c> null'a normalize edilir: persist edilmemiş şablon satırının kimliği yoktur ve
+    /// <c>Guid.Empty</c> yazmak hiçbir şeyle eşleşmeyecek sahte bir kimlik olurdu (yalan söyleyen kolon).</summary>
+    public virtual void SetTemplateSource(Guid? sourceTemplateLineId)
+    {
+        SourceTemplateLineId = sourceTemplateLineId == Guid.Empty ? null : sourceTemplateLineId;
     }
 
     public override string ToString()

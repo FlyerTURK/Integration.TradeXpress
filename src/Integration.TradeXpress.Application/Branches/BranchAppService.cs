@@ -430,7 +430,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     {
         // ADRES ZORUNLU (kullanıcı kararı 2026-07-25): HER şubenin adresi olmalı — adressiz şube kargo/fatura
         // akışlarında sessizce eksik veri üretiyordu. Eskiden boş adres "adres yok" sayılıp null'a indirgeniyordu.
-        // Bu kapı TÜM yolları kapsar: Create, Update ve inline UpdateAddressAsync (adres TEMİZLENEMEZ de);
+        // Bu guard TÜM yolları kapsar: Create, Update ve inline UpdateAddressAsync (adres TEMİZLENEMEZ de);
         // şirket grafı da şubeleri BranchAppService'e delege ettiğinden oradan da geçer.
         if (dto is null || (string.IsNullOrWhiteSpace(dto.City) && string.IsNullOrWhiteSpace(dto.Line)))
         {

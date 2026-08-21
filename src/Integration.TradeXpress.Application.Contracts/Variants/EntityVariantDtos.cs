@@ -41,8 +41,8 @@ public class EntityAttributeValueGraphDto
 
 /// <summary>
 /// Agnostik varyant düğümü — nitelik-değer kombinasyonundan doğar. Kod/ad OTOMATİK (senkron üretir); drill'de yalnız
-/// çekirdek alanlar (Barkod/Stok/Açıklama/Aktif) düzenlenir (varyant elle eklenmez/silinmez). Entity-özel ZENGİN
-/// alanlar (ör. Product SalePrice) UZANTI DTO'sunda taşınır (bu çekirdek onları bilmez). <see cref="IsMain"/> DISPLAY-ONLY.
+/// bu DTO'nun alanları (Barkod/Stok/Açıklama/Aktif) düzenlenir (varyant elle eklenmez/silinmez). Entity-özel ZENGİN
+/// alanlar (ör. Product SalePrice) UZANTI DTO'sunda taşınır (<c>EntityVariantGraphDto</c> onları bilmez). <see cref="IsMain"/> DISPLAY-ONLY.
 /// </summary>
 public class EntityVariantGraphDto : IHasIsActive
 {

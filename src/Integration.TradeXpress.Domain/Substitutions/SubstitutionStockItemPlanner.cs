@@ -3,7 +3,7 @@ using System.Globalization;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Muadil kombinasyon → kanal StockItem köprüsünün SAF PLANLAYICISI (DB'siz, repository'siz, DI'sız;
+/// Muadil kombinasyon → kanal StockItem dönüşümünün SAF PLANLAYICISI (DB'siz, repository'siz, DI'sız;
 /// <c>SubstitutionSolver</c>/<c>VariantCombinationEngine</c> kardeşi). Başarılı kombinasyon listesinden
 /// kanal-agnostik plan kayıtları üretir: değer metni + nötr imza bileşenleri + reçete satırları + paket + Rank.
 /// Kanal adaptörleri (N11/Trendyol) bu planı kendi graf tiplerinde uygular — matematik/metin üretimi TEK yerde.

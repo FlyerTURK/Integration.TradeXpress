@@ -43,7 +43,7 @@ public class RecipeLineOriginBackfiller : DomainService
     }
 
     /// <summary>
-    /// Tüm tenant'larda işaretlenmemiş muadil satırlarını damgalar.
+    /// Tüm tenant'larda işaretlenmemiş muadil satırlarının <c>Origin</c>'ini yazar.
     ///
     /// <para><b>YALNIZ GEÇİŞ KOŞUSU</b> (<paramref name="isFirstRunAfterUpgrade"/>): seed akışı her DbMigrator
     /// koşusunda yeniden çalışır ve bu backfill'in filtresi ("Manual + katalog + Metal + muadil ürünün varyantı")

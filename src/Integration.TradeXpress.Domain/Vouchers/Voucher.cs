@@ -181,7 +181,7 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     /// <summary>Saniye-altını atar VE Kind'ı <see cref="DateTimeKind.Unspecified"/>'e sabitler:
     /// girişte Local/Utc gelse bile ABP bunu normalize edip kaydırmasın (alan zaten
-    /// <c>[DisableDateTimeNormalization]</c>; bu, wall-clock garantisinin entity-içi SSOT ayağıdır).</summary>
+    /// <c>[DisableDateTimeNormalization]</c>; bu, wall-clock garantisinin entity-içi SSOT parçasıdır).</summary>
     private static DateTime TruncateToSeconds(DateTime dt)
     {
         return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, DateTimeKind.Unspecified);

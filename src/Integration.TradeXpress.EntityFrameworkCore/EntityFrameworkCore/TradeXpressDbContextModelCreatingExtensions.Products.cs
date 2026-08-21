@@ -25,7 +25,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Name).IsRequired().HasMaxLength(ProductConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(ProductConsts.DescriptionMaxLength);
 
-            // Çekirdek kategori bağı — id-only (sert FK YOK: kategori silme guard'ı AppService'te, ve sert FK
+            // core kategori bağı — id-only (sert FK YOK: kategori silme guard'ı AppService'te, ve sert FK
             // soft-delete edilmiş bir kategoriyi fiziksel silmede kilitlerdi). Index, "bu kategoriye bağlı ürün
             // var mı" silme-guard'ı ve kategori bazlı listeleme içindir.
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.ProductCategoryId });
@@ -96,6 +96,12 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // muadil yenilemesi eski satırlara artık DOKUNMAZ (geriye dönük güvenli taraf).
             b.Property(x => x.Origin).HasDefaultValue(RecipeLineOrigin.Manual);
             b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.Origin });
+
+            // Şablon soy kimliği (2026-08-21 çoğalma düzeltmesi): yeniden uygulamanın eşleme anahtarı —
+            // null = şablondan gelmedi ya da özellik öncesi eski satır (eski davranış geçerli). FK YOK (şablon
+            // ürünle kalıcı bağ kurmaz; şablon silinse de satır yaşar) ve İNDEKS YOK: eşleme, varyantın zaten
+            // yüklenmiş satırları üzerinde bellek içinde yapılır — hiçbir sorgu bu kolonla filtrelemez.
+            b.Property(x => x.SourceTemplateLineId);
 
             // TERS-ENDEKS (ADR-PRODUCT-ORCHESTRATION): "bu madeni reçetesinde taşıyan varyantlar" araması —
             // maden stoğu değişince (VoucherLine tetiği) etkilenen ürünler buradan bulunur. İndeks olmadan

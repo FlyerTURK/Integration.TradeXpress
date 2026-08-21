@@ -65,7 +65,7 @@ public class TradeXpressDbContext :
     public DbSet<Vault> Vaults { get; set; } = null!;
     public DbSet<AssayOffice> AssayOffices { get; set; } = null!;
     public DbSet<AddOn> AddOns { get; set; } = null!;
-    // Çekirdek kargo firması — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır; Geography deseni).
+    // core (kanal-dışı) kargo firması — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır; Geography deseni).
     public DbSet<VariantTemplate> VariantTemplates { get; set; } = null!;
     public DbSet<SchedulerAppointment> SchedulerAppointments { get; set; } = null!;
     public DbSet<Cash> Cashes { get; set; } = null!;
@@ -87,11 +87,11 @@ public class TradeXpressDbContext :
     public DbSet<Variants.EntityAttributeValue> EntityAttributeValues { get; set; } = null!;
     public DbSet<Variants.EntityVariant> EntityVariants { get; set; } = null!;
     public DbSet<Variants.EntityVariantAttributeValue> EntityVariantAttributeValues { get; set; } = null!;
-    // Çekirdek ürün kategorisi (company-owned ağaç) + nitelik/değer — pazaryeri kategorilerine eşleştirme hedefi.
+    // core ürün kategorisi (company-owned ağaç) + nitelik/değer — pazaryeri kategorilerine eşleştirme hedefi.
     public DbSet<Integration.TradeXpress.ProductCategories.ProductCategory> ProductCategories { get; set; } = null!;
     public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryAttribute> ProductCategoryAttributes { get; set; } = null!;
     public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryAttributeValue> ProductCategoryAttributeValues { get; set; } = null!;
-    // Kategori ↔ satış kanalı kategorisi eşleştirmesi — kanal kategorisi ve komisyonu bu köprüden çözülür.
+    // Kategori ↔ satış kanalı kategorisi eşleştirmesi — kanal kategorisi ve komisyonu ProductCategoryChannelMapping'ten çözülür.
     public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryChannelMapping> ProductCategoryChannelMappings { get; set; } = null!;
     public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryChannelAttributeMapping> ProductCategoryChannelAttributeMappings { get; set; } = null!;
     public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryChannelAttributeValueMapping> ProductCategoryChannelAttributeValueMappings { get; set; } = null!;
@@ -116,7 +116,7 @@ public class TradeXpressDbContext :
     public DbSet<VoucherLineHistory> VoucherLineHistories { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Vouchers.Balance.BalanceLedgerEntry> BalanceLedgerEntries { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshot> BalanceSheetSnapshots { get; set; } = null!;
-    // Teyit (organizasyon-içi karşılıklı ayna onayı) — company-owned staging kaydı.
+    // Teyit (organizasyon-içi karşılıklı mirror onayı) — company-owned staging kaydı.
     public DbSet<Integration.TradeXpress.Confirmations.Confirmation> Confirmations { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Authorization.UserScopedGrant> UserScopedGrants { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
@@ -131,7 +131,7 @@ public class TradeXpressDbContext :
     // N11 adres taksonomisi (İl/İlçe) — HOST-GLOBAL. Mahalleler saklanmaz (on-demand).
     public DbSet<Integration.TradeXpress.N11Cities.N11City> N11Cities { get; set; } = null!;
     public DbSet<Integration.TradeXpress.N11Cities.N11District> N11Districts { get; set; } = null!;
-    // Çekirdek coğrafya (idari alan/yerellik/alt-yerellik — ISO 3166-2 hizalı) — HOST-seed, IMultiTenant.
+    // core coğrafya (idari alan/yerellik/alt-yerellik — ISO 3166-2 hizalı) — HOST-seed, IMultiTenant.
     public DbSet<Integration.TradeXpress.Geography.AdministrativeArea> AdministrativeAreas { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Geography.Locality> Localities { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Geography.SubLocality> SubLocalities { get; set; } = null!;
@@ -154,7 +154,7 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItem> SalesChannelTrN11ProductStockItems { get; set; } = null!;
     // N11 kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItemRecipeLine> SalesChannelTrN11ProductStockItemRecipeLines { get; set; } = null!;
-    // N11'e gönderilen SKU'ların TARİHLİ delil kaydı — append-only (güncellenmez/silinmez).
+    // N11'e gönderilen SKU'ların TARİHLİ PushHistory kaydı — append-only (güncellenmez/silinmez).
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductPushHistory> SalesChannelTrN11ProductPushHistories { get; set; } = null!;
     public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductPushHistory> SalesChannelTrTrendyolProductPushHistories { get; set; } = null!;
     // Etsy ürün listelemeleri — ürün×kanal (company-owned). N11 ikizi.
@@ -342,7 +342,7 @@ public class TradeXpressDbContext :
         }
     }
 
-    /// <summary>Aktif (working) şirket — Blazor circuit'inde working-context köprüsünden gelir; API/host'ta null.</summary>
+    /// <summary>Aktif (working) şirket — Blazor circuit'inde WorkingCompanyContextProvider'dan gelir; API/host'ta null.</summary>
     protected virtual Guid? CurrentCompanyId
     {
         get
@@ -475,7 +475,7 @@ public class TradeXpressDbContext :
         if (companyId == null || companyId == Guid.Empty)
         {
             // Şirket yok → holding-host (null) bırak. Guid.Empty ise bu bir SENTINEL'dir ("hiç şirket
-            // yetkisi yok"), gerçek bir şirket DEĞİL — damgalamak sahte sahipli, yalnız yetkisiz
+            // yetkisi yok"), gerçek bir şirket DEĞİL — StampCompanyScoped onu yazsaydı sahte sahipli, yalnız yetkisiz
             // kullanıcıya görünen bir kayıt üretirdi (sentinel filtre korumasının simetriği).
             return;
         }

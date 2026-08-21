@@ -24,7 +24,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // ShortName OPSİYONEL — N11 kısa-kodsuz firma döndürebiliyor (bkz. entity notu); zorunluluk sync'i düşürüyordu.
             b.Property(x => x.ShortName).HasMaxLength(N11ShipmentConsts.ShortNameMaxLength);
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
-            // CoreCarrierId + indeksi KALDIRILDI (2026-07-26): host-global ayna company-owned satırı
+            // CoreCarrierId + indeksi KALDIRILDI (2026-07-26): host-global yansıma company-owned satırı
             // adresleyemez. Şirkete ait bağ (firma → varsayılan cari) şablonun içinde yaşıyor.
         });
 
@@ -90,7 +90,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
         a.Property(p => p.CityCode).HasMaxLength(AddressConsts.CodeMaxLength);
         a.Property(p => p.DistrictCode).HasMaxLength(AddressConsts.CodeMaxLength);
 
-        // Opsiyonel coğrafya referansları (additive) — id-only köprü + ISO 3166-2 kodu; hepsi NULLABLE (IsRequired YOK).
+        // Opsiyonel coğrafya referansları (additive) — id-only kolon + ISO 3166-2 kodu; hepsi NULLABLE (IsRequired YOK).
         // Nullable CLR tipleri konvansiyonla nullable kolona map olur; ISO kodu için uzunluk açıkça sabitlenir.
         a.Property(p => p.AdministrativeAreaId);
         a.Property(p => p.LocalityId);

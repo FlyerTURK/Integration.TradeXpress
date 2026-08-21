@@ -182,7 +182,7 @@ public class MetalSeeder(
     ///
     /// <para><b>Idempotent ve muhafazakâr:</b> yalnız FARK varsa yazar (gereksiz UPDATE yok), yalnız ana
     /// varyanta dokunur (kombinasyon varyantlarının kodu değer adlarından türer), soft-delete edilmiş madenin
-    /// varyantına DOKUNMAZ — "sileneni diriltme" kuralının varyant ayağı.</para></summary>
+    /// varyantına DOKUNMAZ — "sileneni diriltme" kuralının varyant tarafı.</para></summary>
     private async Task RepairMainVariantIdentityAsync(Guid companyId)
     {
         var metals = (await metalRepository.GetQueryableAsync())

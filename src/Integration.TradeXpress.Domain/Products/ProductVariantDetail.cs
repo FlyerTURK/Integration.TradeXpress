@@ -5,7 +5,7 @@ namespace Integration.TradeXpress.Products;
 /// <summary>
 /// Bir varyantın PRODUCT-ÖZEL detayı — jenerik <c>EntityVariant</c>'ın Product uzantısı (1:1, <see cref="EntityVariantId"/>
 /// set-once). Satış/liste fiyatı (marketplace price/optionPrice) VARYANT seviyesinde; reçete satırları ayrı entity olarak
-/// <c>EntityVariantId</c>'ye bağlanır. Company-scoped (varyanttan denormalize) + per-tenant. Jenerik çekirdek (EntityVariant)
+/// <c>EntityVariantId</c>'ye bağlanır. Company-scoped (varyanttan denormalize) + per-tenant. Jenerik <c>EntityVariant</c>
 /// bu uzantıyı BİLMEZ — sahip (ProductAppService) EntityVariantId ile eşleyip saklar/yükler (<c>GoodVariantDetail</c> deseni).
 /// </summary>
 public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
@@ -62,15 +62,15 @@ public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual Guid? VerifiedBy { get; protected set; }
 
     /// <summary>
-    /// Onay anındaki REÇETE DAMGASI — onayın hâlâ geçerli olup olmadığını anlamanın anahtarı.
+    /// Onay anındaki REÇETE STAMP'İ — onayın hâlâ geçerli olup olmadığını anlamanın anahtarı.
     ///
-    /// <para><b>Neden damga:</b> onay bir kereye mahsus tik olursa emniyet değil SÜS olur; reçete sonradan
-    /// değişir ve kimse fark etmez. Damga push anında yeniden hesaplanıp karşılaştırılır; tutmuyorsa varyant
+    /// <para><b>Neden stamp:</b> onay bir kereye mahsus tik olursa emniyet değil SÜS olur; reçete sonradan
+    /// değişir ve kimse fark etmez. Stamp push anında yeniden hesaplanıp karşılaştırılır; tutmuyorsa varyant
     /// doğrulanmamış sayılır. Böylece reçeteye dokunan herkes onayı düşürmüş olur ve <b>ayrı olay altyapısı
     /// gerekmez</b>.</para>
     ///
     /// <para><b>İKİ KADEMELİ</b> (2026-08-05 kararı): <c>"{en son değişim ticks}|{içerik hash'i}"</c>.
-    /// Önce zaman kısmı kıyaslanır (ucuz); değişmişse içerik hash'i bakılır. Salt zaman damgası
+    /// Önce zaman kısmı kıyaslanır (ucuz); değişmişse içerik hash'i bakılır. Salt timestamp
     /// dokunulup aynı bırakılan satırda YANLIŞ POZİTİF üretir; salt içerik hash'i ise sıralama/yuvarlama/null
     /// detaylarında sessizce yanlış olabilir. İkisi birlikte ikisinin de zayıflığını kapatır.</para>
     /// </summary>
@@ -105,7 +105,7 @@ public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     /// <summary>İNSAN yolu: varyantı doğrular → <see cref="ProductSaleStatus.Ready"/>. Onay anındaki reçete
-    /// damgası saklanır. <see cref="ProductSaleStatus.Closed"/>'dan da çıkarır — kullanıcı kapattığını
+    /// stamp'i saklanır. <see cref="ProductSaleStatus.Closed"/>'dan da çıkarır — kullanıcı kapattığını
     /// yeniden açabilir.</summary>
     public virtual void MarkVerified(string recipeStamp, DateTime verifiedAtUtc, Guid? verifiedBy)
     {
@@ -139,8 +139,8 @@ public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
         SaleStatus = ProductSaleStatus.Closed;
     }
 
-    /// <summary>Verilen damga onay anındakiyle aynı mı — yani onay HÂLÂ geçerli mi.
-    /// Doğrulanmamış varyantta daima <c>false</c> (damga yok, karşılaştıracak bir şey de yok).</summary>
+    /// <summary>Verilen stamp onay anındakiyle aynı mı — yani onay HÂLÂ geçerli mi.
+    /// Doğrulanmamış varyantta daima <c>false</c> (stamp yok, karşılaştıracak bir şey de yok).</summary>
     public virtual bool IsVerificationCurrent(string currentRecipeStamp)
     {
         return SaleStatus == ProductSaleStatus.Ready

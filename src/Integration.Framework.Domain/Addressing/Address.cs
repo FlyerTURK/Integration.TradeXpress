@@ -11,7 +11,7 @@ namespace Integration.Framework.Addressing;
 /// Immutable, değer eşitliği. Zorunlu: <see cref="City"/> + <see cref="Line"/>. Ülke varsayılan "TR".
 ///
 /// <para><b>Coğrafya referansları (opsiyonel, additive):</b> <see cref="AdministrativeAreaId"/> /
-/// <see cref="LocalityId"/> çekirdek coğrafya kataloğuna (host-global) id-only köprüdür (nav/FK YOK; picker doldurur),
+/// <see cref="LocalityId"/> core coğrafya kataloğuna (host-global) id-only kolondur (nav/FK YOK; picker doldurur),
 /// <see cref="AdministrativeAreaIsoCode"/> ISO 3166-2 kodudur (ör. "TR-34"). Kodlu push sistemleri (N11) bunları
 /// KULLANMAZ — mevcut <see cref="City"/>/<see cref="District"/> + <see cref="CityCode"/>/<see cref="DistrictCode"/>
 /// okumaya devam eder; yeni alanlar yalnız zenginleştirme (fatura/UBL) içindir.</para>
@@ -102,11 +102,11 @@ public class Address : ValueObject
     /// <summary>Opsiyonel yapısal ilçe kodu (ilçe id / N11).</summary>
     public string? DistrictCode { get; }
 
-    /// <summary>Opsiyonel çekirdek coğrafya idari-alan (il/eyalet) id'si — id-only köprü (nav/FK YOK). Picker doldurur;
+    /// <summary>Opsiyonel core coğrafya idari-alan (il/eyalet) id'si — id-only kolon (nav/FK YOK). Picker doldurur;
     /// kodlu push sistemleri kullanmaz.</summary>
     public Guid? AdministrativeAreaId { get; }
 
-    /// <summary>Opsiyonel çekirdek coğrafya yerellik (ilçe) id'si — id-only köprü (nav/FK YOK).</summary>
+    /// <summary>Opsiyonel core coğrafya yerellik (ilçe) id'si — id-only kolon (nav/FK YOK).</summary>
     public Guid? LocalityId { get; }
 
     /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (ör. "TR-34") — UBL <c>CountrySubentityCode</c>.</summary>

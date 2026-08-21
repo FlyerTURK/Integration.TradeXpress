@@ -105,7 +105,7 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
         // DEĞİŞTİRİLMİYOR — yalnız MDI sekmeleri için ayrı, yutmayan bir yazım yolu kullanılıyor.
         await WriteGridStateAsync(BuildMdiTabsKey(branchId), stateJson);
 
-        // Çift-yazım köprüsü: rollback'te eski client legacy anahtardan okumaya devam edebilsin. İkincil/
+        // Çift-yazım: rollback'te eski client legacy anahtardan okumaya devam edebilsin. İkincil/
         // best-effort — birincil yazım zaten başarılıysa bunun hatası kullanıcıya veri kaybı olarak yansımaz.
         // Göç tamamlanınca (bir sonraki sürüm) bu satır ve legacy anahtar kalkar.
         await SetGridStateAsync(BuildLegacyMdiTabsKey(branchId), stateJson);
@@ -114,7 +114,7 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
     private static string BuildMdiTabsKey(string? branchId)
         => string.IsNullOrEmpty(branchId) ? TradeXpressUiSettingNames.MdiTabs : $"{TradeXpressUiSettingNames.MdiTabs}_{branchId}";
 
-    /// <summary>Eski TabManager'ın client-side kurduğu ham anahtar öneki — göç köprüsü + reset-filtresi için.</summary>
+    /// <summary>Eski TabManager'ın client-side kurduğu ham anahtar öneki — göç (çift-yazım) + reset-filtresi için.</summary>
     private const string LegacyMdiTabsKeyPrefix = "MdiTabs";
 
     private static string BuildLegacyMdiTabsKey(string? branchId)

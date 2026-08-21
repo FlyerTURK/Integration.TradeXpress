@@ -17,7 +17,7 @@ namespace Integration.TradeXpress.Attachments;
 /// Pazaryerine GİDECEK ürün görsellerini tek yerden çözer (N11 + Trendyol ortak; Etsy bayt yüklediği için kullanmaz).
 ///
 /// <para><b>Neden merkezi:</b> sıra/limit/tür kuralları her kanalda AYNI ve sessizce bozulabilir cinsten
-/// (kapak kayarsa pazaryerinde vitrin görseli değişir, video sızarsa XML reddedilir). Kanal başına kopyalanan
+/// (cover <c>IsDefault</c> kayarsa pazaryerinde vitrin görseli değişir, video sızarsa XML reddedilir). Kanal başına kopyalanan
 /// döngüler zamanla birbirinden ayrılırdı.</para>
 ///
 /// <para><b>Kaynak:</b> YALNIZ merkezi DAM (K2 kararı). Legacy <c>ProductImage</c> geri düşüşü 2026-07-31'de
@@ -62,7 +62,7 @@ public class MarketplacePushImageResolver : ITransientDependency
     /// <summary>ÜRÜN-DÜZEYİ push görselleri — varyant görselini AYRICA taşıyamayan kanal modeli için
     /// (bugünkü N11/Trendyol ürün görsel API'leri): ürünün seti + TÜM varyant setleri BİRLEŞTİRİLİR
     /// (2026-08-01 Hakan kararı: "varyant desteklemeyen sitelerde varyant fotoğrafları ana ürün
-    /// fotoğraflarına eklensin"). Sıra: ürün seti (kapak önde) → ana varyant → diğer varyantlar (kod sırası);
+    /// fotoğraflarına eklensin"). Sıra: ürün seti (cover önde) → ana varyant → diğer varyantlar (kod sırası);
     /// aynı medya iki bağlamda da linkliyse BİR kez gider. En fazla <paramref name="maxCount"/> adet.
     /// Adresi üretilemeyen görsel SESSİZCE atlanır (2026-07-28 kararı: push durmasın), ama loglanır.</summary>
     public virtual async Task<List<string>> ResolveAsync(Product product, int maxCount)
@@ -73,13 +73,13 @@ public class MarketplacePushImageResolver : ITransientDependency
         var urls = BuildFromMedia(product, media);
 
         // Pazaryeri ürün başına sınırlı görsel kabul eder. Sınır DAM'da YOK (kütüphane sınırsız), bu yüzden
-        // burada uygulanır — kapak-önce sıralamadan SONRA, yani kırpılan hep en arkadaki görsellerdir.
+        // burada uygulanır — cover-önce sıralamadan SONRA, yani kırpılan hep en arkadaki görsellerdir.
         return urls.Count > maxCount ? urls.Take(maxCount).ToList() : urls;
     }
 
     /// <summary>
     /// Push'a GİDECEK görsellerin DAM kimlikleri — <see cref="ResolveAsync(Product,int)"/> ile AYNI küme ve
-    /// AYNI sıra (kapak önde). Push GEÇMİŞİ için: delil kaydı "hangi görsel gitti" sorusuna URL ile değil
+    /// AYNI sıra (cover önde). Push GEÇMİŞİ için: PushHistory kaydı "hangi görsel gitti" sorusuna URL ile değil
     /// kimlikle cevap vermeli — imzalı adresin ömrü kısadır, kimlik kalıcıdır.
     ///
     /// <para><b>Adresi üretilemeyen görsel BURADA DA ATLANIR</b> — push'a gitmeyen bir görseli geçmişe
@@ -100,7 +100,7 @@ public class MarketplacePushImageResolver : ITransientDependency
 
     /// <summary>
     /// Push aday görsellerinin DAM kimlikleri — imzalı-link ÜRETİLEBİLİRLİĞİNDEN BAĞIMSIZ (aynı küme, aynı sıra).
-    /// Geçici-barındırma yolu (Trendyol) ve import damgası içindir: o yollar imzalı DAM linkine hiç ihtiyaç
+    /// Geçici-barındırma yolu (Trendyol) ve import sırasında yazılan <c>RemoteImageMediaIds</c> içindir: o yollar imzalı DAM linkine hiç ihtiyaç
     /// duymaz; <see cref="ResolveMediaIdsAsync"/>'in filtresi orada gizli bir bağımlılık üretir (imza anahtarı
     /// yoksa liste boş kalır ve ürün "görselsiz" sanılır). Hangi kimliğin fiilen gönderildiğine yayıncı karar verir.
     /// </summary>
@@ -135,8 +135,8 @@ public class MarketplacePushImageResolver : ITransientDependency
     }
 
     // Aktif varyantların setleri (ana önce, sonra kod sırası) ürün setinin ARKASINA eklenir; MediaId dedup —
-    // aynı görsel hem üründe hem varyantta linkliyse pazaryerine bir kez gider. Kapak semantiği bozulmaz:
-    // ürün setinin kapağı listenin başında kalır; ürün seti boşsa ilk varyantın kapağı öne geçer.
+    // aynı görsel hem üründe hem varyantta linkliyse pazaryerine bir kez gider. Cover (IsDefault) semantiği bozulmaz:
+    // ürün setinin cover'ı listenin başında kalır; ürün seti boşsa ilk varyantın cover'ı öne geçer.
     private async Task<List<PushMediaDto>> AppendVariantMediaAsync(Product product, List<PushMediaDto> productMedia)
     {
         var merged = new List<PushMediaDto>(productMedia);

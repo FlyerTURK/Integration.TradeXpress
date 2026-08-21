@@ -60,7 +60,7 @@ public class MarketplaceShipmentTariff : FullAuditedAggregateRoot<Guid>
     public virtual SalesChannelType Channel { get; protected set; }
 
     /// <summary>Tarifenin KENDİ nötr taşıyıcı kodu (ARAS/SURAT/PTT/…). Pazaryerinin firma kimliğine bilinçli
-    /// olarak BAĞLI DEĞİL: N11 firma aynası her gece tam re-sync'te satır silebiliyor ve kısa kod opsiyonel
+    /// olarak BAĞLI DEĞİL: N11 firmalarını yansıtan <c>N11ShipmentCompany</c> her gece tam re-sync'te satır silebiliyor ve kısa kod opsiyonel
     /// (kısa kodu olmayan firmalar var) — tarife o kırılganlığa bağlanmaz.</summary>
     public virtual string CarrierCode { get; protected set; } = string.Empty;
 
@@ -68,7 +68,7 @@ public class MarketplaceShipmentTariff : FullAuditedAggregateRoot<Guid>
     public virtual string CarrierName { get; protected set; } = string.Empty;
 
     /// <summary>Pazaryerindeki kargo firmasının kimliği (N11'de <c>N11ShipmentCompany.ExternalId</c>) —
-    /// GEVŞEK köprü: FK YOK, navigation YOK, <c>null</c> = henüz eşlenmedi. Ayna satırı silinse bile tarife
+    /// GEVŞEK id-only bağ: FK YOK, navigation YOK, <c>null</c> = henüz eşlenmedi. <c>N11ShipmentCompany</c> satırı silinse bile tarife
     /// öksüz kalmaz (N11City.CoreAdministrativeAreaId ile aynı desen).</summary>
     public virtual string? ChannelCompanyExternalId { get; protected set; }
 

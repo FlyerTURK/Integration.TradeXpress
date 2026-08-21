@@ -4,13 +4,13 @@ using Integration.TradeXpress.N11Cities;
 namespace Integration.TradeXpress.Geography;
 
 /// <summary>
-/// Çekirdek coğrafya seed'i (host-global, idempotent). İki iş:
+/// Core coğrafya seed'i (host-global, idempotent). İki iş:
 /// <list type="number">
 /// <item>ISO 3166-1 TAM ülke kataloğunu (249) upsert eder — mevcut ülkeye yalnız ISO alan (Alpha3/Numeric) +
 /// adres-model bayrakları ekler (<c>Name</c>/<c>DefaultCurrencyUnitId</c>/<c>DisplayOrder</c> KORUNUR); eksik
 /// ülkeyi para birimSİZ (<c>DefaultCurrencyUnitId=null</c>) ekler.</item>
 /// <item>TR il/ilçe'yi N11'den (idempotent — ISO kodu var mı bak), US eyaletlerini sabit ISO katalogdan türetir;
-/// N11 il/ilçe köprü kolonlarını (<see cref="N11City.CoreAdministrativeAreaId"/> /
+/// N11 il/ilçe id-only eşleme kolonlarını (<see cref="N11City.CoreAdministrativeAreaId"/> /
 /// <see cref="N11District.CoreLocalityId"/>) doldurur.</item>
 /// </list>
 /// <para>N11 il/ilçe verisi BOŞSA (DbMigrator seed'i N11 sync'ten önce koşabilir) TR türetme ATLANIR ve loglanır —
@@ -49,7 +49,7 @@ public class GeographySeeder(
     /// <summary>Host-global coğrafya kataloğunu upsert eder. Yalnız host (TenantId=null) bağlamında çağrılmalı.</summary>
     public async Task SeedAsync()
     {
-        // Tüm çekirdek coğrafya host-global (TenantId=null). Change(null) hem sorguyu (host satırları) hem
+        // Tüm core coğrafya host-global (TenantId=null). Change(null) hem sorguyu (host satırları) hem
         // insert'i (TenantId=null atanır) garanti eder.
         using (_currentTenant.Change(null))
         {
@@ -167,7 +167,7 @@ public class GeographySeeder(
             addedAreas++;
         }
 
-        await SaveAsync();   // il Id'leri kesinleşsin (N11 köprüsü + ilçe FK'si için)
+        await SaveAsync();   // il Id'leri kesinleşsin (N11 CoreAdministrativeAreaId + ilçe FK'si için)
 
         var cities = (await _n11CityRepository.GetQueryableAsync()).ToList();
         if (cities.Count == 0)
@@ -199,7 +199,7 @@ public class GeographySeeder(
                     "Coğrafya seed [TR]: N11'de olup statik katalogda OLMAYAN il — {Iso} {Name}.", iso, city.Name);
             }
 
-            // N11 köprüsü (idempotent — zaten doğruysa dokunma).
+            // N11 eşlemesi — CoreAdministrativeAreaId (idempotent — zaten doğruysa dokunma).
             if (city.CoreAdministrativeAreaId != area.Id)
             {
                 city.SetCoreAdministrativeArea(area.Id);

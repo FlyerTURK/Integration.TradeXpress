@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.Geography;
 
 /// <summary>
-/// İdari alan (il/eyalet — ISO 3166-2 alt-bölüm) — <b>çekirdek HOST-GLOBAL</b> coğrafya referansı (IMultiTenant
+/// İdari alan (il/eyalet — ISO 3166-2 alt-bölüm) — <b>core HOST-GLOBAL</b> coğrafya referansı (IMultiTenant
 /// DEĞİL; TenantId yok → tüm tenant'lar paylaşır; N11City deseniyle hizalı). Ülkeye id-only bağlı
 /// (<see cref="CountryId"/>, nav YOK; aggregate sınırı). ISO kodu (<see cref="Iso3166_2Code"/>, ör TR-34/US-AL)
 /// e-Fatura/UBL kimliğidir; <see cref="Code"/> kaynak kod (N11 il kodu 1–81 ya da ISO alt-bölüm kısaltması).

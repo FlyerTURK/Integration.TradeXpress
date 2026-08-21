@@ -6,7 +6,7 @@ using Integration.TradeXpress.Geography;
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
 /// <summary>
-/// Çekirdek coğrafya (idari alan/yerellik/alt-yerellik — ISO 3166-2 hizalı) mapping'i. <b>HOST-GLOBAL</b>
+/// core coğrafya (idari alan/yerellik/alt-yerellik — ISO 3166-2 hizalı) mapping'i. <b>HOST-GLOBAL</b>
 /// (IMultiTenant DEĞİL → TenantId kolonu yok; N11City deseni). İdari alan ISO kodu ülke-içinde benzersiz —
 /// YALNIZ doldurulduğunda (nullable kolonda tek-NULL tuzağına düşmemek için <c>IS NOT NULL</c> filtresi).
 /// Kaynak: N11 türetme + ISO katalog.

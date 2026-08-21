@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.SalesChannelProducts;
 
 /// <summary>
-/// Bir gönderim denemesinin SONUCU — delil defterinin (push history) her satırında zorunlu.
+/// Bir gönderim denemesinin SONUCU — PushHistory'nin (push history) her satırında zorunlu.
 ///
 /// <para><b>Neden eklendi</b> (2026-08-10 Hakan kararı): defter başlangıçta YALNIZ başarılı gönderimi
 /// yazıyordu; reddedilen gönderim hiç iz bırakmıyordu. Sonuç: "14:03'te 175 TL göndermeyi denedik, kanal

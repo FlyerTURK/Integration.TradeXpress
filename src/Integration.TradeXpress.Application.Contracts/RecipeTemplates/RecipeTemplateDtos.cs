@@ -129,4 +129,9 @@ public class RecipeTemplateApplyResultDto
     public string TemplateName { get; set; } = string.Empty;
     public int AffectedVariantCount { get; set; }
     public int AppliedLineCount { get; set; }
+
+    /// <summary>Dokunulmadan bırakılan KULLANICI DÜZENLEMESİ şablon satırı sayısı. Sıfırdan büyükse o kalemler
+    /// reçetede iki kez görünür (kullanıcının sürümü + şablonun yeniden kurulan sürümü) — uyarı gösterilir,
+    /// çünkü sessiz kalsa paketleme/kargo/komisyon fark edilmeden iki kez fiyatlanırdı.</summary>
+    public int PreservedEditedLineCount { get; set; }
 }

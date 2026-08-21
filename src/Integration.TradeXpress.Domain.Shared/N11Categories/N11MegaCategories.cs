@@ -135,8 +135,8 @@ public static class N11MegaCategories
     public const string SyntheticIdPrefix = "MEGA-";
 
     /// <summary>Verilen dış kimlik SENTETİK mega katmana mı ait? "N11'den gelen gerçek kategori" ile "bizim
-    /// eklediğimiz üst katman" ayrımının TEK doğru kaynağı — kategori sayımı (mega hariç) ve senkron damgası
-    /// bu yüklemi kullanır.
+    /// eklediğimiz üst katman" ayrımının TEK doğru kaynağı — kategori sayımı (mega hariç) ve
+    /// <c>N11CategorySyncManager.StampSyncAsync</c> bu yüklemi kullanır.
     ///
     /// <para>Diğer iki sezgi ÇÜRÜK, kullanılmamalı: <c>ParentExternalId == null</c> yanlıştır (79 GERÇEK
     /// top-level de N11'den kök olarak gelir ve grouper onları bağlayana kadar köksüzdür; <see cref="TopToMega"/>'da

@@ -10,23 +10,23 @@ using Volo.Abp.Linq;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// PUSH KAPISI — "bu varyant pazaryerine çıkabilir mi?" sorusunun TEK yeri (2026-08-05 Hakan kararı).
+/// PUSH GUARD'I — "bu varyant pazaryerine çıkabilir mi?" sorusunun TEK yeri (2026-08-05 Hakan kararı).
 ///
 /// <para>İki koşul birlikte aranır:
 /// <list type="number">
 ///   <item>Varyantın statüsü <see cref="ProductSaleStatus.Ready"/> — yani bir İNSAN onaylamış.</item>
-///   <item>Onay anındaki reçete damgası BUGÜNKÜ reçeteyle uyuşuyor — yani onaydan sonra reçete değişmemiş.</item>
+///   <item>Onay anındaki reçete stamp'i (<c>VerifiedRecipeStamp</c>) BUGÜNKÜ reçeteyle uyuşuyor — yani onaydan sonra reçete değişmemiş.</item>
 /// </list>
 /// İkincisi olmadan onay bir kereye mahsus tik olurdu: reçete sonradan değişir, ürün "onaylı" görünmeye
 /// devam eder ve yanlış fiyatla satılır.</para>
 ///
-/// <para><b>Neden merkezî servis, N11'in içinde değil:</b> aynı kapı Trendyol ve Etsy push'larında da
+/// <para><b>Neden merkezî servis, N11'in içinde değil:</b> aynı guard Trendyol ve Etsy push'larında da
 /// gerekiyor. Kanal başına kopyalanan bir kural zamanla birbirinden ayrışır — ve ayrışma SESSİZ olur
 /// (bir kanal doğrulamayı sorar, diğeri sormaz). §4: en merkezi, devralınabilir yerleşim.</para>
 ///
-/// <para><b>Bu kapı <c>OverridePrice</c> baypasını da kapatır:</b> push fiyat zinciri
+/// <para><b>Bu guard <c>OverridePrice</c> baypasını da kapatır:</b> push fiyat zinciri
 /// <c>OverridePrice ?? türetilmiş</c> okuduğu için, elle fiyat girilmiş bir varyant reçetesi kararsız olsa
-/// bile push edilebiliyordu. Kapı fiyatlamadan ÖNCE olduğu için elle fiyat artık kararsızlığı örtmez.</para>
+/// bile push edilebiliyordu. Guard fiyatlamadan ÖNCE olduğu için elle fiyat artık kararsızlığı örtmez.</para>
 /// </summary>
 public class VariantSaleReadinessResolver : ITransientDependency
 {
@@ -45,7 +45,7 @@ public class VariantSaleReadinessResolver : ITransientDependency
     }
 
     /// <summary>Verilen varyantlardan pazaryerine ÇIKABİLECEK olanların kimlikleri.
-    /// <para>Fail-closed: detayı okunamayan, statüsü <c>Ready</c> olmayan ya da damgası tutmayan varyant
+    /// <para>Fail-closed: detayı okunamayan, statüsü <c>Ready</c> olmayan ya da stamp'i tutmayan varyant
     /// kümeye GİRMEZ. "Bilinmiyor" asla "satılabilir" sayılmaz.</para></summary>
     public virtual async Task<HashSet<Guid>> ResolveSellableAsync(IReadOnlyCollection<Guid> variantIds)
     {
@@ -61,7 +61,7 @@ public class VariantSaleReadinessResolver : ITransientDependency
             (await _detailRepository.GetQueryableAsync())
                 .Where(d => ids.Contains(d.EntityVariantId)));
 
-        // Yalnız onaylı varyantların reçetesi okunur — kalanların damgasına zaten bakılmayacak.
+        // Yalnız onaylı varyantların reçetesi okunur — kalanların stamp'ine zaten bakılmayacak.
         var readyIds = details
             .Where(d => d.SaleStatus == ProductSaleStatus.Ready)
             .Select(d => d.EntityVariantId)
@@ -83,11 +83,11 @@ public class VariantSaleReadinessResolver : ITransientDependency
             .ToHashSet();
     }
 
-    /// <summary>Varyant başına BUGÜNKÜ reçete damgası. Reçetesi olmayan varyant boş-reçete damgası alır —
-    /// böylece "reçetesizken onaylandı, hâlâ reçetesiz" hâli geçerli kalır.
+    /// <summary>Varyant başına BUGÜNKÜ reçete stamp'i (<see cref="RecipeVerificationStamp"/>). Reçetesi olmayan
+    /// varyant boş-reçete stamp'i alır — böylece "reçetesizken onaylandı, hâlâ reçetesiz" hâli geçerli kalır.
     ///
     /// <para><b>PUBLIC olması bilinçli:</b> insan doğrulama ucu (<c>VerifySaleReadinessAsync</c>) onay anındaki
-    /// damgayı YAZAR, bu resolver ise sonradan OKUR. İki taraf damgayı ayrı ayrı hesaplasaydı en küçük formül
+    /// stamp'i YAZAR, bu resolver ise sonradan OKUR. İki taraf stamp'i ayrı ayrı hesaplasaydı en küçük formül
     /// farkı bile "onaylandı ama hiçbir zaman geçerli sayılmıyor" gibi sessiz bir kilide dönerdi — hata mesajı
     /// üretmeyen, yalnız ürünün push edilemediği bir hâl. Tek kaynak (§4 SSOT).</para></summary>
     public virtual async Task<Dictionary<Guid, string>> ComputeStampsAsync(List<Guid> variantIds)
@@ -116,7 +116,7 @@ public class VariantSaleReadinessResolver : ITransientDependency
         return result;
     }
 
-    /// <summary>Reçete satırı → damga girdisi. Zaman kısmı son değişim (yoksa oluşturulma) anıdır.</summary>
+    /// <summary>Reçete satırı → <see cref="RecipeStampLine"/> girdisi. Zaman kısmı son değişim (yoksa oluşturulma) anıdır.</summary>
     private static RecipeStampLine ToStampLine(ProductVariantRecipeLine line)
     {
         return new RecipeStampLine(

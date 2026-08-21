@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.MultiCompany;
 /// <c>null</c> kalıyor ve filtre PERMISSIVE (konsolide) kola düşüyordu — yani koruma sessizce yok oluyordu.
 /// Tek koşullu savunma, o koşul kaybolduğunda hiçbir hata üretmez; en tehlikeli sessiz açık türü budur.</para>
 ///
-/// <para>Bu yardımcı ikinci bağımsız kapıyı koyar: şirket bağlamı YOKSA açık <c>BusinessException</c>
+/// <para>Bu yardımcı ikinci bağımsız guard'ı koyar: şirket bağlamı YOKSA açık <c>BusinessException</c>
 /// (filtreye düşmek yerine anında dur), VARSA sorgu <c>CompanyId</c> eşitliğini AÇIKÇA taşır. Filtre ile
 /// birlikte çalışır, onun yerine geçmez.</para>
 /// </summary>

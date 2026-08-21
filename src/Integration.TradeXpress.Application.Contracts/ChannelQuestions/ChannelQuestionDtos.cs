@@ -92,7 +92,7 @@ public class ChannelQuestionListDto : EntityDto<Guid>, IListDto<Guid>
 
     public bool IsRead { get; set; }
 
-    /// <summary>YEREL cevap gövdesi (taslak ya da gönderilmiş).</summary>
+    /// <summary>YEREL cevap metni (taslak ya da gönderilmiş).</summary>
     public string? AnswerText { get; set; }
 
     /// <summary>Cevabın TESLİM durumu — sorunun kanal durumundan BAĞIMSIZ (bkz. tip özeti).</summary>
@@ -114,9 +114,9 @@ public class ChannelQuestionListDto : EntityDto<Guid>, IListDto<Guid>
 /// (<c>ChannelAnswerState.ReadyToSend</c>) — HİÇBİR ŞEY GÖNDERMEZ; push ayrı bir işle açılacak.</summary>
 public class ChannelQuestionAnswerInput
 {
-    /// <summary>Cevap gövdesi. Boş bırakmak cevabı TEMİZLER (entity taslağı sıfırlar).
+    /// <summary>Cevap metni. Boş bırakmak cevabı TEMİZLER (entity taslağı sıfırlar).
     /// <para>İçerik kısıtı: pazaryeri müşteriyi kanal DIŞINA davet etmeyi yasaklar (kendi sitemize, başka bir
-    /// pazaryerine, harici iletişim kanalına yönlendirme) — cevap yazma yüzeyi kullanıcıyı uyarmalıdır.</para></summary>
+    /// pazaryerine, harici iletişim kanalına yönlendirme) — cevap yazma ekranı (<c>ChannelQuestionListPage</c>) kullanıcıyı uyarmalıdır.</para></summary>
     [StringLength(ChannelQuestionConsts.AnswerTextMaxLength)]
     public string? AnswerText { get; set; }
 

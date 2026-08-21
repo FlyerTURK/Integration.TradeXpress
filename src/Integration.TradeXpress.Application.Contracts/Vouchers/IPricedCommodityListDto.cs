@@ -4,7 +4,7 @@ using Integration.Framework.Base.Dtos.Interfaces;
 namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
-/// Fiyatlı-emtia fiş panellerinin (Taş/Mücevher) picker listesinden beklediği ortak yüzey.
+/// Fiyatlı-emtia fiş panellerinin (Taş/Mücevher) picker listesinden beklediği ortak arayüz.
 /// Panel bu sözleşme üzerinden yön-bazlı fiyat/birim önerir; DTO'lar salt bu arayüzü uygular (ISP).
 /// </summary>
 public interface IPricedCommodityListDto : IIsActive

@@ -18,17 +18,17 @@ public class ConfirmationDto : AuditedEntityDto<Guid>
 
     public ProcessType ProcessType { get; set; }
 
-    /// <summary>Gönderenin yönü; alıcının aynası AYNI EKSENDE zıt yöndür.</summary>
+    /// <summary>Gönderenin yönü; alıcının mirror'ı AYNI EKSENDE zıt yöndür.</summary>
     public ProcessDirectionType Direction { get; set; }
 
-    // ── Ayna anahtarı (denormalize) — grid gösterimi + uyuşmazlık teşhiri ──
+    // ── Mirror anahtarı (ConfirmationMirrorKey; denormalize) — grid gösterimi + uyuşmazlık teşhiri ──
 
     public Guid? CommodityId { get; set; }
     public Guid? VariantId { get; set; }
     public decimal Quantity { get; set; }
     public decimal Amount { get; set; }
 
-    /// <summary>Ana bacağın birimi — ana bacağı olmayan tiplerde (Dekont) null.</summary>
+    /// <summary>Ana tarafın birimi — ana tarafı olmayan tiplerde (Dekont) null.</summary>
     public Guid? MainUnitId { get; set; }
     public string? MainUnitCode { get; set; }
 
@@ -61,7 +61,7 @@ public class ConfirmationDto : AuditedEntityDto<Guid>
 
 /// <summary>TEKLİF (gönderen kendi satırını yazar): iç kasaya karşı bir process kaydedilir. Postlama YOK —
 /// Teyit kaydı <see cref="ConfirmationStatus.Proposed"/> doğar, alıcının GELEN'ine düşer.
-/// <para><see cref="Line"/> panelin ürettiği TAM satırdır; sunucu ayna anahtarını ONDAN TÜRETİR (client
+/// <para><see cref="Line"/> panelin ürettiği TAM satırdır; sunucu mirror anahtarını ONDAN TÜRETİR (client
 /// anahtarı ayrıca göndermez — çift kaynak olmasın). Fiş BAŞLIĞI (hesap/cari) replay EDİLMEZ: teyitte
 /// sunucu karşı KASADAN türetir (AccountType=Vault; cari üretilmez).</para></summary>
 public class ProposeConfirmationInput
@@ -80,8 +80,8 @@ public class ProposeConfirmationInput
     public string? Note { get; set; }
 }
 
-/// <summary>BEYAN (alıcı KENDİ ELİYLE kendi satırını yazar — sistem aynalamaz). Alıcı buraya KENDİ gözlediği
-/// değerlerle TAM bir process satırı girer; sunucu bunun gönderenin satırıyla AYNA olduğunu doğrular
+/// <summary>BEYAN (alıcı KENDİ ELİYLE kendi satırını yazar — sistem mirror'lamaz). Alıcı buraya KENDİ gözlediği
+/// değerlerle TAM bir process satırı girer; sunucu bunun gönderenin satırıyla MIRROR olduğunu doğrular
 /// (emtia+varyant+miktar+tutar+ana birim+karşılık birimi+karşılık tutarı, ZIT yön). Tutmazsa teyit açılmaz,
 /// fark yüzeye çıkar (fire/kayıp dedektörü). Postlama YOK — Proposed→Declared.</summary>
 public class DeclareConfirmationInput
@@ -96,7 +96,7 @@ public class DeclareConfirmationInput
     public string? Note { get; set; }
 }
 
-/// <summary>TEYİT (gönderen, alıcının kaydını teyit eder): iki ayna bacak atomik postlanır. Declared→Confirmed.</summary>
+/// <summary>TEYİT (gönderen, alıcının kaydını teyit eder): iki mirror fiş satırı atomik postlanır. Declared→Confirmed.</summary>
 public class ConfirmConfirmationInput
 {
     public Guid Id { get; set; }
@@ -105,7 +105,7 @@ public class ConfirmConfirmationInput
     public string? Note { get; set; }
 }
 
-/// <summary>RED (alıcı kabul etmez): postlanmış bacak yok, yalnız durum kapanır. Proposed|Declared→Rejected.
+/// <summary>RED (alıcı kabul etmez): postlanmış fiş satırı yok, yalnız durum kapanır. Proposed|Declared→Rejected.
 /// (Gönderenin İPTALİ YOKTUR — süreci yalnız alıcı durdurabilir.)</summary>
 public class RejectConfirmationInput
 {

@@ -45,7 +45,7 @@ public class ProductCommodityProvisionItemDto
     public Guid? ExistingCommodityId { get; set; }
 
     /// <summary>MİLYEM / katsayı (Maden <c>Factor</c>, Hurda <c>Factor</c>, Vadeli <c>FollowingFactor</c>).
-    /// <para><b>Metal-bacaklı ailelerde YENİ kayıt açarken ZORUNLU</b> (2026-08-06): boş bırakılırsa entity
+    /// <para><b>Metal tarafı olan ailelerde YENİ kayıt açarken ZORUNLU</b> (2026-08-06): boş bırakılırsa entity
     /// varsayılanına düşerdi (Maden 0.995 / Hurda 0.570) ve bu MAKUL GÖRÜNEN BİR TAHMİNDİR — 22 ayar bilezik
     /// 0.916'dır. Sessizce her değerlemeye girer. Sistem tahmin etmez, kullanıcı beyan eder.</para>
     /// <para>Klonda GEREKMEZ: kopya değeri kaynak kayıttan devralır.</para></summary>

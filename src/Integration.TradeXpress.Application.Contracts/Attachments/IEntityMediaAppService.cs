@@ -21,9 +21,9 @@ public interface IEntityMediaAppService : IApplicationService
 
     /// <summary>Pazaryerine GİDECEK medya seti — <see cref="GetForAsync"/>'ten üç farkı vardır ve üçü de push için zorunludur:
     /// <list type="number">
-    /// <item>PASİF link'ler elenir (düzenleme yüzeyi onları gösterir; pazaryeri görmemeli).</item>
+    /// <item>PASİF link'ler elenir (<c>EntityMediaPanel</c> onları gösterir; pazaryeri görmemeli).</item>
     /// <item><paramref name="mediaType"/> ile tür süzülür — video isteyen kanal ayrı çağırır; görsel listesine mp4 sızmaz.</item>
-    /// <item>Sıra KAPAK-ÖNCE çözülür (<c>IsDefault</c> → <c>DisplayOrder</c>) — DAM'da kapak, sırası kaçıncı olursa olsun kapaktır.</item>
+    /// <item>Sıra COVER-ÖNCE çözülür (<c>IsDefault</c> → <c>DisplayOrder</c>) — DAM'da cover, sırası kaçıncı olursa olsun cover'dır.</item>
     /// </list>
     ///
     /// <para>Varyant-özel medya AYRI bağlamda durur ("ProductVariant" + varyant Id'si); çağıran hangi bağlamı

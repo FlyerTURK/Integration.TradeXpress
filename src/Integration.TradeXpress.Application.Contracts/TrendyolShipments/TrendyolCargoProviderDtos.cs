@@ -10,7 +10,7 @@ public class TrendyolCargoProviderDto
 {
     public Guid Id { get; set; }
 
-    /// <summary>Trendyol kargo firması id'si — ürün gövdesindeki <c>cargoCompanyId</c> bununla eşleşir.</summary>
+    /// <summary>Trendyol kargo firması id'si — ürün body'sindeki <c>cargoCompanyId</c> bununla eşleşir.</summary>
     public string ExternalId { get; set; } = string.Empty;
 
     /// <summary>Trendyol kısa kodu (ör. "ARASMP").</summary>

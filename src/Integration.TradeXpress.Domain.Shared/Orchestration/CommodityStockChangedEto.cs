@@ -5,7 +5,7 @@ using Integration.TradeXpress.Vouchers;
 namespace Integration.TradeXpress.Orchestration;
 
 /// <summary>
-/// EMTİA STOĞU DEĞİŞTİ olayı (ADR-PRODUCT-ORCHESTRATION durum tahtası sinyali #1). VoucherLine yazan/silen
+/// EMTİA STOĞU DEĞİŞTİ olayı (ADR-PRODUCT-ORCHESTRATION durum board'u sinyali #1). VoucherLine yazan/silen
 /// her yol, UoW COMMIT SONRASI bunu yayımlar; <c>ProductOrchestrationManager</c> dinler → etkilenen ürünleri
 /// (ters-endeks) yeniden hesaplar → kanala push.
 /// <para><b>Neden commit sonrası:</b> push/hesap voucher transaction'ına bağlanırsa dış HTTP (N11 60 sn timeout)

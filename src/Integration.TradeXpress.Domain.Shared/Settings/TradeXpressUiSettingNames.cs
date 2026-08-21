@@ -9,7 +9,7 @@ public static class TradeXpressUiSettingNames
     public const string Theme = Prefix + "Theme";
 
     /// <summary>Kullanıcının boyut modu (Small/Medium/Large) — per-user, cihazdan bağımsız.
-    /// Tarayıcıdaki tx.last_size cookie'si yalnız anonim (login) ayna; kaynak budur.</summary>
+    /// Tarayıcıdaki tx.last_size cookie'si yalnız anonim (login) projeksiyondur; kaynak budur.</summary>
     public const string SizeMode = Prefix + "SizeMode";
 
     /// <summary>Kullanıcının UI dili (tr/en) — per-user, cihazdan bağımsız. ABP'nin DefaultLanguage ayarı

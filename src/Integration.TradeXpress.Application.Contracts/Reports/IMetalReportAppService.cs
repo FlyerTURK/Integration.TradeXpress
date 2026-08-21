@@ -15,7 +15,7 @@ public interface IMetalReportAppService : IApplicationService
     /// asOfExclusive=asOf.Date.AddDays(1). Cari metal (ledger/BAKIYE) AYRI boyuttur — bu fiziksel vault stoğu (offset).</summary>
     Task<Dictionary<Guid, decimal>> GetMetalNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive);
 
-    /// <summary>Bilanço İŞÇİLİK(Labor) için: maden Normal/İade/Emanet işçilik karşı-bacağı (PayUnit/PayTotal) net,
+    /// <summary>Bilanço İŞÇİLİK(Labor) için: maden Normal/İade/Emanet işçilik karşı tarafı (PayUnit/PayTotal) net,
     /// işçilik-birimi bazında — ÇIKIŞ(satış)=+, GİRİŞ(alış)=−. Merkez base'e çevirince ÇIKIŞ-HAS − GİRİŞ-HAS = işçilik K/Z.</summary>
     Task<Dictionary<Guid, decimal>> GetMetalLaborByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive);
 

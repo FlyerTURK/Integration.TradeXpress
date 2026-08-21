@@ -18,11 +18,11 @@ using Volo.Abp.MultiTenancy;
 namespace Integration.TradeXpress.Reports;
 
 /// <summary>
-/// Nakit stok ve hareket raporları. Nakit = İKİ bacak:
+/// Nakit stok ve hareket raporları. Nakit = İKİ leg (CashLeg):
 /// <list type="bullet">
-///   <item><b>Sol bacak</b> (Total / MainUnit) yalnız <see cref="ProcessType.Cash"/> kayıtlarında nakittir.
+///   <item><b>Sol leg</b> (Total / MainUnit) yalnız <see cref="ProcessType.Cash"/> kayıtlarında nakittir.
 ///         İşaret: Giriş(+)/Çıkış(−).</item>
-///   <item><b>Sağ bacak</b> (PayTotal / PayUnit) <b>Peşin</b> (<see cref="ProcessPaymentType.WithCash"/>) ödeme tipli
+///   <item><b>Sağ leg</b> (PayTotal / PayUnit) <b>Peşin</b> (<see cref="ProcessPaymentType.WithCash"/>) ödeme tipli
 ///         tüm process'lerde nakittir. İşaret tersi: mal Çıkış→nakit girer(+), mal Giriş→nakit çıkar(−).</item>
 /// </list>
 /// Kapsam Voucher header'ından (Company/Branch/Vault), hiyerarşik opsiyonel (null = alt kırılımları topla).
@@ -64,7 +64,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
     /// <summary>
     /// Nakit STOK: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault, TÜM geçmişin birim-bazlı Giren/Çıkan/Net'i.
     /// K4: satırları belleğe çekip in-memory leg üretmek yerine SQL-side GROUP BY + SUM (<see cref="GetCashNetByUnitAsync"/>
-    /// deseni) — iki bacak / işaret / CashId / kapsam kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız
+    /// deseni) — iki leg / işaret / CashId / kapsam kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız
     /// aggregation DB'de. Giren = Σ(leg-effect &gt; 0), Çıkan = Σ(−effect &lt; 0); Net = Giren − Çıkan (= Σ effect).
     /// </summary>
     public virtual async Task<List<CashStockRowDto>> GetStockAsync(CashReportFilterDto filter)
@@ -75,7 +75,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
         var q = await _voucherRepository.GetQueryableAsync();
 
-        // Sol bacak: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
+        // Sol leg: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
         // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 (giriş = çift) bilinçli.
         // effect = giriş ? Total : −Total; Giren = effect>0 payı, Çıkan = effect<0 payı (mutlak).
         var mainAgg = await AsyncExecuter.ToListAsync(
@@ -96,7 +96,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                                  ? (((int)x.Direction % 2) == 0 ? -x.Total : x.Total) : 0m),
             });
 
-        // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
+        // Sağ leg: Peşin (WithCash) olan tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
         // İşaret tersi: mal Çıkış → nakit girer (+), mal Giriş → nakit çıkar (−) → effect = giriş ? −PayTotal : PayTotal.
         var payAgg = await AsyncExecuter.ToListAsync(
             from v in q
@@ -149,7 +149,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
     /// Bilanço STOK (nakit) kategorisi için fiziksel nakit holding'i: kapsam (şirket DAİMA ICurrentCompany'den) + branch/
     /// vault, <paramref name="asOfExclusive"/> tarihinden ÖNCE birikmiş net, birim-bazında. Net = FİRMA perspektifi
     /// (+ = firma o nakdi tutar). K4: satırları belleğe çekmek yerine SQL-side GROUP BY + SUM (AccountBalance/ServicePL
-    /// ledger deseni) — bacak/işaret kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız aggregation DB'de.
+    /// ledger deseni) — leg/işaret kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız aggregation DB'de.
     /// </summary>
     public virtual async Task<Dictionary<Guid, decimal>> GetCashNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
     {
@@ -159,7 +159,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
         var q = await _voucherRepository.GetQueryableAsync();
 
-        // Sol bacak: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
+        // Sol leg: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
         var mainLegs = await AsyncExecuter.ToListAsync(
             from v in q
             where v.CompanyId == companyId
@@ -172,7 +172,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Total : -x.Total) });
 
-        // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
+        // Sağ leg: Peşin (WithCash) olan tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
         // İşaret tersi: mal Çıkış → nakit girer (+PayTotal), mal Giriş → nakit çıkar (−PayTotal).
         var payLegs = await AsyncExecuter.ToListAsync(
             from v in q
@@ -204,7 +204,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
         // Devreden: başlangıç tarihinden önceki tüm birikmiş NET (aynı kapsam + nakit filtresi). K4: satırları belleğe
         // çekmek yerine SQL-side GROUP BY + SUM (birim → net) — devreden yalnız birim-bazlı toplam olduğundan detay
-        // gerekmez; bacak/işaret/CashId/kapsam kuralları QueryCashLegsAsync ile BİREBİR aynı.
+        // gerekmez; leg/işaret/CashId/kapsam kuralları QueryCashLegsAsync ile BİREBİR aynı.
         var carryNet = await QueryCashCarryNetAsync(filter, filter.Start.Date);
 
         var unitCodes    = await CodeMapAsync(_unitRepository,    legs.Select(x => x.UnitId).Concat(carryNet.Keys),                 u => u.Id, u => u.Code, disableMultiTenant: true);
@@ -215,7 +215,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
         var result = new List<CashMovementRowDto>();
 
-        // Birim bazında devreden (SQL-side hesaplı net); running her devreden birim için tohumlanır (net 0 olsa da).
+        // Birim bazında devreden (SQL-side hesaplı net); running her devreden birim için seed'lenir (net 0 olsa da).
         var runningByUnit = new Dictionary<Guid, decimal>();
 
         foreach (var (unitId, carry) in carryNet)
@@ -268,11 +268,11 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
         return result;
     }
 
-    // ── ortak: kapsam + iki-bacak nakit çıkarımı ────────────────────────────────
+    // ── ortak: kapsam + iki-leg nakit çıkarımı ────────────────────────────────
 
     /// <summary>
     /// Devreden (hareket raporu): <paramref name="endExclusive"/> tarihinden ÖNCEKİ birikmiş NET, birim-bazında,
-    /// SQL-side GROUP BY + SUM (<see cref="GetCashNetByUnitAsync"/> deseni + CashId/kapsam filtresi). İki bacak / işaret /
+    /// SQL-side GROUP BY + SUM (<see cref="GetCashNetByUnitAsync"/> deseni + CashId/kapsam filtresi). İki leg / işaret /
     /// CashId kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız aggregation DB'de. Yalnız net döner
     /// (devreden tek satır → In/Out ayrımı gerekmez).
     /// </summary>
@@ -284,7 +284,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
         var q = await _voucherRepository.GetQueryableAsync();
 
-        // Sol bacak: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
+        // Sol leg: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
         // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 (giriş = çift) bilinçli.
         var mainLegs = await AsyncExecuter.ToListAsync(
             from v in q
@@ -298,7 +298,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             group l by l.MainUnitId into g
             select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Total : -x.Total) });
 
-        // Sağ bacak: Peşin (WithCash) tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
+        // Sağ leg: Peşin (WithCash) tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
         // İşaret tersi: mal Çıkış → nakit girer (+), mal Giriş → nakit çıkar (−).
         var payLegs = await AsyncExecuter.ToListAsync(
             from v in q
@@ -358,7 +358,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
         {
             var inflow = r.Direction.IsInflow();
 
-            // Sol bacak: yalnız Cash process'te nakit. Giriş + / Çıkış −.
+            // Sol leg: yalnız Cash process'te nakit. Giriş + / Çıkış −.
             // CashId filtresi varsa yalnız bu bacağın nakiti eşleşiyorsa oluştur.
             if (r.Type == ProcessType.Cash && r.MainUnitId != Guid.Empty && r.Total != 0m
                 && (filter.CashId == null || r.CommodityId == filter.CashId))
@@ -366,7 +366,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                     r.CommodityCode,
                     r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.PaymentType, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
 
-            // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit.
+            // Sağ leg: Peşin (WithCash) olan tüm process'lerde karşılık nakit.
             // CashId filtresi varsa yalnız bu bacağın nakiti (PayCommodityId) eşleşiyorsa oluştur.
             if (r.PaymentType == ProcessPaymentType.WithCash && r.PayUnitId is { } payUnit && r.PayTotal != 0m
                 && (filter.CashId == null || r.PayCommodityId == filter.CashId))

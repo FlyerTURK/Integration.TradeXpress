@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.SalesChannelProducts;
 public class SalesChannelProductListRequestDto : ListRequestDto
 {
     /// <summary>Tek bir satış kanalına daralt (null = tüm kanallar). Kanal edit formu bunu doldurur,
-    /// standalone liste boş bırakır — iki yüzeyin TEK farkı budur.</summary>
+    /// standalone liste boş bırakır — iki listenin TEK farkı budur.</summary>
     public Guid? SalesChannelId { get; set; }
 
     /// <summary>Kanal TÜRÜNE daralt (null = tüm türler). <see cref="SalesChannelId"/> doluyken gereksizdir
@@ -111,13 +111,13 @@ public class SalesChannelProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsAc
     public string? RemoteStatus { get; set; }
 
     /// <summary>Son senkron anı (UTC) — görüntüde kullanıcının yerel saatine çevrilir. <b>Aynı zamanda
-    /// "biz gönderdik mi" kanıtıdır:</b> uzak kimlik içe aktarımda da dolar, bu damga yalnız başarılı
+    /// "biz gönderdik mi" kanıtıdır:</b> uzak kimlik içe aktarımda da dolar, bu timestamp yalnız başarılı
     /// gönderimde.</summary>
     public DateTime? LastSyncedAt { get; set; }
 
     /// <summary>PAZARYERİNDE GÖSTERİLEN fiyat (Trendyol liste fiyatı; içe aktarım görüntüsü).
     /// <para><b>N11'de <c>null</c> kalır ve bu bir eksiklik DEĞİLDİR:</b> N11 kanal kaydı pazaryeri fiyatını
-    /// saklamıyor (tahtası da göstermiyor). Boş hücre "bilmiyoruz" der; uydurulmuş bir sayı yazmak
+    /// saklamıyor (board'u da göstermiyor). Boş hücre "bilmiyoruz" der; uydurulmuş bir sayı yazmak
     /// yanlış delil olurdu.</para></summary>
     public decimal? RemotePrice { get; set; }
 
@@ -133,7 +133,7 @@ public class SalesChannelProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsAc
     /// söyler, "neden değil"i söylemez. Karalisteye alınmış bir kalem bizde aylarca "onaylı + satışta"
     /// göründü; gönderim karşı tarafta reddedildi ve sebebi hiçbir ekranda yoktu.</para>
     ///
-    /// <para><b>Engel push'u DURDURMAZ</b> — bayraklar son içe aktarım anının fotoğrafıdır ve bayat bir
+    /// <para><b>Engel push'u DURDURMAZ</b> — bayraklar son içe aktarım anının snapshot'ıdır ve bayat bir
     /// bayrağa dayanıp gönderimi kesmek, çözülmüş bir sorunu kalıcı kılardı. Sistem uyarır, kullanıcı karar
     /// verir. Trendyol dışı kanallarda <c>None</c> kalır (o kanallar böyle bir beyan döndürmüyor).</para>
     /// </summary>
@@ -152,11 +152,11 @@ public class SalesChannelProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsAc
     /// adresidir (varyantlar aynı sayfada yaşar).</summary>
     public string? RemoteUrl { get; set; }
 
-    /// <summary>Kalemin pazaryerinde SON DEĞİŞTİĞİ an (UTC; kayıttaki en yeni damga). <see cref="LastSyncedAt"/>
+    /// <summary>Kalemin pazaryerinde SON DEĞİŞTİĞİ an (UTC; kayıttaki en yeni timestamp). <see cref="LastSyncedAt"/>
     /// sonrasındaysa kanalda bize ait olmayan bir müdahale olmuştur — bunun tek kanıtı budur.</summary>
     public DateTime? RemoteUpdatedAt { get; set; }
 
-    /// <summary>Kaydın pazaryerinde İLK oluşturulduğu an (UTC; kalemler arasındaki en eski damga) — "kanalda ne
+    /// <summary>Kaydın pazaryerinde İLK oluşturulduğu an (UTC; kalemler arasındaki en eski timestamp) — "kanalda ne
     /// zamandır var" sorusunun cevabı; içe aktarılmış ürünlerde bizim kaydımızdan eski olabilir.</summary>
     public DateTime? RemoteCreatedAt { get; set; }
 
@@ -166,7 +166,7 @@ public class SalesChannelProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsAc
     /// <summary>Kanal kaydının varyant/SKU adedi — "kaç satır gidiyor" göstergesi.</summary>
     public int SkuCount { get; set; }
 
-    // ── Tahta alanları (ChannelProductBoardBuilder'dan; fiyatlandırma tahtasıyla AYNI kaynak) ──────────
+    // ── Board alanları (ChannelProductBoardBuilder'dan; fiyatlandırma board'uyla AYNI kaynak) ──────────
     // Bu dört alan "bu üründe daha ne yapılacak?" sorusunun cevabıdır. Kanal-ürün listesine taşındılar
     // çünkü kullanıcı için iki soru AYRI değil: "kanalda ne var" ile "hangisi eksik" aynı ekranda okunur.
 
@@ -183,7 +183,7 @@ public class SalesChannelProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsAc
     public bool HasRecipe { get; set; }
 
     /// <summary>ŞU AN satışa çıkabilecek varyant sayısı — "onaylanmış" değil "bugün geçer" sayısıdır
-    /// (doğrulama damgasının tazeliği de aranır). Reçete değişince düşer ve sebebi budur.</summary>
+    /// (<c>VerifiedRecipeStamp</c>'in tazeliği de aranır). Reçete değişince düşer ve sebebi budur.</summary>
     public int ReadyVariantCount { get; set; }
 
     /// <summary>Satışa hazırlık kademesi — <see cref="HasRecipe"/> ve <see cref="ReadyVariantCount"/>'tan
@@ -205,7 +205,7 @@ public class SalesChannelProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsAc
 }
 
 /// <summary>
-/// Delil defterinin TEK satırı — kanal-agnostik okuma modeli (append-only tabloların birleşik görüntüsü).
+/// PushHistory'nin TEK satırı — kanal-agnostik okuma modeli (append-only tabloların birleşik görüntüsü).
 ///
 /// <para><b>Ne cevaplar:</b> "hangi fiyat/stok ne zaman gönderildi, ulaştı mı, ulaşmadıysa neden".
 /// Otonom fiyat/stok güncellemesi devreye girdiğinde bu sorunun cevabı yalnız burada yaşar — kanal-ürün

@@ -12,7 +12,8 @@ public enum ProductVariantMode
     MultiVariant = 0,
 
     /// <summary>Tek varyant — nitelik-tabanlı üretim KAPALI; ürün tek ana varyantla yaşar
-    /// (sunucu kapısı nitelik grafını boşaltır, synchronizer tek ana varyanta indirir).</summary>
+    /// (sunucuda <c>ProductAppService.BuildEffectiveAttributeGraphAsync</c> nitelik grafını boşaltır,
+    /// synchronizer tek ana varyanta indirir).</summary>
     SingleVariant = 1,
 
     /// <summary>Muadil (paket) — ürün tek ana varyanttır; reçetesi muadil grubu kombinasyon hesabından

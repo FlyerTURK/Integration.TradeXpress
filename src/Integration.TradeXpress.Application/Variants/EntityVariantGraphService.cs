@@ -17,7 +17,7 @@ namespace Integration.TradeXpress.Variants;
 
 /// <summary>
 /// Agnostik varyant grafı servisi — SAHİP AppService'lerin (Good, Product, Metal…) DELEGE ettiği tek nokta. Nitelik/değer
-/// graf-diff → kartezyen senkron → çekirdek varyant özelleştirme (Barkod/Stok/Açıklama/Aktif) + persistsiz üretim önizlemesi
+/// graf-diff → kartezyen senkron → core varyant özelleştirme (Barkod/Stok/Açıklama/Aktif) + persistsiz üretim önizlemesi
 /// + graf okuma/silme — hepsi (EntityName, EntityId) üzerinden. Sahip AppService yalnız 3-4 satır delege eder (DRY).
 /// SUNUCU-İÇİ İÇ YARDIMCI (ApplicationService DEĞİL — 2026-07-26): entityName/entityId keyfi client'tan gelmemeli
 /// (sahip AppService güvenlik sınırını tutar). ApplicationService mirası bu iç yardımcıya AppService interceptor'larını
@@ -28,9 +28,9 @@ namespace Integration.TradeXpress.Variants;
 /// </summary>
 public interface IEntityVariantGraphService
 {
-    /// <summary>Grafı saklar: nitelik/değer diff → synchronizer kartezyen → çekirdek varyant özelleştirmeleri. Sahip entity
+    /// <summary>Grafı saklar: nitelik/değer diff → synchronizer kartezyen → core varyant özelleştirmeleri. Sahip entity
     /// zaten kaydedilmiş olmalı (Id + CompanyId + ownerName sahipten okunur). <paramref name="saveExtensionAsync"/>:
-    /// her varyant çözülüp çekirdeği kaydedildikten SONRA (dto, DB-varyant-Id) ile çağrılır — sahip entity-ÖZEL
+    /// her varyant çözülüp <c>EntityVariant</c> kaydı yazıldıktan SONRA (dto, DB-varyant-Id) ile çağrılır — sahip entity-ÖZEL
     /// uzantısını (ör. GoodVariantDetail fiyat/stok) o DB varyanta bağlar. <paramref name="variants"/> kovaryant
     /// (IReadOnlyList) → sahip türetilmiş DTO listesini (List&lt;GoodVariantGraphDto&gt;) doğrudan geçebilir.</summary>
     /// <para><paramref name="ownerCode"/>: NİTELİKSİZ tek varyantın kod kimliği — verilirse ana varyant "ANAVARYANT"
@@ -222,7 +222,7 @@ public class EntityVariantGraphService : IEntityVariantGraphService, ITransientD
         // NOT (görev #4 düzeltmesi): eski gerekçe "host-seviyesi emtia kataloğu (TenantId=null; ör. madenler)"
         // diyordu — bu ARTIK GEÇERSİZ; emtialar ICompanyOwned ve host'ta üretilemiyor (canlıda 0 host satırı vardı,
         // yani gerekçe hiç doğru olmamıştı). Filtre kapatma yine de DOĞRU: varyant satırları emtiadan FARKLI bir
-        // company damgası taşıyabildiğinden (EntityVariant ICompanyScoped) working-context'te combo boş kalıyordu.
+        // CompanyId taşıyabildiğinden (EntityVariant ICompanyScoped) working-context'te combo boş kalıyordu.
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
         {
@@ -401,7 +401,7 @@ public class EntityVariantGraphService : IEntityVariantGraphService, ITransientD
         return normalized.Any(n => !seen.Add(n));
     }
 
-    // ── varyant grafı: YALNIZ çekirdek özelleştirme (Barkod/Stok/Açıklama/Aktif); Kod/Ad otomatik; IsMain manager'da ──
+    // ── varyant grafı: YALNIZ core özelleştirme (Barkod/Stok/Açıklama/Aktif); Kod/Ad otomatik; IsMain manager'da ──
     private async Task ApplyVariantCustomizationsAsync(
         string entityName, Guid entityId, IReadOnlyList<EntityVariantGraphDto> variants,
         Dictionary<Guid, Guid> valueIdByClientKey, Func<EntityVariantGraphDto, Guid, Task>? saveExtensionAsync)

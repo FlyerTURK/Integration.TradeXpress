@@ -214,7 +214,7 @@ public class RecipeCostPopulator : ITransientDependency
                 // Good için bir kez öğrenilmişti (yukarıdaki PricedCatalogCost yorumu), ama çözülemeyen emtiada
                 // delik açık kalmıştı.
                 //
-                // Metal-bacaklı ailelerde (Metal/Scrap/Future) bu bayrak OKUNMAZ — onlar maliyeti değerleme
+                // Metal-legged ailelerde (Metal/Scrap/Future) bu bayrak OKUNMAZ — onlar maliyeti değerleme
                 // kurundan hesaplar ve kur yoksa zaten MissingRate döner — dolayısıyla bu ek onların davranışını
                 // DEĞİŞTİRMEZ. Etkisi yalnız parasal ailededir (Jewelry/Stone/Good): sessiz sıfır yerine
                 // görünür "hesaplanamadı".

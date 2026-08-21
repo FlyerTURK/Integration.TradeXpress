@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.Financials.Parities;
 
 /// <summary>
-/// Parite değişmezlerinin (invariant) sahibi — tek create kapısı. Kural: bir çift sistemde TEK YÖNDE
+/// Parite değişmezlerinin (invariant) sahibi — create'in TEK yolu (<c>CreateAsync</c>). Kural: bir çift sistemde TEK YÖNDE
 /// yaşar (USDTRY varken TRYUSD olamaz). Kapsam = global (host, TenantId=null) + ilgili tenant; yön
 /// kullanıcının seçtiği gibi korunur (canonicalize edilmez), yalnız ikinci yön engellenir.
 ///
@@ -23,7 +23,7 @@ public class ParityManager(
 
     #region Methods
 
-    /// <summary>Pariteyi kurar (tek create kapısı): kapsamlı ön-kontrol + insert.</summary>
+    /// <summary>Pariteyi kurar (create'in TEK yolu): kapsamlı ön-kontrol + insert.</summary>
     public async Task<Parity> CreateAsync(
         Guid baseCurrencyUnitId,
         Guid quoteCurrencyUnitId,

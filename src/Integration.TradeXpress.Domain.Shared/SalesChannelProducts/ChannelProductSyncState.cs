@@ -25,10 +25,10 @@ public enum ChannelProductSyncState
     /// Etsy bu duruma GİRMEZ — senkron (anlık) yazar, ara durum üretmez.</summary>
     Pending = 1,
 
-    /// <summary>BİZİM gönderdiğimiz kanıtlı (başarılı senkron damgası var) ve son denemesi hatasız.
+    /// <summary>BİZİM gönderdiğimiz kanıtlı (başarılı senkronun <c>LastSyncedAt</c> zamanı dolu) ve son denemesi hatasız.
     /// <para><b>Uzak kimliğin varlığı YETMEZ</b> — 2026-08-10'da bu yüzden yanlıştı: içe aktarılan ürünün
     /// uzak kimliği ithal anında dolduğu için hiç göndermediğimiz kayıtlar "Gönderildi" görünüyordu.
-    /// Kanıt artık gönderim damgasıdır; kimlik yalnız "orada var" der.</para></summary>
+    /// Kanıt artık <c>LastSyncedAt</c>'tır; kimlik yalnız "orada var" der.</para></summary>
     Sent = 2,
 
     /// <summary>Son deneme hata verdi — kaydın pazaryerinde canlı olup olmamasından BAĞIMSIZ (bkz. tip özeti).</summary>

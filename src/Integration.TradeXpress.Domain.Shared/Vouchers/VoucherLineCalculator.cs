@@ -36,7 +36,7 @@ public static class VoucherLineCalculator
         {
             ProcessType.Cash    => CalculateCash(i, buyRateOf, parityMainOf, isInflow, paySource),
 
-            // Çevir / Vadeli / Hurda / Maden: peşin/bedelli pay-bacağı Nakit ile AYNI parite
+            // Çevir / Vadeli / Hurda / Maden: peşin/bedelli pay tarafı (PayFactor/PayTotal) Nakit ile AYNI parite
             // matematiğidir (pay = Unit). Diğer ödeme tiplerinde panel kendi hesaplar; motor
             // çıktısını yoksayar.
             ProcessType.Convert => CalculateCash(i, buyRateOf, parityMainOf, isInflow, PayCommoditySource.Units),
@@ -44,7 +44,7 @@ public static class VoucherLineCalculator
             ProcessType.Scrap   => CalculateCash(i, buyRateOf, parityMainOf, isInflow, PayCommoditySource.Units),
             ProcessType.Metal   => CalculateCash(i, buyRateOf, parityMainOf, isInflow, PayCommoditySource.Units),
 
-            // Takoz / Çeşni: parite pay-bacağı YOK — tüm bacak matematiği ayrı (çok-metalli)
+            // Takoz / Çeşni: parite pay tarafı (PayFactor/PayTotal) YOK — tüm leg matematiği ayrı (çok-metalli)
             // hesaplayıcıda olacak. Bu motor bilinçli devre dışı → passthrough.
             ProcessType.Bullion => Passthrough(i, isInflow, PayCommoditySource.Units),
             ProcessType.Assay   => Passthrough(i, isInflow, PayCommoditySource.Units),

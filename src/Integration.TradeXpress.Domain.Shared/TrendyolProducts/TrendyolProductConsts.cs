@@ -37,6 +37,18 @@ public static class TrendyolProductConsts
     /// <summary>Batch/işlem durumu (PROCESSING/COMPLETED/FAILED ...).</summary>
     public const int StatusMaxLength = 64;
 
+    /// <summary>Trendyol'un KENDİ batch durumu: submit sonrası bu yazılır; çifte-batch koruması ve "bekliyor"
+    /// rozeti bunu okur. Literal tek yerde dursun diye sabit (eskiden dört dosyada dizgiydi).</summary>
+    public const string ProcessingBatchStatus = "PROCESSING";
+
+    /// <summary>BİZİM ürettiğimiz durum (Trendyol sözlüğünde yok): 24 saatten uzun PROCESSING'te kalan batch
+    /// beklenmekten çıkarıldı. PROCESSING'ten FARKLI olması kasıtlı — çifte-batch koruması kaydı artık
+    /// kilitlemez, durum işçisi yeniden sorgulamaz; BatchRequestId durduğu için elle "Durumu Yenile" yine mümkün.</summary>
+    public const string StaleBatchStatus = "STALE";
+
+    /// <summary>Bayat batch'te LastError'a yazılan kısa kod (UI/işçi logu bunu arar).</summary>
+    public const string StaleBatchError = "BatchStale";
+
     public const int LastErrorMaxLength = 4000;
 
     /// <summary>Pazaryeri engel gerekçesi (kilit/karaliste/red) — KANALIN kendi cümlesi, yeniden yazılmaz.

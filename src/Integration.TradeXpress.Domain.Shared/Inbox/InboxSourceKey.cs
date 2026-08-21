@@ -17,7 +17,7 @@ namespace Integration.TradeXpress.Inbox;
 /// </summary>
 public static class InboxSourceKey
 {
-    /// <summary>Teyitler (organizasyon-içi karşılıklı ayna onayı). Kaynak modül SALT-OKUNUR tüketilir —
+    /// <summary>Teyitler (organizasyon-içi karşılıklı mirror onayı). Kaynak modül SALT-OKUNUR tüketilir —
     /// pano ondan yalnız özet sayar; teyit ekranı/entity'si panoya TAŞINMAZ.</summary>
     public const string Confirmations = "Confirmations";
 

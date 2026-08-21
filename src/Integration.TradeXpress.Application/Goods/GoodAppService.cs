@@ -119,7 +119,7 @@ public class GoodAppService
         get { return x => x.Code; }
     }
 
-    /// <summary>Mamülün ürün aynası — iş <c>GoodToProductProjector</c>'da; burada yalnız yetki kapısı
+    /// <summary>Mamülün ürün projeksiyonu — iş <c>GoodToProductProjector</c>'da; burada yalnız [Authorize] denetimi
     /// (ileri yöndeki <c>ProductAppService.ProjectToGoodAsync</c> ile birebir simetrik).</summary>
     public virtual async Task<Products.ProductGetDto> ProjectToProductAsync(Guid goodId)
     {
@@ -423,14 +423,14 @@ public class GoodAppService
         //
         // Medya 2026-08-06'da eklendi (Hakan kuralı: her medya tipi İKİ bağlamı da taşır). Önceden yalnız
         // VARYANT medyası vardı ve doc "görsel ana kayıtta DEĞİL" diyordu — oysa Product'ta kayıt-geneli
-        // medya varken Good'da hiç olmaması, "ürünün aynası" olması gereken mamül formunu görselsiz
+        // medya varken Good'da hiç olmaması, "ürünün projeksiyonu" olması gereken mamül formunu görselsiz
         // bırakıyordu. İki depo AYRIDIR ve biri diğerinden TÜRETİLMEZ; push zinciri varyant→kayıt
         // fallback'iyle okur (MarketplacePushImageResolver).
         await _documentService.ReplaceForAsync(GoodEntityName, goodId, documents);
         await _noteService.ReplaceForAsync(GoodEntityName, goodId, notes);
         await _entityMedia.ReplaceForAsync(GoodEntityName, goodId, good.CompanyId, media);
 
-        // Varyant sistemi — JENERİK agnostik servise delege ("Good" bağlamı). Çekirdek (nitelik/değer/varyant) serviste;
+        // Varyant sistemi — JENERİK agnostik servise delege ("Good" bağlamı). Core (nitelik/değer/varyant) serviste;
         // Good-ÖZEL fiyat/stok uzantısı saveExtensionAsync callback'iyle GoodVariantDetail'e (çözülen DB varyanta) bağlanır.
         await _entityVariant.SaveGraphAsync(
             GoodEntityName, goodId, good.CompanyId, good.Name, attributes, variants,
@@ -505,7 +505,7 @@ public class GoodAppService
             })
             .ToList();
 
-        // Varyant grafı — JENERİK agnostik servisten (çekirdek) + Good-özel fiyat/stok uzantısı (GoodVariantDetail).
+        // Varyant grafı — JENERİK agnostik servisten (core) + Good-özel fiyat/stok uzantısı (GoodVariantDetail).
         var graph = await _entityVariant.LoadGraphAsync(GoodEntityName, id);
         dto.Attributes = graph.Attributes;
         dto.Variants = await ProjectVariantsAsync(graph.Variants);
@@ -565,7 +565,7 @@ public class GoodAppService
 
     public virtual Task<List<GoodVariantGraphDto>> GenerateVariantsAsync(EntityVariantGenerateRequestDto input)
     {
-        // Çekirdek üretim jenerik serviste; Good türevine re-project (fiyat/stok default — kullanıcı sonra düzenler).
+        // Core üretim jenerik serviste; Good türevine re-project (fiyat/stok default — kullanıcı sonra düzenler).
         return Task.FromResult(_entityVariant.GenerateVariants(input).Select(CopyCore).ToList());
     }
 
@@ -593,7 +593,7 @@ public class GoodAppService
         await _noteService.ReplaceForAsync(GoodEntityName, entity.Id, new List<EntityNoteEditDto>());
     }
 
-    // Jenerik çekirdek varyantları (base) Good türevine + fiyat/stok uzantısıyla (GoodVariantDetail) zenginleştirir.
+    // Jenerik core varyantları (base) Good türevine + fiyat/stok uzantısıyla (GoodVariantDetail) zenginleştirir.
     private async Task<List<GoodVariantGraphDto>> ProjectVariantsAsync(List<EntityVariantGraphDto> baseVariants)
     {
         if (baseVariants.Count == 0)
@@ -658,7 +658,7 @@ public class GoodAppService
         return result;
     }
 
-    // Çekirdek alanları (jenerik EntityVariantGraphDto) Good türevine kopyalar (fiyat/stok default).
+    // Core alanları (jenerik EntityVariantGraphDto) Good türevine kopyalar (fiyat/stok default).
     private static GoodVariantGraphDto CopyCore(EntityVariantGraphDto v)
     {
         return new GoodVariantGraphDto

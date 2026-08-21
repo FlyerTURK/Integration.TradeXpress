@@ -12,7 +12,7 @@ using Volo.Abp.MultiTenancy;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// Bir çekirdek kategorinin bir KANALDAKİ karşılığını ve o karşılığın KOMİSYON oranını çözer.
+/// Bir core kategorinin (<c>ProductCategory</c>) bir KANALDAKİ karşılığını ve o karşılığın KOMİSYON oranını çözer.
 ///
 /// <para><b>Eşleştirme KALITIMLIDIR</b> — nitelik kalıtımıyla aynı mantık: kategorinin kendi eşleştirmesi yoksa
 /// ata zinciri yukarı yürünür ve ilk bulunan eşleştirme kullanılır. Sebep pratik: kullanıcı "Takı" düzeyinde bir

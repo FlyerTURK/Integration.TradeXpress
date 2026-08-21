@@ -16,10 +16,10 @@ public static class ChannelQuestionConsts
     /// <summary>Soru başlığı (N11 questionSubject).</summary>
     public const int SubjectMaxLength = 256;
 
-    /// <summary>Soru gövdesi. Pazaryeri sınırı belgelenmemiş; cömert tutulur (kırpma son çare).</summary>
+    /// <summary>Soru metni (<c>QuestionText</c>). Pazaryeri sınırı belgelenmemiş; cömert tutulur (kırpma son çare).</summary>
     public const int QuestionTextMaxLength = 4000;
 
-    /// <summary>Cevap gövdesi. N11 WSDL'i <c>answer</c> için sınır TANIMLAMIYOR (düz xs:string) ve panel sınırı
+    /// <summary>Cevap metni (<c>AnswerText</c>). N11 WSDL'i <c>answer</c> için sınır TANIMLAMIYOR (düz xs:string) ve panel sınırı
     /// belgelenmemiş — bu değer bizim güvenli tavanımızdır, canlı ölçümden sonra daraltılabilir.</summary>
     public const int AnswerTextMaxLength = 4000;
 

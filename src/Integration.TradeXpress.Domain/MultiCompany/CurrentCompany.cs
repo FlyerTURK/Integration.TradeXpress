@@ -4,7 +4,7 @@ namespace Integration.TradeXpress.MultiCompany;
 
 /// <summary>
 /// <see cref="ICurrentCompany"/> uygulaması. Değer önceliği: <see cref="Change"/> override (AsyncLocal) →
-/// yoksa <see cref="ICompanyContextProvider"/> (Blazor working-context köprüsü / API'de null).
+/// yoksa <see cref="ICompanyContextProvider"/> (Blazor working-context sağlayıcısı / API'de null).
 /// </summary>
 public class CurrentCompany : ICurrentCompany, ITransientDependency
 {
@@ -29,7 +29,8 @@ public class CurrentCompany : ICurrentCompany, ITransientDependency
     private sealed record CompanyOverride(Guid? CompanyId);
 }
 
-/// <summary>Varsayılan kaynak (host / HTTP API): aktif şirket yok → null. Blazor köprüsü bunu değiştirir.</summary>
+/// <summary>Varsayılan kaynak (host / HTTP API): aktif şirket yok → null. Blazor'daki
+/// <see cref="ICompanyContextProvider"/> uygulaması bunu değiştirir.</summary>
 public class NullCompanyContextProvider : ICompanyContextProvider, ISingletonDependency
 {
     public Guid? GetCurrentCompanyId()

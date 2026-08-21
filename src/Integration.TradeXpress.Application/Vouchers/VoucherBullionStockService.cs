@@ -184,7 +184,7 @@ public class VoucherBullionStockService : ITransientDependency
         input.PlatinumFactor  = entry.PlatinumFactor;
         input.PalladiumFactor = entry.PalladiumFactor;
 
-        // Ana + yan metal bacak birimleri (poster bunlara postlar) girişten kopyalanır.
+        // Ana + yan metal leg birimleri (poster bunlara postlar) girişten kopyalanır.
         input.MainUnitId      = entry.MainUnitId;
         input.SilverUnitId    = entry.SilverUnitId;
         input.PlatinumUnitId  = entry.PlatinumUnitId;

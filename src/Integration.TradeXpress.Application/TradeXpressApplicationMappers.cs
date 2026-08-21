@@ -233,7 +233,7 @@ public partial class VariantTemplateToListDtoMapper : MapperBase<VariantTemplate
     public override partial void Map(VariantTemplateGetDto source, VariantTemplateUpdateDto destination);
 }
 
-// ── ProductCategory (çekirdek kategori ağacı) — DÖRT eşleme birden: Entity→Get, Entity→List, Get→Create, Get→Update.
+// ── ProductCategory (core kategori ağacı) — DÖRT eşleme birden: Entity→Get, Entity→List, Get→Create, Get→Update.
 // Son ikisi VariantTemplate'te unutulmuştu ve kaydetmeyi canlıda düşürmüştü; aynı hataya düşmemek için baştan tam set.
 // Get→Create/Update'te Attributes[].Id KOPYALANIR — sunucu merge'ü kimliğe bakar, kimlik düşerse eşleştirmeler kopar.
 
@@ -371,7 +371,7 @@ public partial class SalesChannelTrTrendyolToListDtoMapper : MapperBase<SalesCha
 public partial class SalesChannelEtsyToGetDtoMapper : MapperBase<SalesChannelEtsy, SalesChannelEtsyGetDto>
 {
     // IsConnected türetilmiş durum (refresh token dolu + süresi geçmemiş) — AppService clock'la hesaplar. Access/refresh
-    // token'ları DTO'da HİÇ yok (sızıntı yüzeyi sıfır); SharedSecret map'lenir ama AppService çıkışta redakte eder.
+    // token'ları DTO'da HİÇ yok (sızıntı riski sıfır); SharedSecret map'lenir ama AppService çıkışta redakte eder.
     [MapperIgnoreTarget(nameof(SalesChannelEtsyGetDto.IsConnected))]
     public override partial SalesChannelEtsyGetDto Map(SalesChannelEtsy source);
     public override partial void Map(SalesChannelEtsy source, SalesChannelEtsyGetDto destination);
@@ -968,7 +968,7 @@ public partial class OrderLineToItemListDtoMapper : MapperBase<OrderLine, OrderI
 
 // ── ChannelQuestion (NÖTR müşteri sorusu — company-owned; Order mapping'inin soru karşılığı). Kanal ADI id-only
 //    referanstan AppService'te TEK BATCH çözülür → mapper'da ignore. CompanyId/TenantId/audit = source-only;
-//    AnswerPushError da DTO'da YOK (denetim alanı, gelen kutusuna sızmaz — push açılınca ayrı yüzeyle gelir). ──
+//    AnswerPushError da DTO'da YOK (denetim alanı, gelen kutusuna sızmaz — push açılınca ayrı DTO ile gelir). ──
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class ChannelQuestionToListDtoMapper : MapperBase<ChannelQuestion, ChannelQuestionListDto>
@@ -989,7 +989,7 @@ public partial class ChannelQuestionToListDtoMapper : MapperBase<ChannelQuestion
     public override partial void Map(SubAccountGetDto source, SubAccountUpdateDto destination);
 }
 
-// ── Confirmation / Teyit (organizasyon-içi ayna onayı; entity→DTO). Vault/CurrencyUnit kodları (id-only
+// ── Confirmation / Teyit (organizasyon-içi mirror onayı; entity→DTO). Vault/CurrencyUnit kodları (id-only
 //    referanstan) AppService'te çözülür → mapper'da ignore. Payload'lar (her tarafın KENDİ satırı; opak)
 //    listede TAŞINMAZ → DTO'da YOK; ayrıca GetPayloadAsync ile istenir. TenantId/CompanyId source-only. ──
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]

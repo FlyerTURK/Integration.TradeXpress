@@ -5,7 +5,7 @@ using Volo.Abp;
 namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
-/// VoucherLineHistory anlık görüntüsünün (tam <see cref="VoucherLineDto"/>) serileştirme kapısı — Confirmation
+/// VoucherLineHistory anlık görüntüsünün (tam <see cref="VoucherLineDto"/>) serileştirmesinin TEK yeri — Confirmation
 /// payload'unun (<c>ConfirmationPayloadSerializer</c>) AYNI JSON seçenekleriyle (camelCase + yalnız dolu alan),
 /// ama SANITIZE ETMEZ: tarihçe kaydı MİRROR/TAM kopyadır (id/fiş başlığı/denormalize kodlar dahil — popup
 /// detayında hepsi gösterilir), Confirmation payload'u gibi replay girdisi DEĞİLDİR.

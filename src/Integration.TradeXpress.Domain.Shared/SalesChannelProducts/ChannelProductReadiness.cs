@@ -20,7 +20,7 @@ public enum ChannelProductReadiness
     /// <summary>Reçete YOK — ürün henüz sınıflandırılmadı; hesaplanacak bir maliyet/stok de yok.</summary>
     NoRecipe = 0,
 
-    /// <summary>Reçete var ama satılabilir varyant YOK — doğrulama damgası eksik ya da bayat.</summary>
+    /// <summary>Reçete var ama satılabilir varyant YOK — <c>VerifiedRecipeStamp</c> eksik ya da bayat.</summary>
     NotReady = 1,
 
     /// <summary>En az bir varyant BUGÜN satılabilir.</summary>

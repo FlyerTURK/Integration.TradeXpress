@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.Financials.ExchangeRates;
 /// iç kotasyonlara çeviren SAF eşleme/parse yardımcıları. Ham sembolleri iç birim kodlarına
 /// (<see cref="HaremCodeMapping"/>) eşler, PLT/PLD'yi USDTRY üzerinden türetir. Source = "Harem".
 ///
-/// <para>Tarihçe: eskiden HaremBridge (localhost HTTP köprüsü) client'ıydı; köprü ve HTTP yolu
+/// <para>Tarihçe: eskiden HaremBridge (localhost HTTP servisi) client'ıydı; HaremBridge ve HTTP yolu
 /// in-process <see cref="HaremPlaywrightFeedWorker"/> ile emekli edildi (keşif turu 2, O5) —
 /// geriye yalnız worker + testlerin kullandığı static parse/map çekirdeği kaldı.</para>
 /// </summary>
@@ -52,7 +52,7 @@ public static class HaremClient
         PropertyNameCaseInsensitive = true,
     };
 
-    /// <summary>Harem JSON gövdesini (snapshot veya push event — aynı şema) iç
+    /// <summary>Harem JSON body'sini (snapshot veya push event — aynı şema) iç
     /// kotasyon listesine çevirir. Test edilebilir saf metot.</summary>
     public static List<MarketQuote> ParseSnapshot(string json)
     {

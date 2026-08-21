@@ -21,7 +21,7 @@ namespace Integration.TradeXpress.Reports;
 /// <summary>
 /// Maden stok ve hareket raporları — <b>fiziksel maden miktarı</b> (Amount @ MainUnit) esaslıdır.
 /// Ödeme tipi (Peşin / Bedelli / Normal vb.) ve fiyat bilgisi (PayTotal / PayUnit) stok dışıdır;
-/// her ödeme tipinde yalnız tek bacak üretilir: kaç birim maden girdi veya çıktı.
+/// her ödeme tipinde yalnız tek leg üretilir: kaç birim maden girdi veya çıktı.
 /// <list type="bullet">
 ///   <item>Etki = <c>±Amount</c> (<see cref="VoucherLine.Amount"/>), birim = <see cref="VoucherLine.MainUnitId"/>.</item>
 ///   <item>Stok gruplama = (CommodityId, CommodityCode, VariantId, VariantCode, UnitId) — GoodReport paritesi;
@@ -146,10 +146,10 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
 
     /// <summary>
     /// Bilanço STOK(maden) için fiziksel maden holding'i: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault,
-    /// asOfExclusive'den ÖNCE birikmiş net, MainUnit(maden birimi)-bazında. Bacak çıkarımı tek kaynakta
+    /// asOfExclusive'den ÖNCE birikmiş net, MainUnit(maden birimi)-bazında. Leg çıkarımı tek kaynakta
     /// Net = FİZİKSEL holding (Amount @ MainUnit, tüm ödeme tipleri/Peşin dahil; + = firma o madeni tutar).
     /// Cari metal (ledger/BAKIYE) AYRI boyut → çift sayım değil, offset. Değerleme merkezde.
-    /// K4: SQL-side GROUP BY + SUM (ledger deseni) — bacak/işaret kuralları <see cref="QueryLegsAsync"/> ile BİREBİR.
+    /// K4: SQL-side GROUP BY + SUM (ledger deseni) — leg/işaret kuralları <see cref="QueryLegsAsync"/> ile BİREBİR.
     /// </summary>
     public virtual async Task<Dictionary<Guid, decimal>> GetMetalNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
     {
@@ -285,7 +285,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
 
     public virtual async Task<List<MetalMovementRowDto>> GetMovementsAsync(MetalReportFilterDto filter)
     {
-        // Dönem içi bacaklar (tarih filtreli)
+        // Dönem içi leg'ler (tarih filtreli)
         var legs = (await QueryLegsAsync(filter, dateFiltered: true))
             .OrderBy(x => x.VoucherDate).ThenBy(x => x.CreationTime).ThenBy(x => x.LineId)
             .ToList();
@@ -372,7 +372,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
     }
 
     // ────────────────────────────────────────────────────────────────────────────────
-    //  Ortak sorgu — MetalBalancePoster mantığıyla bacakları üretir
+    //  Ortak sorgu — MetalBalancePoster mantığıyla leg'leri üretir
     // ────────────────────────────────────────────────────────────────────────────────
 
     private async Task<List<MetalLeg>> QueryLegsAsync(MetalReportFilterDto filter, bool dateFiltered,

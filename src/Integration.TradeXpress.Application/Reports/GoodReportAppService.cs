@@ -80,7 +80,7 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
 
         // Grupla: mamül + varyant. Birim (StockUnitCode) mamül seviyesinde → anahtarda değil, sonradan doldurulur.
         //
-        // REZERVASYON AYRIŞTIRMASI (2026-08-05): rezervasyon bacakları fiziksel Net'e GİRMEZ, ayrı sayaçta
+        // REZERVASYON AYRIŞTIRMASI (2026-08-05): rezervasyon leg'leri fiziksel Net'e GİRMEZ, ayrı sayaçta
         // toplanır. Aritmetik Metal raporuyla ORTAK (ReservationSplit) — kopyalanan bir ayrım zamanla
         // birbirinden ayrışır ve ayrışma sessiz olur.
         var grouped = legs
@@ -133,7 +133,7 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
 
     public virtual async Task<List<GoodMovementRowDto>> GetMovementsAsync(GoodReportFilterDto filter)
     {
-        // Dönem içi bacaklar (tarih filtreli)
+        // Dönem içi leg'ler (tarih filtreli)
         var legs = (await QueryLegsAsync(filter, dateFiltered: true))
             .OrderBy(x => x.VoucherDate).ThenBy(x => x.CreationTime).ThenBy(x => x.LineId)
             .ToList();
@@ -156,7 +156,7 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
         var runningAmt = new Dictionary<(Guid? CommodityId, Guid? VariantId), decimal>();   // Amount running
 
         // Devreden satırları — (mamül, varyant) bazında.
-        // REZERVASYON KÜMÜLATİFE KATILMAZ (2026-08-05): eskiden "Rezervasyon YOK" varsayımıyla tüm bacaklar
+        // REZERVASYON KÜMÜLATİFE KATILMAZ (2026-08-05): eskiden "Rezervasyon YOK" varsayımıyla tüm leg'ler
         // toplanıyordu; sipariş rezervasyonu Good'u da kapsayınca bu varsayım devreden bakiyeyi ŞİŞİRİRDİ.
         // Metal raporundaki davranışla hizalandı.
         foreach (var g in carryLegs.GroupBy(x => (x.CommodityId, x.VariantId)))
@@ -229,7 +229,7 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
     }
 
     // ────────────────────────────────────────────────────────────────────────────────
-    //  Ortak sorgu — mamül voucher satırlarından bacakları üretir
+    //  Ortak sorgu — mamül voucher satırlarından leg'leri üretir
     // ────────────────────────────────────────────────────────────────────────────────
 
     private async Task<List<GoodLeg>> QueryLegsAsync(GoodReportFilterDto filter, bool dateFiltered,

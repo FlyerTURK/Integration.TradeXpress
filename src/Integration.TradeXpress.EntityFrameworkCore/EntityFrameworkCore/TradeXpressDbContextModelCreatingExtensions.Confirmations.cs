@@ -7,11 +7,11 @@ using Integration.TradeXpress.Vouchers;   // VoucherConsts (Amount hassasiyeti)
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
 /// <summary>
-/// Teyit (organizasyon-içi karşılıklı ayna onayı) mapping'i. Company-owned; başlatan/karşı birer
+/// Teyit (organizasyon-içi karşılıklı mirror onayı) mapping'i. Company-owned; başlatan/karşı birer
 /// <see cref="Vaults.Vault"/> (kasa). Initiator/CounterpartyVoucherId id-only mantıksal referans (FK YOK —
 /// BalanceLedger deseniyle hizalı; postlama app-katmanında materyalize edilir).
 /// <para>İki payload (Initiator/Counterparty) opak process satırıdır — her taraf KENDİ satırını yazar.
-/// Skaler alanlar (emtia/varyant/miktar/tutar/birimler) payload'un denormalize AYNA ANAHTARI'dır.
+/// Skaler alanlar (emtia/varyant/miktar/tutar/birimler) payload'un denormalize MIRROR ANAHTARI'dır (ConfirmationMirrorKey).
 /// Emtia/varyant FK'sı YOKTUR: emtia tipe göre farklı tabloda yaşar (Cash/Metal/Stone/Good…) → tek FK
 /// hedefi kurulamaz; BalanceLedger'ın CommodityId deseniyle hizalı id-only referans.</para>
 /// </summary>
@@ -26,7 +26,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "Confirmations", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
-            // Ayna kriteri tutarları — N2 (VoucherLine ile aynı hassasiyet).
+            // Mirror kriteri tutarları — N2 (VoucherLine ile aynı hassasiyet).
             b.Property(x => x.Amount).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
             b.Property(x => x.Quantity).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
             b.Property(x => x.PayTotal).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
@@ -40,8 +40,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.CounterpartyVaultId, x.Status });
 
             // FK'lar — id-only (nav YOK); referans varken silme engeli (Restrict). Başlatan+karşı kasa ZORUNLU;
-            // ana/karşılık birimi OPSİYONEL: her tipin iki bacağı yoktur (Dekont'ta ana bacak boş, değerlemesiz
-            // teslimde karşılık bacağı boş).
+            // ana/karşılık birimi OPSİYONEL: her tipte ikisi birden dolu olmaz (Dekont'ta MainUnitId boş,
+            // değerlemesiz teslimde PayUnitId boş).
             b.HasOne<Companies.Company>().WithMany()
                 .HasForeignKey(x => x.CompanyId).IsRequired().OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Vaults.Vault>().WithMany()

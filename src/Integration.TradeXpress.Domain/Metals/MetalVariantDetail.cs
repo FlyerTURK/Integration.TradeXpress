@@ -8,7 +8,7 @@ namespace Integration.TradeXpress.Metals;
 /// <summary>
 /// Bir varyantın METAL-ÖZEL işçilik detayı — jenerik <c>EntityVariant</c>'ın Metal uzantısı (1:1, <see cref="EntityVariantId"/>
 /// set-once). İşçilik (Labor) tanımları VARYANT seviyesindedir.
-/// Company-scoped (varyanttan denormalize) + per-tenant. Jenerik çekirdek (EntityVariant) bu uzantıyı BİLMEZ.
+/// Company-scoped (varyanttan denormalize) + per-tenant. Jenerik <c>EntityVariant</c> bu uzantıyı BİLMEZ.
 /// </summary>
 public class MetalVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
 {

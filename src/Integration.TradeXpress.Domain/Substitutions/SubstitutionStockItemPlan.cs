@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Planlayıcı girdisi — SAF veri (DB'siz/DI'sız; besleme M4 köprü adaptöründen — hesap sonucu DTO'sundan — gelir).
+/// Planlayıcı girdisi — SAF veri (DB'siz/DI'sız; besleme M4 adaptöründen — hesap sonucu DTO'sundan — gelir).
 /// Yalnız BAŞARILI kombinasyonlar beklenir (Rank'lı); sıralama/Top-N seçimi planlayıcıda yapılır.
 /// </summary>
 /// <param name="ToleranceType">Grup tolerans türü (ticari bildirim metni üretimi için).</param>
@@ -35,7 +35,7 @@ public sealed record SubstitutionPlanCombinationLine(
     string? VariantCode = null);
 
 /// <summary>
-/// Köprü PLANI — kanal-agnostik nötr çıktı: N11/Trendyol adaptörleri bu planı kendi graf tiplerine uygular
+/// Muadil → kanal StockItem PLANI — kanal-agnostik nötr çıktı: N11/Trendyol adaptörleri bu planı kendi graf tiplerine uygular
 /// (özellik "Kombinasyon" + değerler + StockItem reçeteleri + paket stoğu). Fiyat TAŞIMAZ — fiyat mevcut
 /// maliyet zincirinden (reçete → NetCost → marj → türetilmiş) doğar (bağlayıcı karar 1).
 /// </summary>

@@ -62,7 +62,7 @@ public class ProductCategoryChannelMappingSaveDto
 }
 
 /// <summary>
-/// Çekirdek nitelik ↔ kanal niteliği eşleştirmesi. <see cref="ProductCategoryAttributeId"/> çekirdek niteliğin
+/// Core nitelik ↔ kanal niteliği eşleştirmesi. <see cref="ProductCategoryAttributeId"/> core niteliğin
 /// KALICI kimliği, <see cref="ChannelAttributeExternalId"/> kanaldaki karşılığının kimliğidir.
 /// <para>Adlar salt GÖSTERİM — sunucu kaydetmede yok sayar; doğruluk kimliklerde durur.</para>
 /// </summary>
@@ -70,7 +70,7 @@ public class ProductCategoryChannelAttributeMappingDto
 {
     public Guid ProductCategoryAttributeId { get; set; }
 
-    /// <summary>Çekirdek nitelik adı — salt gösterim ("Ayar").</summary>
+    /// <summary>Core nitelik adı — salt gösterim ("Ayar").</summary>
     public string AttributeName { get; set; } = string.Empty;
 
     [StringLength(ProductCategoryChannelMappingConsts.ChannelAttributeIdMaxLength)]
@@ -80,7 +80,7 @@ public class ProductCategoryChannelAttributeMappingDto
     [StringLength(ProductCategoryChannelMappingConsts.ChannelAttributeNameMaxLength)]
     public string? ChannelAttributeName { get; set; }
 
-    /// <summary>Bu niteliğin DEĞER eşleştirmeleri — çekirdek değer ("22K") → kanal değeri ("22 Ayar").
+    /// <summary>Bu niteliğin DEĞER eşleştirmeleri — core değer ("22K") → kanal değeri ("22 Ayar").
     /// Nitelikle BİRLİKTE okunur/kaydedilir: değer eşleştirmesi niteliğinden bağımsız anlamlı değildir.</summary>
     public List<ProductCategoryChannelAttributeValueMappingDto> ValueMappings { get; set; } = new();
 

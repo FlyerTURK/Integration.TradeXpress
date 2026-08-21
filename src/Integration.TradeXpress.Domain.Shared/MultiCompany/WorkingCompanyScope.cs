@@ -6,7 +6,7 @@ namespace Integration.TradeXpress.MultiCompany;
 
 /// <summary>
 /// Working-context şirket seçiminin SUNUCU-TARAFI zorlama kuralı (SSOT) — sahte/yetkisiz seçimi izinli
-/// kümeye indirger. SAF fonksiyon (ILogger/DI taşımaz): Blazor köprüsü
+/// kümeye indirger. SAF fonksiyon (ILogger/DI taşımaz): Blazor tarafındaki provider
 /// (<c>WorkingCompanyContextProvider</c>) ile testler AYNI kuralı paylaşır. Domain.Shared'da yaşar → hem
 /// WASM client projesi hem de test projesi erişebilir (provider Domain'e referans veremez; kural burada tek).
 ///

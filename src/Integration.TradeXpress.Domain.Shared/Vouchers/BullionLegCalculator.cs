@@ -3,8 +3,8 @@ using Integration.TradeXpress.Bullions;
 namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
-/// Takoz (Bullion) satırının bakiye bacaklarını hesaplayan saf motor — ERPPRO <c>Cari.AcceptTransaction</c>
-/// TAKOZ bloğunun C# çevirisi. <b>İşaret:</b> + = alacak, − = borç; sonuç bacakları YÖN İŞARETLİDİR (poster ek
+/// Takoz (Bullion) satırının bakiye leg'lerini hesaplayan saf motor — ERPPRO <c>Cari.AcceptTransaction</c>
+/// TAKOZ bloğunun C# çevirisi. <b>İşaret:</b> + = alacak, − = borç; <c>BullionLegResult</c> leg'leri YÖN İŞARETLİDİR (poster ek
 /// işaret UYGULAMAZ). GİRİŞ'te <c>qty = Amount + AssayAmount</c> (çeşni numunesi cari alacağına dahil), ÇIKIŞ'ta
 /// çeşni EKLENMEZ. İşçilik fiyatları 1000 birim başına girilir. ⚠ ERPPROV3'ten FARK: 4 metal de işçilikli
 /// (PT/PD işçilik EKLENDİ — ERPPROV3'te yalnız altın+gümüş vardı).
@@ -25,11 +25,11 @@ public static class BullionLegCalculator
         // GİRİŞ'te çeşni miktarı bakiyeye dahil; ÇIKIŞ'ta numune dükkânda kalır.
         var qty = i.Amount + (isInflow ? i.AssayAmount : 0m);
 
-        // ── RAPORSUZ: tek pseudo bacak ("TAKOZ" birimi = MainUnit) ──
+        // ── RAPORSUZ: tek pseudo leg ("TAKOZ" birimi = MainUnit) ──
         if (!i.IsReport)
             return new BullionLegResult(0m, 0m, 0m, 0m, 0m, sign * qty, 0m);
 
-        // ── RAPORLU: metal + işçilik bacakları ──
+        // ── RAPORLU: metal + işçilik leg'leri ──
         var gold      = qty * i.GoldFactor;
         var silver    = 0m;
         var platinum  = 0m;
@@ -81,7 +81,7 @@ public static class BullionLegCalculator
     }
 }
 
-/// <summary>Takoz bacak hesabı girdisi — satırın ham takoz alanları + kayıt anı kur snapshot'ları.
+/// <summary>Takoz leg hesabı girdisi — satırın ham takoz alanları + kayıt anı kur snapshot'ları.
 /// İşçilik fiyatları 1000 birim başına. (PT/PD işçilik ERPPROV3'te yok — eklendi.)</summary>
 public sealed record BullionLegInput(
     ProcessDirectionType Direction,
@@ -109,7 +109,7 @@ public sealed record BullionLegInput(
     decimal              PlatinumLaborUnitRate,
     decimal              PalladiumLaborUnitRate);
 
-/// <summary>Takoz bacak sonuçları — YÖN İŞARETLİ (+ alacak / − borç). Poster ek işaret uygulamadan birimlere dağıtır.</summary>
+/// <summary>Takoz leg sonuçları — YÖN İŞARETLİ (+ alacak / − borç). Poster ek işaret uygulamadan birimlere dağıtır.</summary>
 public sealed record BullionLegResult(
     decimal GoldTotal,
     decimal SilverTotal,

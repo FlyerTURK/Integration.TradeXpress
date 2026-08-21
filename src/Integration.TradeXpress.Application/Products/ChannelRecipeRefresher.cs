@@ -11,18 +11,18 @@ using Volo.Abp.Domain.Repositories;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// ÇEKİRDEK REÇETE DEĞİŞİNCE DEVRALINMIŞ KANAL KOPYALARINI TAZELER — <see cref="ChannelRecipeInheritance"/>
-/// karar çekirdeğinin tek üretim tüketicisi (2026-08-11 Hakan tasarımının yayılım ayağı; 2026-08-14'te kuruldu).
+/// CORE REÇETE DEĞİŞİNCE DEVRALINMIŞ KANAL KOPYALARINI TAZELER — <see cref="ChannelRecipeInheritance"/>
+/// karar sınıfının tek üretim tüketicisi (2026-08-11 Hakan tasarımının yayılım tarafı; 2026-08-14'te kuruldu).
 ///
 /// <para><b>Neden gerekli:</b> kanal reçetesi "klon-sonra-ayrış" yaşar — kullanıcı kanal formunu kaydedene dek
-/// canlı klondur ve çekirdeği KENDİLİĞİNDEN izler; ama bir kez persist olunca DONAR. Kullanıcı bileşime hiç
-/// dokunmadan kaydetmişse (persist edilmiş ama devralınmış kopya), çekirdek değişikliği o kanala bir daha
+/// canlı klondur ve core'u KENDİLİĞİNDEN izler; ama bir kez persist olunca DONAR. Kullanıcı bileşime hiç
+/// dokunmadan kaydetmişse (persist edilmiş ama devralınmış kopya), core değişikliği o kanala bir daha
 /// ulaşamazdı: push fiyatlaması yalnız persist edilmiş satırları okuduğundan kanal ESKİ bileşimle fiyatlanmaya
 /// devam ederdi — hatasız, logsuz, yalnız yanlış fiyat.</para>
 ///
-/// <para><b>Devir kararı KAYIT-ÖNCESİ çekirdeğe karşı verilir:</b> kalıcı bayrak yok (veri kendisi konuşur),
-/// dolayısıyla "devralınmış mı" sorusu ancak kanal kopyasının ESKİ çekirdekle karşılaştırılmasıyla cevaplanır —
-/// yeni çekirdekle karşılaştırmak, az önce değişmiş çekirdeği izleyen her kopyayı "override" sanıp sonsuza dek
+/// <para><b>Devir kararı KAYIT-ÖNCESİ core'a karşı verilir:</b> kalıcı bayrak yok (veri kendisi konuşur),
+/// dolayısıyla "devralınmış mı" sorusu ancak kanal kopyasının ESKİ core ile karşılaştırılmasıyla cevaplanır —
+/// yeni core ile karşılaştırmak, az önce değişmiş core'u izleyen her kopyayı "override" sanıp sonsuza dek
 /// dondururdu. Çağıran (<see cref="ProductRecipeLineWriter"/>) bu yüzden kayıt öncesi satırları verir.</para>
 ///
 /// <para><b>Yan maliyetler taşınır, değiştirilmez:</b> karşılaştırma da tazeleme de yalnız
@@ -53,12 +53,12 @@ public class ChannelRecipeRefresher : ITransientDependency
         _trendyolLineRepository = trendyolLineRepository;
     }
 
-    /// <summary>Varyantın çekirdek reçetesi <paramref name="oldCoreSignatures"/> fotoğrafından
-    /// <paramref name="newCoreLines"/>'a değişti — devralınmış (persist edilmiş ama bileşimi eski çekirdekle
-    /// örtüşen) kanal kopyalarını yeni çekirdekle değiştirir. Override edilmiş kopyalara ve hiç persist edilmemiş
+    /// <summary>Varyantın core reçetesi <paramref name="oldCoreSignatures"/> snapshot'ından
+    /// <paramref name="newCoreLines"/>'a değişti — devralınmış (persist edilmiş ama bileşimi eski core ile
+    /// örtüşen) kanal kopyalarını yeni core ile değiştirir. Override edilmiş kopyalara ve hiç persist edilmemiş
     /// (canlı klon) başlıklara DOKUNMAZ.
     ///
-    /// <para><b>Eski taraf İMZA FOTOĞRAFIDIR, entity listesi DEĞİL:</b> tek UoW'da eski entity referansları
+    /// <para><b>Eski taraf İMZA SNAPSHOT'IDIR, entity listesi DEĞİL:</b> tek UoW'da eski entity referansları
     /// yerinde güncellemeyle mutasyona uğrar ve "eski" liste yeni değerleri gösterir — kıyas hep "aynı" der,
     /// tazeleme hiç çalışmaz (bu ilk sürümde yaşandı; ağı <c>ChannelRecipeRefreshTests</c>'in tek-UoW vakası).</para></summary>
     public virtual async Task RefreshAsync(
@@ -77,8 +77,8 @@ public class ChannelRecipeRefresher : ITransientDependency
         await RefreshTrendyolAsync(variantId, oldCoreSignatures, newCoreLines);
     }
 
-    // N11 ve Trendyol gövdeleri bilinçli ikiz — kanal reçete entity'leri ortak taban paylaşmaz (CLAUDE.md §6
-    // ChannelPushGuard gerekçesi) ve iki tip arasında generic köprü kurmak ctor/anchor farklarını
+    // N11 ve Trendyol dalları bilinçli ikiz — kanal reçete entity'leri ortak taban paylaşmaz (CLAUDE.md §6
+    // ChannelPushGuard gerekçesi) ve iki tip arasında generic bir ortak taban kurmak ctor/anchor farklarını
     // delegelerle taşıyan daha kırılgan bir yapı üretirdi.
 
     private async Task RefreshN11Async(
@@ -188,7 +188,7 @@ public class ChannelRecipeRefresher : ITransientDependency
     }
 
     /// <summary>Başlık tazelenmeli mi: persist edilmiş satırı olmayan başlık canlı klondur (kendiliğinden
-    /// devralır — dokunma); satırı olup bileşimi ESKİ çekirdekle örtüşmeyen başlık override'dır (dokunma).</summary>
+    /// devralır — dokunma); satırı olup bileşimi ESKİ core ile örtüşmeyen başlık override'dır (dokunma).</summary>
     private static bool ShouldRefresh(
         IReadOnlyList<RecipeCommoditySignature> oldCoreSignatures, IReadOnlyList<IRecipeCommodityLine> channelLines)
     {
@@ -208,7 +208,7 @@ public class ChannelRecipeRefresher : ITransientDependency
             .OrderBy(l => l.LineOrder);
     }
 
-    /// <summary>Çekirdek satırın alanlarını kanal klonuna uygular — <c>ProductRecipeLineWriter.ApplyFields</c>'in
+    /// <summary>Core satırın alanlarını kanal klonuna uygular — <c>ProductRecipeLineWriter.ApplyFields</c>'in
     /// entity-kaynaklı ikizi (aynı iki dal: katalog-emtia / hizmet).</summary>
     private static void ApplyCoreFields(
         ProductVariantRecipeLine core,
@@ -243,8 +243,8 @@ public class ChannelRecipeRefresher : ITransientDependency
         setDescription(core.Description);
     }
 
-    /// <summary>Çekirdek SelectedLines türev satırının kaynak Id CSV'sini klon Id'lerine çevirir; satır türev
-    /// değilse ya da hiçbir kaynak klonlanmadıysa (kaynak yan-maliyet çekirdek satırıydı — klon kapsamı dışı)
+    /// <summary>Core SelectedLines türev satırının kaynak Id CSV'sini klon Id'lerine çevirir; satır türev
+    /// değilse ya da hiçbir kaynak klonlanmadıysa (kaynak yan-maliyet core satırıydı — klon kapsamı dışı)
     /// <c>null</c> döner ve klon kaynaksız bırakılır (SetDerivedSources fail-fast'ine girilmez).</summary>
     private static string? RemapDerivedSources(ProductVariantRecipeLine core, Func<Guid, Guid?> mapCoreLineId)
     {

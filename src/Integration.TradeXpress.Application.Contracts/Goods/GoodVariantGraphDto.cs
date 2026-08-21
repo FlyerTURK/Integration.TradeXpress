@@ -5,10 +5,10 @@ using Integration.TradeXpress.Variants;
 namespace Integration.TradeXpress.Goods;
 
 /// <summary>
-/// Good varyantının GRAF DTO'su — jenerik <see cref="EntityVariantGraphDto"/> (çekirdek: Code/Ad/Barkod/Stok adedi/…)
+/// Good varyantının GRAF DTO'su — jenerik <see cref="EntityVariantGraphDto"/> (Code/Ad/Barkod/Stok adedi/…)
 /// + Good-ÖZEL fiyat/stok UZANTISI. Perakende fiyat/stok VARYANT seviyesinde (GoodVariantDetail tablosu).
 /// <c>EntityVariantsPanel&lt;GoodVariantGraphDto&gt;</c>'ın ExtraFields slot'unda bu alanlar bind edilir; GoodAppService
-/// jenerik çekirdeği kaydettikten sonra bu alanları GoodVariantDetail'e (EntityVariantId ile) saklar/yükler.
+/// jenerik <c>EntityVariantGraphDto</c> alanlarını kaydettikten sonra bu alanları GoodVariantDetail'e (EntityVariantId ile) saklar/yükler.
 /// </summary>
 public class GoodVariantGraphDto : EntityVariantGraphDto
 {

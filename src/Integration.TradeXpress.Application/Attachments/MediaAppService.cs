@@ -274,7 +274,7 @@ public class MediaAppService : TradeXpressAppService, IMediaAppService
         }
     }
 
-    // ── çekirdek: tür algıla → guard → hash-dedup → blob (+ görsel poster) → kayıt ──
+    // ── StoreAsync: tür algıla → guard → hash-dedup → blob (+ görsel poster) → kayıt ──
     private async Task<MediaDto> StoreAsync(string fileName, byte[] content, Guid? folderId)
     {
         if (content == null || content.Length == 0)

@@ -7,7 +7,7 @@ namespace Integration.Framework.Addressing;
 ///
 /// <para>Alan rolleri VO ile birebir (zorunlu: <see cref="City"/> + <see cref="Line"/>; ülke varsayılan "TR").
 /// Coğrafya picker'ı <see cref="City"/>/<see cref="District"/>/<see cref="Neighborhood"/> + kodları +
-/// id-only köprüleri (<see cref="AdministrativeAreaId"/>/<see cref="LocalityId"/>/<see cref="AdministrativeAreaIsoCode"/>)
+/// id-only alanları (<see cref="AdministrativeAreaId"/>/<see cref="LocalityId"/>/<see cref="AdministrativeAreaIsoCode"/>)
 /// + <see cref="CountryCode"/> DOLDURUR; serbest-metin yalnız <see cref="Line"/>/<see cref="PostalCode"/>/<see cref="Title"/>.</para>
 /// </summary>
 public interface IAddressEditModel
@@ -35,7 +35,7 @@ public interface IAddressEditModel
 
     /// <summary>Ülke ADI — SALT GÖRÜNTÜ (ör. "Türkiye"). Otoriter alan <see cref="CountryCode"/>'dur; bu yalnız
     /// adres özetinde kod yerine okunabilir ad göstermek içindir. Picker seçim yaparken doldurur; sunucu DTO
-    /// kurarken katalogdan çözer. Boşsa özet koda düşer (<c>AddressDisplay</c>) → hiçbir yüzey kırılmaz.
+    /// kurarken katalogdan çözer. Boşsa özet koda düşer (<c>AddressDisplay</c>) → hiçbir ekran kırılmaz.
     /// <para>Denormalize görüntü alanı deseni — <c>FollowingUnitName</c>/<c>CompanyCode</c>/<c>BaseCurrencyCode</c>
     /// ile aynı: istemci formatter'ı aptal ve senkron kalsın diye ad SUNUCUDA çözülür, UI'da arama yapılmaz.</para></summary>
     string? CountryName { get; set; }
@@ -46,10 +46,10 @@ public interface IAddressEditModel
     /// <summary>Opsiyonel yapısal ilçe kodu (picker doldurur).</summary>
     string? DistrictCode { get; set; }
 
-    /// <summary>Opsiyonel çekirdek coğrafya idari-alan (il/eyalet) id'si — id-only köprü (picker doldurur).</summary>
+    /// <summary>Opsiyonel core coğrafya idari-alan (il/eyalet) id'si — id-only alan (picker doldurur).</summary>
     Guid? AdministrativeAreaId { get; set; }
 
-    /// <summary>Opsiyonel çekirdek coğrafya yerellik (ilçe) id'si — id-only köprü (picker doldurur).</summary>
+    /// <summary>Opsiyonel core coğrafya yerellik (ilçe) id'si — id-only alan (picker doldurur).</summary>
     Guid? LocalityId { get; set; }
 
     /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (ör. "TR-34") — UBL projeksiyonu için (picker doldurur).</summary>

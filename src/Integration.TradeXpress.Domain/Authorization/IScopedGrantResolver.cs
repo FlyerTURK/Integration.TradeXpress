@@ -3,7 +3,7 @@ namespace Integration.TradeXpress.Authorization;
 /// <summary>
 /// Bir kullanıcının kapsam (scope) grant'larını <see cref="ScopedAccessSet"/>'e çözümler ve per-user
 /// cache'ler. Coğrafi kapsam (Company/Branch/Vault) + Grant/Deny odaklıdır. Faz 4 working-context
-/// yetkilendirmesinin çekirdeği — SAF EKLEME (henüz kimse çağırmaz; sonraki adımlar kullanır).
+/// yetkilendirmesinin temeli — SAF EKLEME (henüz kimse çağırmaz; sonraki adımlar kullanır).
 /// </summary>
 public interface IScopedGrantResolver
 {

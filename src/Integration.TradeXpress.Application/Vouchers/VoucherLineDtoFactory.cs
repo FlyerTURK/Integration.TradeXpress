@@ -7,7 +7,7 @@ namespace Integration.TradeXpress.Vouchers;
 /// bullion + running-balance. Mapperly'ye zorlamak ~55 MapperIgnoreTarget / zayıf strateji getirir,
 /// netlik kazandırmaz; üstelik name-match, MapLine'ın BİLEREK atladığı alanları map'leyip davranış
 /// değiştirebilir. <see cref="MapLine"/> ve <see cref="ToLineInput"/> alan listeleri birbirinin
-/// aynasıdır — satır alanı eklerken İKİSİNİ birden güncelle.
+/// eşleniğidir — satır alanı eklerken İKİSİNİ birden güncelle.
 /// </summary>
 public static class VoucherLineDtoFactory
 {

@@ -42,7 +42,7 @@ public class VoucherLineDto
     /// <summary>İşlem kısa kodu (süreç+yön+ödeme harfleri, ör. "NGP").</summary>
     public string ProcessCode => VoucherProcessCode.Of(Type, Direction, PaymentType);
 
-    // ── Ana bacak ──
+    // ── Ana taraf (Amount · Factor · Total · MainUnit) ──
     public Guid? CommodityId { get; set; }
     [StringLength(VoucherConsts.CommodityCodeMaxLength)]
     public string CommodityCode { get; set; } = string.Empty;
@@ -58,7 +58,7 @@ public class VoucherLineDto
     /// <summary>Ana birimin kodu (okumada MainUnitId'den çözülür; DB'de saklanmaz).</summary>
     public string? MainUnitCode { get; set; }
 
-    // ── Karşılık bacağı ──
+    // ── Karşılık tarafı (Pay* alanları) ──
     public Guid? PayCommodityId { get; set; }
     [StringLength(VoucherConsts.CommodityCodeMaxLength)]
     public string? PayCommodityCode { get; set; }
@@ -76,9 +76,9 @@ public class VoucherLineDto
     public string? Description { get; set; }
 
     // ── VİRMAN (Transfer) — ProcessType.Transfer satırına özel (diğer tiplerde null) ──
-    /// <summary>Karşı taraf alt hesabı (SubAccount) — karşı bacak bu hesabın kendi voucher'ında açılır.</summary>
+    /// <summary>Karşı taraf alt hesabı (SubAccount) — karşı satır bu hesabın kendi voucher'ında açılır.</summary>
     public Guid? CounterAccountId { get; set; }
-    /// <summary>Çift bacağı bağlayan ortak kimlik (legacy RefNo) — sunucu atar, istemciden gelene güvenilmez.</summary>
+    /// <summary>Virman çiftinin iki satırını bağlayan ortak kimlik (legacy RefNo) — sunucu atar, istemciden gelene güvenilmez.</summary>
     public Guid? LinkId { get; set; }
     /// <summary>Karşı alt hesabın kodu (okumada CounterAccountId'den çözülür; DB'de saklanmaz) — grid gösterimi.</summary>
     public string? CounterAccountCode { get; set; }

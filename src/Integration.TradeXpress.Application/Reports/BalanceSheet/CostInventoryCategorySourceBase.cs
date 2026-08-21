@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Reports.BalanceSheet;
 /// her commodity'nin GİRİŞ (maliyet) fiyatıyla değerlenir = (PriceByQuantity ? Adet : Miktar) × EntryPrice @ EntryPriceUnit.
 /// Para-birimi maliyet katkısı üretir; HAS/milyem YOK (maden değil). Değerleme/re-base + TOPLAM merkezde
 /// (<c>BalanceSheetReportAppService</c> EntryPriceUnit'i base'e çevirir). İŞARET: +Net (fiziksel holding firma-perspektifi;
-/// −Σ UYGULANMAZ). Cari parasal bacak (PayTotal→AccountBalance) AYRI boyut → satışta maliyet(stok−)+satış-fiyatı(cari+)=marj kârı.
+/// −Σ UYGULANMAZ). Cari parasal leg (PayTotal→AccountBalance) AYRI boyut → satışta maliyet(stok−)+satış-fiyatı(cari+)=marj kârı.
 /// </summary>
 public abstract class CostInventoryCategorySourceBase : IBalanceSheetCategorySource, IBalanceSheetCommodityDrill
 {

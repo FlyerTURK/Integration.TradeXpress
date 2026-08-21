@@ -26,4 +26,9 @@ public class ProductSaleVerifyResultDto
     /// <summary>Atlanan varyantların gerekçeleri — SESSİZ geçilmez. Kullanıcı "hepsini doğrula" deyip
     /// bazılarının açılmadığını fark etmezse, ürünün neden hâlâ push edilemediğini asla bulamaz.</summary>
     public List<string> Issues { get; set; } = new();
+
+    /// <summary>Doğrulamayı DURDURMAYAN ama kullanıcının bilmesi gereken uyarılar (ör. KDV eksik, görsel yok,
+    /// reçetesiz Fixed varyant) — 2026-08-19 satışa hazırlık paneli ölçeğinin Warning kademesi. Varyant yine <c>Ready</c> olur;
+    /// bu liste "doğrulandı ama şunlara bak" der. Issues'tan ayrı tutulur ki UI ikisini karıştırmasın.</summary>
+    public List<string> Warnings { get; set; } = new();
 }

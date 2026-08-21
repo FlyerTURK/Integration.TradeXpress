@@ -6,7 +6,7 @@ using Volo.Abp;
 namespace Integration.TradeXpress.Confirmations;
 
 /// <summary>
-/// Teyit payload'unun (bir tarafın KENDİ eliyle yazdığı <see cref="VoucherLineDto"/>) serileştirme kapısı.
+/// Teyit payload'unun (bir tarafın KENDİ eliyle yazdığı <see cref="VoucherLineDto"/>) serileştirmesinin TEK yeri.
 /// Teklif/beyanda yazılır, teyitte replay için okunur.
 ///
 /// <para><b>Neden dar seçenekler:</b> payload DB kolonuna sığmalı (<see cref="ConfirmationConsts.PayloadMaxLength"/>).

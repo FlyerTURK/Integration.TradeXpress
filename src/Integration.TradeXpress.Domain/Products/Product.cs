@@ -31,10 +31,10 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     public virtual string? Description { get; protected set; }
 
     /// <summary>
-    /// ÇEKİRDEK ürün kategorisi (<c>ProductCategory</c>) — id-only referans, navigation YOK; <c>null</c> = henüz
+    /// CORE ürün kategorisi (<c>ProductCategory</c>) — id-only referans, navigation YOK; <c>null</c> = henüz
     /// sınıflandırılmamış (mevcut ürünler bozulmasın diye ZORUNLU DEĞİL).
     ///
-    /// <para><b>Neden var:</b> ürün bir kez çekirdek kategoriye bağlanınca (a) her satış kanalında kategori ayrı
+    /// <para><b>Neden var:</b> ürün bir kez core kategoriye bağlanınca (a) her satış kanalında kategori ayrı
     /// ayrı seçilmez — kanal kategorisi eşleştirmeden çözülür, (b) kanal nitelikleri elle doldurulmaz, kategori
     /// nitelikleri ön-doldurur, (c) kanalın kategori komisyonu ürün seviyesinde bilinir ve reçeteye GrossUp
     /// maliyet olarak girer (kanal ürünü hiç oluşturulmamış olsa bile fiyat hesaplanabilir).</para>
@@ -113,7 +113,7 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     // KARGO ŞABLONU BURADAN SÖKÜLDÜ (2026-07-26 Hakan kararı): şablon ürünün değil KANALIN özelliğidir —
     // aynı ürün her pazaryerinde farklı şablonla gider. Bağ artık yalnız kanal katmanında yaşıyor
-    // (SalesChannelTrN11Product.ShipmentTemplateId → N11ShipmentTemplate → çekirdek ShipmentTemplate).
+    // (SalesChannelTrN11Product.ShipmentTemplateId → N11ShipmentTemplate → core ShipmentTemplate).
     // Eski alanlar: ShipmentTemplateId (FK) + ShipmentTemplateName (K8 legacy snapshot'ı) — ikisi de kalktı.
 
     /// <summary>

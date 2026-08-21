@@ -222,7 +222,7 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
     }
 
     /// <summary>Grup madenlerinin varyant kataloğu — tek batch. <b>ICompanyScoped kapalı ŞART:</b> varyant satırı
-    /// madeninkinden FARKLI bir şirket damgası taşıyabildiğinden working-context'te katalog boşalıyordu.
+    /// madeninkinden FARKLI bir CompanyId taşıyabildiğinden working-context'te katalog boşalıyordu.
     /// <b>IMultiTenant kapalı</b> ise yalnız sorgu kolaylığı içindir; tenant bacağı ELLE geri konur — aksi halde
     /// başka tenant'ın varyantı id ile çözülebiliyordu (kod-inceleme bulgusu #15). Eski gerekçedeki "host-seviyesi
     /// katalog" görev #4 ile geçersizdir.</summary>
@@ -400,7 +400,7 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             .ToList();
 
         // İşçilik katalog varyantından okunur: EntityVariant + MetalVariantDetail. ICompanyScoped kapatılır
-        // çünkü varyant satırı madeninkinden farklı şirket damgası taşıyabiliyor → working-context'te işçilik
+        // çünkü varyant satırı madeninkinden farklı CompanyId taşıyabiliyor → working-context'te işçilik
         // sessizce 0'a düşüyor ve solver sıralaması yanlış kuruluyordu. IMultiTenant de kapatılır ama tenant
         // bacağı ELLE geri konur (bulgu #15): kapatma başka tenant'ın varyantına id ile erişime açıktı.
         // Eski yorumdaki "HOST-seviyesi katalog" gerekçesi görev #4 ile geçersizdir.

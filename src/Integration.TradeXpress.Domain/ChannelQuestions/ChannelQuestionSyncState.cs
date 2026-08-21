@@ -148,7 +148,7 @@ public class ChannelQuestionSyncState : AuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     /// <summary>Artımlı (açık soru) sayfasının sonucunu işler: daha sayfa varsa imleci ilerletir, son sayfaysa
-    /// tazeleme damgasını atar (eşik BURADAN itibaren işler).</summary>
+    /// <c>LastRefreshedAt</c>'i yazar (eşik BURADAN itibaren işler).</summary>
     public virtual void ApplyRefreshPage(int pageCount, DateTime nowUtc)
     {
         if (RefreshPageIndex + 1 < pageCount)

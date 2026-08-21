@@ -69,8 +69,8 @@ public static class N11ProductConsts
     public const int CombinationSignatureMaxLength = 600;
 }
 
-/// <summary>Push GEÇMİŞİ (append-only delil kaydı) alan sınırları — ayrı sınıf: bunlar N11'in sözleşme
-/// sınırları DEĞİL, bizim delil kaydımızın saklama sınırlarıdır; ikisini karıştırmak yanlış guard doğurur.</summary>
+/// <summary>Push GEÇMİŞİ (append-only PushHistory kaydı) alan sınırları — ayrı sınıf: bunlar N11'in sözleşme
+/// sınırları DEĞİL, bizim PushHistory kaydımızın saklama sınırlarıdır; ikisini karıştırmak yanlış guard doğurur.</summary>
 public static class N11PushHistoryConsts
 {
     public const int CurrencyTypeMaxLength = 8;

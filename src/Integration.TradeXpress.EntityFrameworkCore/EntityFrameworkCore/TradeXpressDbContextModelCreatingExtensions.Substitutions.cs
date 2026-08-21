@@ -45,7 +45,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // Grup satırları sıralı okunur (DisplayOrder = tüketim önceliği).
             b.HasIndex(x => new { x.TenantId, x.SubstitutionGroupId, x.DisplayOrder });
-            // Aynı maden aynı gruba İKİ KEZ giremez — DB emniyet kemeri (M5 incelemesi; uygulama ön-kontrolü zaten var).
+            // Aynı maden aynı gruba İKİ KEZ giremez — DB savunma kontrolü (M5 incelemesi; uygulama ön-kontrolü zaten var).
             b.HasIndex(x => new { x.TenantId, x.SubstitutionGroupId, x.MetalId }).IsUnique();
             // Metal silme/temizlik sorguları (hangi gruplar bu madeni kullanıyor).
             b.HasIndex(x => new { x.TenantId, x.MetalId });

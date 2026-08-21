@@ -15,7 +15,7 @@ global using System.Threading.Tasks;
 global using Integration.Framework;
 global using Integration.Framework.Timing;
 
-// ── ABP çekirdek / domain ──
+// ── ABP core / domain ──
 global using Volo.Abp;
 global using Volo.Abp.Caching;
 global using Volo.Abp.Data;

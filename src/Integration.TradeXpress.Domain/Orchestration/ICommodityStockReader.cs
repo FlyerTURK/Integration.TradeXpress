@@ -8,7 +8,7 @@ namespace Integration.TradeXpress.Orchestration;
 /// <summary>
 /// Emtia/varyant KULLANILABİLİR stoğu okuma soyutlaması (ADR: mock-first test stratejisi — 2026-07-25 Hakan:
 /// "tüm sistemler önce mock data ile test edilsin").
-/// <para>Gerçek implementasyon ailenin STOK RAPORUNU sarmalar (Metal → <c>IMetalReportAppService</c>,
+/// <para>Gerçek implementasyon ailenin STOK RAPORUNU çağırır (Metal → <c>IMetalReportAppService</c>,
 /// Good → <c>IGoodReportAppService</c>; Available = Net − RezerveÇıkış). ICurrentCompany ZORUNLU — şirket
 /// bağlamsız BOŞ döner. Test implementasyonu sahte sözlüktür — DB'siz, deterministik.</para>
 /// <para><b>İşaret kuralı BURADA KURULMAZ:</b> giriş/çıkış yönü tek kaynaktan

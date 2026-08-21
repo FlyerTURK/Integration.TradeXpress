@@ -1,7 +1,7 @@
 namespace Integration.TradeXpress.Orders;
 
 /// <summary><see cref="OrderStatus"/> yorum yardımcıları — tanım TEK yerde durur ki farklı akışlar
-/// (rezervasyon kapısı, iade süreci, raporlar) "hangi durum bitmiş sayılır" sorusunu ayrı ayrı
+/// (<c>OrderReservationManager</c>, iade süreci, raporlar) "hangi durum bitmiş sayılır" sorusunu ayrı ayrı
 /// cevaplamasın.</summary>
 public static class OrderStatusExtensions
 {

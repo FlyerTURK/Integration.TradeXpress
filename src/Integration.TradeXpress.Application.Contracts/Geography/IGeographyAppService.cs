@@ -20,7 +20,7 @@ public interface IGeographyAppService : IApplicationService
     Task<ListResultDto<LocalityDto>> GetLocalitiesAsync(Guid administrativeAreaId);
 
     /// <summary>Yerelliğin (ilçe) mahallelerini CANLI N11'den çeker (SAKLANMAZ — her çağrıda taze; il/ilçe'nin aksine
-    /// bilinçli persistence-siz istisna). Yerelliğin N11 ilçe id'si köprüden (<c>N11District.CoreLocalityId</c>) çözülür;
+    /// bilinçli persistence-siz istisna). Yerelliğin N11 ilçe id'si <c>N11District.CoreLocalityId</c> eşleştirmesinden çözülür;
     /// TR-dışı/N11-linksiz yerellikte BOŞ liste döner.</summary>
     Task<List<NeighborhoodDto>> GetNeighborhoodsAsync(Guid localityId);
 }

@@ -11,7 +11,9 @@ using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Variants;
+using Integration.TradeXpress.Products;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Integration.TradeXpress.Vouchers;
@@ -235,5 +237,23 @@ public class StoneAppService
     public virtual Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid stoneId)
     {
         return _graph.GetVariantPickerAsync(StoneEntityName, stoneId);
+    }
+
+    /// <summary>Taşın ürün projeksiyonu — iş <see cref="CommodityToProductProjector"/>'da; burada yalnız kaydı
+    /// okuma + [Authorize] denetimi (mamüldeki <c>GoodAppService.ProjectToProductAsync</c> ile birebir simetrik).
+    ///
+    /// <para><b>Şekil <c>Family</c>'den okunur:</b> aile bu sınıfta ZATEN beyanlıdır; ikinci kez yazılsaydı
+    /// iki beyan zamanla ayrışabilir ve projeksiyon sessizce yanlış kolu çalıştırırdı (connascence).</para></summary>
+    public virtual async Task<ProductGetDto> ProjectToProductAsync(Guid stoneId)
+    {
+        var entity = await Repository.FindAsync(stoneId)
+            ?? throw new BusinessException("TradeXpress:Stone:NotFound");
+
+        return await CommodityToProduct.ProjectAsync(new CommodityProjectionSource(
+            entity.Id,
+            entity.Code,
+            entity.Name,
+            entity.Description,
+            CommodityProjectionShapes.Of(Family)));
     }
 }

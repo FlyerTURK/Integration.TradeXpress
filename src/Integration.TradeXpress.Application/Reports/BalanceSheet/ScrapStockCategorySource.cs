@@ -7,7 +7,7 @@ using Volo.Abp.DependencyInjection;
 namespace Integration.TradeXpress.Reports.BalanceSheet;
 
 /// <summary>
-/// STOK (hurda) kategorisi — firmanın fiziksel HURDA-MADEN holding'i (<see cref="IScrapReportAppService"/> ana bacak:
+/// STOK (hurda) kategorisi — firmanın fiziksel HURDA-MADEN holding'i (<see cref="IScrapReportAppService"/> ana leg:
 /// Total=HAS @ MainUnit, tüm ödeme tipleri/Peşin dahil, asOf gün-sonu net). ERPPRO'da hurda = IsHurda bayraklı MADEN →
 /// STOK-Has bacağına girer (Stone/emtia DEĞİL). Cari hurda (BAKIYE, ledger'daki karşı-taraf) AYRI boyut → OFFSET,
 /// çift sayım DEĞİL (Metal ile aynı; ERPPRO BAKİYE+STOK paritesi). İŞARET: +Net AS-IS (fiziksel holding firma-perspektifi;

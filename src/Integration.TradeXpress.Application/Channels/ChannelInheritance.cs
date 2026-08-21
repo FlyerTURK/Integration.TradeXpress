@@ -40,7 +40,7 @@ public sealed record EffectiveAddOn(
 /// kişiselleştirme/add-on alanı YOK (TR pazaryerleri desteklemiyor) → o push'lara zincir girmez. Mevcut inline
 /// devralmalar (N11 <c>BuildProductDataAsync</c>'teki <c>kanal ?? ürün</c> zincirleri) çalışan push kodudur,
 /// bilinçli olarak YERİNDE bırakıldı; yeni kod bu helper'ı kullanır. İSTİSNA — <c>MaxPurchaseQuantity</c>
-/// (K4, 2026-07-23): listeleme kuralı çekirdek kargo şablonundan çıkarılıp ürün varsayılanına taşınırken
+/// (K4, 2026-07-23): listeleme kuralı core kargo şablonundan çıkarılıp ürün varsayılanına taşınırken
 /// N11 push zinciri <see cref="Resolve{T}"/>'a bağlandı (ilk fiili kullanıcı).</para>
 /// </summary>
 public static class ChannelInheritance

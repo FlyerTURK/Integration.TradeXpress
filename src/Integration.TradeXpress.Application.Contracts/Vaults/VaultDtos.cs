@@ -30,7 +30,7 @@ public class VaultListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 
 /// <summary>
 /// Çalışma bağlamı (working context) seçicisinin SATIRI — kullanıcının ÇALIŞABİLDİĞİ bir kasa, şirket/şube
-/// bilgisiyle birlikte düzleştirilmiş. <see cref="Branches.BranchListDto"/>'nun kasa hassasiyetindeki aynası:
+/// bilgisiyle birlikte düzleştirilmiş. <see cref="Branches.BranchListDto"/>'nun kasa hassasiyetindeki karşılığı:
 /// combo satırları kasadır, kolonlar Şirket / Şube / Kasa'dır.
 ///
 /// <para><b>Yönetim listesinden ayrı olması kasıtlı:</b> <see cref="VaultListDto"/> = <i>yönetim listesi</i>

@@ -2,8 +2,8 @@ namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
 /// <b>Ekleme-sadece</b> (append-only) fiş satırı değişim günlüğü — <see cref="VoucherLine"/>'ın her
-/// ekle/güncelle/sil anındaki AYNASI. Application katmanında (<c>VoucherLineHistoryRecorder</c>) satır
-/// işlemiyle AYNI UoW/transaction içinde yazılır; DOMAIN çekirdeğinin (posting/bakiye) yanında yaşayan
+/// ekle/güncelle/sil anındaki SNAPSHOT'I. Application katmanında (<c>VoucherLineHistoryRecorder</c>) satır
+/// işlemiyle AYNI UoW/transaction içinde yazılır; DOMAIN'in asıl akışının (posting/bakiye) yanında yaşayan
 /// GÖLGE günlüktür — mevcut davranışı DEĞİŞTİRMEZ.
 ///
 /// <para>Hiçbir zaman güncellenmez/silinmez → <see cref="CreationAuditedEntity{TKey}"/> yeterlidir

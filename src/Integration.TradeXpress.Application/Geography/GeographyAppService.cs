@@ -17,7 +17,7 @@ using Volo.Abp.MultiTenancy;
 namespace Integration.TradeXpress.Geography;
 
 /// <summary>
-/// Çekirdek coğrafya OKUMA servisi + lazy import tetiği. Coğrafya entity'leri host-global (IMultiTenant DEĞİL)
+/// core coğrafya OKUMA servisi + lazy import tetiği. Coğrafya entity'leri host-global (IMultiTenant DEĞİL)
 /// → okumalar doğrudan DB'den, filtre kapatmaya gerek yok. Ülke satırı hâlâ host‖tenant (import-flag kontrolünde
 /// <c>IMultiTenant</c> kapatılır). Ülkenin
 /// il/eyalet listesi ilk kez istendiğinde <see cref="Country.GeographyImportedAt"/> boşsa ÖNCE
@@ -92,7 +92,7 @@ public class GeographyAppService : ApplicationService, IGeographyAppService
     public virtual async Task<List<NeighborhoodDto>> GetNeighborhoodsAsync(Guid localityId)
     {
         // Mahalle il/ilçe'nin AKSİNE SAKLANMAZ (bilinçli istisna: hacim + N11 zaten canlı veriyor) → her çağrıda
-        // N11'den taze çekilir, DB'ye YAZILMAZ. Yerelliğin N11 ilçe id'si köprüden çözülür (N11District.CoreLocalityId).
+        // N11'den taze çekilir, DB'ye YAZILMAZ. Yerelliğin N11 ilçe id'si N11District.CoreLocalityId'den çözülür.
         var districtId = await ResolveN11DistrictIdAsync(localityId);
         if (districtId == null)
         {
@@ -119,8 +119,8 @@ public class GeographyAppService : ApplicationService, IGeographyAppService
         }
     }
 
-    // Çekirdek yerelliğin N11 ilçe id'sini köprüden çözer (N11District.CoreLocalityId == localityId). TR ilçeleri
-    // N11'den türedi → köprü GeographySeeder'da dolduruldu. Eşleşme yoksa null (TR-dışı/linksiz → mahalle kaynağı yok).
+    // core yerelliğin N11 ilçe id'sini id-only kolondan çözer (N11District.CoreLocalityId == localityId). TR ilçeleri
+    // N11'den türedi → CoreLocalityId GeographySeeder'da dolduruldu. Eşleşme yoksa null (TR-dışı/linksiz → mahalle kaynağı yok).
     // N11District host-global (IMultiTenant DEĞİL) → tenant filtresi yok; doğrudan projeksiyon sorgusu.
     private async Task<string?> ResolveN11DistrictIdAsync(Guid localityId)
     {

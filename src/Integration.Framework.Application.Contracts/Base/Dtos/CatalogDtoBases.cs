@@ -5,7 +5,7 @@ using Volo.Abp.Application.Dtos;
 namespace Integration.Framework.Base.Dtos;
 
 /// <summary>
-/// Katalog (host + tenant scoped basit tanım) List DTO'larının ortak gövdesi.
+/// Katalog (host + tenant scoped basit tanım) List DTO'larının ortak tabanı.
 /// Code/Name list tarafında attribute taşımaz → düz property yeterli.
 /// <see cref="IHasCode"/> BİLEREK burada yok — Get tarafında türev karar verir
 /// (ör. Country başlıkta kod göstermez).
@@ -19,7 +19,7 @@ public abstract class CatalogListDtoBase : EntityDto<Guid>, IListDto<Guid>, IIsA
 }
 
 /// <summary>
-/// Katalog Get (edit formu) DTO'larının ortak gövdesi. Code/Name <c>virtual</c>:
+/// Katalog Get (edit formu) DTO'larının ortak tabanı. Code/Name <c>virtual</c>:
 /// max-length'ler entity-özel (*Consts) olduğundan validation attribute'ları
 /// TÜREVDEKİ override üzerinde yaşar — base attribute taşımaz, validation kaybolmaz
 /// (DataAnnotations en türev property'nin attribute'larını okur).
@@ -32,14 +32,14 @@ public abstract class CatalogGetDtoBase : EntityDto<Guid>, IGetDto<Guid>, IHostS
     public bool IsGlobal { get; set; }
 }
 
-/// <summary>Katalog Create DTO ortak gövdesi — Code/Name attribute'ları türevde (bkz. <see cref="CatalogGetDtoBase"/>).</summary>
+/// <summary>Katalog Create DTO ortak tabanı — Code/Name attribute'ları türevde (bkz. <see cref="CatalogGetDtoBase"/>).</summary>
 public abstract class CatalogCreateDtoBase : ICreateDto
 {
     public virtual string Code { get; set; } = string.Empty;
     public virtual string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Katalog Update DTO ortak gövdesi — Code/Name attribute'ları türevde (bkz. <see cref="CatalogGetDtoBase"/>).
+/// <summary>Katalog Update DTO ortak tabanı — Code/Name attribute'ları türevde (bkz. <see cref="CatalogGetDtoBase"/>).
 /// Code DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).</summary>
 public abstract class CatalogUpdateDtoBase : IUpdateDto, IHasIsActive
 {

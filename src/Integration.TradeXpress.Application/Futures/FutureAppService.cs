@@ -7,7 +7,9 @@ using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.Products;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Integration.TradeXpress.Vouchers;
 
@@ -127,5 +129,23 @@ public class FutureAppService
         entity.SetFollowingFactor(updateInput.FollowingFactor);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
+    }
+
+    /// <summary>Vadelinin ürün projeksiyonu — iş <see cref="CommodityToProductProjector"/>'da; burada yalnız kaydı
+    /// okuma + [Authorize] denetimi (mamüldeki <c>GoodAppService.ProjectToProductAsync</c> ile birebir simetrik).
+    ///
+    /// <para><b>Şekil <c>Family</c>'den okunur:</b> aile bu sınıfta ZATEN beyanlıdır; ikinci kez yazılsaydı
+    /// iki beyan zamanla ayrışabilir ve projeksiyon sessizce yanlış kolu çalıştırırdı (connascence).</para></summary>
+    public virtual async Task<ProductGetDto> ProjectToProductAsync(Guid futureId)
+    {
+        var entity = await Repository.FindAsync(futureId)
+            ?? throw new BusinessException("TradeXpress:Future:NotFound");
+
+        return await CommodityToProduct.ProjectAsync(new CommodityProjectionSource(
+            entity.Id,
+            entity.Code,
+            entity.Name,
+            entity.Description,
+            CommodityProjectionShapes.Of(Family)));
     }
 }

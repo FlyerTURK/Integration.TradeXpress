@@ -265,7 +265,7 @@ public class CompanyOwnedBackfiller : DomainService
             assignCompany(orphan, companyId);
 
             // NOT (kod incelemesi endişesi): soft-delete'li satırda ABP UpdateAsync'i silme yoluna sokar.
-            // Silme damgaları YENİDEN yazılmamalı — kullanıcının gerçek silme anı korunmalı. Bunu varsaymak
+            // Silme alanları (DeletionTime/DeleterId) YENİDEN yazılmamalı — kullanıcının gerçek silme anı korunmalı. Bunu varsaymak
             // yerine mekanik olarak bağladık: CommodityCompanyBackfillerTests, silinmiş yetimin doldurulduktan
             // sonra hâlâ IsDeleted olduğunu VE DeletionTime'ının değişmediğini assert eder.
             await repository.UpdateAsync(orphan, autoSave: true);

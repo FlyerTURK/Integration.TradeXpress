@@ -1,10 +1,10 @@
 namespace Integration.Framework;
 
 /// <summary>
-/// Kimlik/metin alanlarının merkezî normalize + doğrulama kapısı. Normalizasyonu
+/// Kimlik/metin alanlarının merkezî normalize + doğrulama guard'ı. Normalizasyonu
 /// <see cref="StringNormalizationExtensions"/>'a delege eder, sonra IsEmpty/Min/Max/Range kontrolü
 /// yapıp <b>tipli</b> exception (<see cref="RequiredPropertyException"/> vb.) fırlatır. Entity ve
-/// manager aynı kapıyı kullanır → mesaj/kod bilgisi tek yerde (framework). Tüketici tekrar yazmaz.
+/// manager aynı guard'ı kullanır → mesaj/kod bilgisi tek yerde (framework). Tüketici tekrar yazmaz.
 /// </summary>
 public static class StringFieldGuard
 {

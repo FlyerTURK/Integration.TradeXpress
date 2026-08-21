@@ -58,7 +58,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
 
     /// <summary>
     /// Hurda STOK: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault, TÜM geçmişin birim-bazlı Giren/Çıkan/Net'i.
-    /// K4: satırları belleğe çekip in-memory leg üretmek yerine SQL-side GROUP BY + SUM — bacak/işaret/kapsam/ScrapId
+    /// K4: satırları belleğe çekip in-memory leg üretmek yerine SQL-side GROUP BY + SUM — leg/işaret/kapsam/ScrapId
     /// kuralları <see cref="QueryLegsAsync"/> ile BİREBİR aynı (yalnız aggregation DB'de): Peşin (WithCash) yansımaz;
     /// Bedelli (WithCurrency) → PayUnit@PayTotal; diğer (Normal/İade/Emanet/null) → MainUnit@Amount. effect = giriş ? +:−.
     /// Giren = Σ(effect &gt; 0), Çıkan = Σ(−effect &lt; 0); Net = Giren − Çıkan (= Σ effect).
@@ -71,7 +71,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
 
         var q = await _voucherRepository.GetQueryableAsync();
 
-        // Ana bacak: Normal/İade/Emanet (Peşin ve Bedelli HARİÇ) → MainUnit@Amount. effect = giriş ? Amount : −Amount.
+        // Ana leg: Normal/İade/Emanet (Peşin ve Bedelli HARİÇ) → MainUnit@Amount. effect = giriş ? Amount : −Amount.
         // IQueryable → SQL: IsInflow() çevrilemez, ham %2 (giriş = çift) bilinçli. PaymentType != X karşılaştırmaları
         // EF null-telafisiyle (NULL PaymentType dahil) QueryLegsAsync'in isBedelli=false dalıyla birebir.
         var mainAgg = await AsyncExecuter.ToListAsync(
@@ -95,7 +95,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
                                  ? (((int)x.Direction % 2) == 0 ? -x.Amount : x.Amount) : 0m),
             });
 
-        // Bedelli bacak: WithCurrency → PayUnit@PayTotal. effect = giriş ? PayTotal : −PayTotal.
+        // Bedelli leg: WithCurrency → PayUnit@PayTotal. effect = giriş ? PayTotal : −PayTotal.
         var payAgg = await AsyncExecuter.ToListAsync(
             from v in q
             where v.CompanyId == companyId

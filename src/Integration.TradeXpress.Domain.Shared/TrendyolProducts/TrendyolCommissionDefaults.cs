@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// göre değişir; herkese açık tek bir resmî tablo yoktur. Tek otoriter kaynak Satıcı Paneli →
 /// <i>Anlaşma Bilgileri</i> ekranıdır.</para>
 ///
-/// <para><b>Bu sabit oraya kadar köprüdür.</b> Öncesinde <c>resolvedCommissionRate</c> sabit <c>null</c>
+/// <para><b>Bu sabit oraya kadarki yer tutucudur (<c>PlaceholderRate</c>).</b> Öncesinde <c>resolvedCommissionRate</c> sabit <c>null</c>
 /// geçiliyordu; sonuç komisyonun fiyata HİÇ girmemesiydi — sessiz ve görünmez. Yaklaşık bir oran, hiç
 /// olmamasından iyidir.</para>
 ///

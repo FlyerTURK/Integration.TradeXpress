@@ -5,9 +5,9 @@ namespace Integration.TradeXpress.Variants;
 /// <summary>
 /// Agnostik varyant — herhangi bir entity'ye <see cref="EntityName"/> + <see cref="EntityId"/> ile bağlı (set-once).
 /// Nitelik değer KOMBİNASYONUNDAN doğar (ör. Renk=Kırmızı + Beden=42). Kod/ad OTOMATİK üretilir (senkron).
-/// ÇEKİRDEK alanlar (tüm entity'lerde ortak): Code/Name/IsMain/IsActive/Barcode/Stok/Açıklama. Entity-özel ZENGİN
+/// ORTAK alanlar (tüm entity'lerde aynı): Code/Name/IsMain/IsActive/Barcode/Stok/Açıklama. Entity-özel ZENGİN
 /// alanlar (ör. Product: SalePrice/Gtin/reçete/kanal) AYRI UZANTI tablolarında (bu varyanta EntityVariantId ile bağlı) —
-/// çekirdek onları bilmez. Company-scoped + per-tenant. Ana varyant değişmezi (<see cref="IsMain"/>) EntityVariantManager'da.
+/// <c>EntityVariant</c> onları bilmez. Company-scoped + per-tenant. Ana varyant değişmezi (<see cref="IsMain"/>) EntityVariantManager'da.
 /// </summary>
 public class EntityVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
 {

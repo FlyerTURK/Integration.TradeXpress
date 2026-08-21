@@ -355,10 +355,16 @@ public class TrendyolImportResultDto
     /// <summary>Eklenen varyantların barkodları (kullanıcı doğrulaması için; sessiz geçilmez).</summary>
     public List<string> AddedBarcodes { get; set; } = new();
 
-    /// <summary>Uzak stoğu çekirdek (ERP) stoktan FARKLI olan kalem sayısı (K12 stok politikası, 2026-07-23):
-    /// sonraki importlar çekirdek StockQuantity'yi EZMEZ — remote değer kanal OverrideStock'una yazılır (kanal
-    /// gerçeği) + satır-bazında LogWarning. 0 = tüm kalemler çekirdekle uyumlu (override gürültüsü üretilmedi).</summary>
+    /// <summary>Uzak stoğu core (ERP) stoktan FARKLI olan kalem sayısı (K12 stok politikası, 2026-07-23):
+    /// sonraki importlar core StockQuantity'yi EZMEZ — remote değer kanal OverrideStock'una yazılır (kanal
+    /// gerçeği) + satır-bazında LogWarning. 0 = tüm kalemler core stokla uyumlu (override gürültüsü üretilmedi).</summary>
     public int StockDifferenceCount { get; set; }
+
+    /// <summary>Görsel SINIRI (<c>ProductConsts.MaxImageCount</c>) dolduğu için hiç bağlanmayan pazaryeri görseli
+    /// sayısı. Mevcut (kullanıcı) bağlarını korumak uğruna ödenen bedeldir ve SESSİZ GEÇİLMEZ: sıfırdan büyükse
+    /// rapora ayrıca bir uyarı satırı düşer — aksi hâlde kullanıcı "import başarılı" görüp fotoğrafın neden
+    /// gelmediğini hiçbir yerde bulamazdı (yalnız server-log'da kalırdı).</summary>
+    public int SkippedImages { get; set; }
 
     /// <summary>Atlanan satırlar + nedenleri (LOKALİZE) — barcode'suz/duplike/geçersiz kalemler.</summary>
     public List<TrendyolImportIssueDto> SkippedRows { get; set; } = new();
@@ -390,7 +396,7 @@ public class TrendyolImportIssueDto
 /// Yapılandırma (kategori/marka/KDV/kargo/attribute) bizde tutulur; <see cref="PushToTrendyolAsync"/> ürünü +
 /// varyantlarını gönderir (batch id döner), <see cref="RefreshStatusAsync"/> batch durumunu çeker. Company-owned.
 /// </summary>
-/// <summary>FİYATLANDIRMA TAHTASI SATIRI — içe aktarılmış bir kanal ürününün fiyat kararı için gereken her şeyi
+/// <summary>FİYATLANDIRMA BOARD'U SATIRI — içe aktarılmış bir kanal ürününün fiyat kararı için gereken her şeyi
 /// TEK satırda taşır (2026-08-08 Hakan talebi: <i>"içe aktarılan ürünlerin resimleri, o andaki pazaryerindeki
 /// fiyatı, satılabilir adedi de görünsün ki fiyat belirlemede yardımcı olabilsin"</i>).
 ///
@@ -419,22 +425,22 @@ public class TrendyolPricingBoardItemDto
     /// <summary>Pazaryerinde satışta mı (onSale). <c>null</c> = bilinmiyor.</summary>
     public bool? RemoteOnSale { get; set; }
 
-    /// <summary>Pazaryerindeki toplam adet — varyantların kanal override'ı, yoksa çekirdek stoğu.</summary>
+    /// <summary>Pazaryerindeki toplam adet — varyantların kanal override'ı, yoksa core stok.</summary>
     public int RemoteQuantity { get; set; }
 
     public int VariantCount { get; set; }
 
     /// <summary>Reçetesi kurulmuş mu — <c>false</c> ise ürün fiyatlanamaz ve satışa çıkamaz (elle iş bekliyor).
-    /// Tahtanın asıl sıralama ekseni budur: reçetesizler önce gelir.</summary>
+    /// Board'un asıl sıralama ekseni budur: reçetesizler önce gelir.</summary>
     public bool HasRecipe { get; set; }
 
-    /// <summary>Satış hazırlığından geçmiş varyant sayısı (<c>Ready</c>). 0 ise push kapısından hiçbir satır geçmez.</summary>
+    /// <summary>Satış hazırlığından geçmiş varyant sayısı (<c>Ready</c>). 0 ise push guard'ından (<c>VariantSaleReadinessResolver</c>) hiçbir satır geçmez.</summary>
     public int ReadyVariantCount { get; set; }
 }
 
 public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
 {
-    /// <summary>Kanalın FİYATLANDIRMA TAHTASI — içe aktarılmış ürünleri pazaryeri fiyatı/adedi + yerel
+    /// <summary>Kanalın FİYATLANDIRMA BOARD'U — içe aktarılmış ürünleri pazaryeri fiyatı/adedi + yerel
     /// sınıflandırma durumuyla listeler. Salt okuma; pazaryerine çıkmaz (veriler import anından).</summary>
     Task<List<TrendyolPricingBoardItemDto>> GetPricingBoardAsync(Guid salesChannelId);
 
@@ -480,7 +486,7 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
     /// satırlarına dokunulmaz. Kanal ayarı değişince / silinen otomatik satırı geri getirmek için. İdempotent.</summary>
     Task<SalesChannelTrTrendyolProductDto> ReapplySideCostsAsync(Guid id);
 
-    /// <summary>Muadil M4 köprüsü: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
+    /// <summary>Muadil M4 uygulaması: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
     /// (reçete + paket stoğu) olarak uygular — tek motor zinciri; yeniden uygulama imza-bazlı reconcile'dır.
     /// N11 adaptörüyle AYNI nötr planı (SubstitutionStockItemPlanner) tüketir.</summary>
     Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input);

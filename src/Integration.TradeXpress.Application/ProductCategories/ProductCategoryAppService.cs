@@ -15,7 +15,7 @@ using Volo.Abp.Domain.Repositories;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// Çekirdek ürün kategorisi CRUD — <b>company-owned</b>. Kapsam DAİMA çalışılan şirkettir (sunucu zorlar;
+/// Core ürün kategorisi (<c>ProductCategory</c>) CRUD — <b>company-owned</b>. Kapsam DAİMA çalışılan şirkettir (sunucu zorlar;
 /// sahiplik client'tan gelmez). Ağaç bütünlüğü <see cref="ProductCategoryTreeManager"/>'da, kalıtım da orada.
 ///
 /// <para><b>Nitelikler MERGE edilir, replace edilmez</b> (bu servisin en kritik davranışı): gelen listedeki
@@ -724,7 +724,7 @@ public class ProductCategoryAppService : TradeXpressAppService, IProductCategory
 
     private Guid ResolveCompanyId()
     {
-        // Sahiplik client'tan DEĞİL aktif working company'den damgalanır (şirket yoksa fail-closed).
+        // Sahiplik client'tan DEĞİL aktif working company'den gelir (CompanyOwnershipGuard.ResolveOwnerCompanyId; şirket yoksa fail-closed).
         return CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany);
     }
 

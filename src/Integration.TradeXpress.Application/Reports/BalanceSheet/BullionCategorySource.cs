@@ -14,10 +14,10 @@ namespace Integration.TradeXpress.Reports.BalanceSheet;
 /// <summary>
 /// TAKOZ (Bullion) kategorisi — firmanın fiziksel KÜLÇE holding'i. <see cref="BullionBalancePoster"/> ile AYNI motoru
 /// (<see cref="BullionLegCalculator.ComputeBullion"/>) kullanır (DRY + offset simetrisi): raporlu → altın(MainUnit) +
-/// gümüş(SilverUnitId) + platin(PlatinumUnitId) + paladyum(PalladiumUnitId); raporsuz → tek pseudo bacak
-/// (MainUnit = <see cref="BullionConsts.PseudoUnitId"/>, ham gram). Bacaklar LegCalculator'dan ZATEN yön-işaretlidir
+/// gümüş(SilverUnitId) + platin(PlatinumUnitId) + paladyum(PalladiumUnitId); raporsuz → tek pseudo leg
+/// (MainUnit = <see cref="BullionConsts.PseudoUnitId"/>, ham gram). Leg'ler LegCalculator'dan ZATEN yön-işaretlidir
 /// (Giriş +, Çıkış −) → poster gibi EK NEGATİFLEME UYGULANMAZ.
-/// <para>ÇİFT SAYIM YOK (Metal paritesi = OFFSET, disjoint değil): poster metal bacaklarını BalanceLedgerEntry'ye yazar,
+/// <para>ÇİFT SAYIM YOK (Metal paritesi = OFFSET, disjoint değil): poster metal leg'lerini BalanceLedgerEntry'ye yazar,
 /// AccountBalanceCategorySource ledger'ı ProcessType-filtresiz süpürüp −Σ koyar → külçe içeriği BAKİYE'de negatif durur;
 /// bu kaynak +içerik ekler → TOPLAM'da birbirini götürür (alış-anı break-even, ERPPRO BAKİYE+TAKOZ paritesi).</para>
 /// <para>İŞÇİLİK bacağı (LaborTotal @ PayUnit) BURADA EMİT EDİLMEZ — yalnız metal içeriği. Değerleme + TOPLAM merkezde
@@ -41,7 +41,7 @@ public class BullionCategorySource : IBalanceSheetCategorySource, ITransientDepe
     {
         var cutoff = asOf.Date.AddDays(1);   // gün-sonu dahil (AccountBalance/Metal/Scrap ile aynı)
 
-        // K4 NOTU: bu kaynak BİLEREK SQL-side aggregation'a İNDİRİLMEDİ — bacaklar satır-başı koşullu işaret
+        // K4 NOTU: bu kaynak BİLEREK SQL-side aggregation'a İNDİRİLMEDİ — leg'ler satır-başı koşullu işaret
         // motorundan (BullionLegCalculator.ComputeBullion: IsReport/Mode dallanmaları + milyem çarpımları) türetilir;
         // SQL'e çevrilemez, zorlanırsa client-eval/yanlış sonuç riski. Projeksiyon zaten dar (entity çekilmez).
         // Takoz satırlarının ham alanları + kayıt anı kur snapshot'ları — poster'ın okuduğu alanların aynısı.
@@ -67,7 +67,7 @@ public class BullionCategorySource : IBalanceSheetCategorySource, ITransientDepe
             return new List<BalanceSheetContribution>();
         }
 
-        // Birim bazında metal içeriği (poster ile AYNI motor + AYNI bacak→birim eşlemesi; işçilik HARİÇ).
+        // Birim bazında metal içeriği (poster ile AYNI motor + AYNI leg→birim eşlemesi; işçilik HARİÇ).
         var byUnit = new Dictionary<Guid, decimal>();
         foreach (var l in lines)
         {
@@ -97,7 +97,7 @@ public class BullionCategorySource : IBalanceSheetCategorySource, ITransientDepe
                 PlatinumLaborUnitRate:  l.PlatinumLaborUnitRate ?? 0m,
                 PalladiumLaborUnitRate: l.PalladiumLaborUnitRate ?? 0m));
 
-            // Bacak → birim eşlemesi poster ile BİREBİR (offset garanti); işçilik (LaborTotal) atlanır.
+            // Leg → birim eşlemesi poster ile BİREBİR (offset garanti); işçilik (LaborTotal) atlanır.
             // Raporsuz → MainUnit zaten PseudoUnitId (panel'de öyle set edilir) → merkez DefaultCarpan×HAS ile değerler.
             Add(byUnit, l.MainUnitId,      legs.UnreportedTotal);
             Add(byUnit, l.MainUnitId,      legs.GoldTotal);

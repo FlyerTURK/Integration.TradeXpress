@@ -6,7 +6,7 @@ using Integration.TradeXpress.ProductCategories;
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
 /// <summary>
-/// Çekirdek NİTELİK ↔ kanal niteliği eşleştirmesi mapping'i. Kanal niteliğine sert FK YOKTUR (kategori
+/// core NİTELİK ↔ kanal niteliği eşleştirmesi mapping'i. Kanal niteliğine sert FK YOKTUR (kategori
 /// eşleştirmesiyle aynı gerekçe: hedef taksonomi host-global ve yeniden senkronlanabilir).
 /// </summary>
 public static partial class TradeXpressDbContextModelCreatingExtensions

@@ -5,7 +5,7 @@ using Integration.TradeXpress.SalesChannels;
 namespace Integration.TradeXpress.MarketplaceShipmentTariffs;
 
 /// <summary>
-/// Pazaryeri anlaşmalı kargo tarifesi TSV'sinin <b>SAF</b> parse çekirdeği — DB'siz, test edilir
+/// Pazaryeri anlaşmalı kargo tarifesi TSV'sini parse eden <b>SAF</b> sınıf — DB'siz, test edilir
 /// (emsal: <see cref="N11Categories.N11CategoryCommissionImporter"/>).
 ///
 /// <para><b>Fail-fast, interpolasyon YASAK:</b> eksik/bozuk hücrede satır SESSİZCE ATLANMAZ — parse hatası

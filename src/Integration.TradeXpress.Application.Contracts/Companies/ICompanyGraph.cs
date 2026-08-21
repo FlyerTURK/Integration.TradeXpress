@@ -5,7 +5,7 @@ using Integration.TradeXpress.Branches;
 namespace Integration.TradeXpress.Companies;
 
 /// <summary>
-/// Şirket-graf editörünün (paylaşılan <c>CompanyGraphEditor</c>) bağlandığı ortak yüzey. Hem standalone
+/// Şirket-graf editörünün (paylaşılan <c>CompanyGraphEditor</c>) bağlandığı ortak arayüz. Hem standalone
 /// <see cref="CompanyGetDto"/> hem tenant onboarding <see cref="CompanyGraphDto"/> bunu uygular →
 /// editör tek kez yazılır, her iki bağlamda da kullanılır ("her yerde aynı form").
 /// </summary>

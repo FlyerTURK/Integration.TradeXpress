@@ -4,7 +4,7 @@ namespace Integration.TradeXpress.Vaults;
 
 /// <summary>
 /// Aktif (çalışılan) kasa — <see cref="MultiCompany.ICurrentCompany"/> deseninin kasa eşdeğeri. Değer
-/// <see cref="IVaultContextProvider"/>'dan gelir (Blazor'da working-context köprüsü); sunucu işlemleri
+/// <see cref="IVaultContextProvider"/>'dan gelir (Blazor'da bunu <c>WorkingVaultContextProvider</c> karşılar); sunucu işlemleri
 /// <see cref="Change"/> ile geçici override edebilir.
 ///
 /// <para><b>KASA GLOBAL QUERY FILTER'A BAĞLANMAZ (bağlayıcı karar):</b> bu ambient bir <b>ortam varsayılanı /
@@ -21,7 +21,8 @@ public interface ICurrentVault
 }
 
 /// <summary>
-/// Aktif kasanın kaynağı. Varsayılan (host/API): null. Blazor circuit'inde working-context'e köprülenir.
+/// Aktif kasanın kaynağı. Varsayılan (host/API): null. Blazor circuit'inde <c>WorkingVaultContextProvider</c>
+/// bunu working-context'e bağlar.
 /// </summary>
 public interface IVaultContextProvider
 {

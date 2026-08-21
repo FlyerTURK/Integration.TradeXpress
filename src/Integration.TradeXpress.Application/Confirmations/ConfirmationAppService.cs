@@ -21,10 +21,10 @@ using Volo.Abp.Users;
 namespace Integration.TradeXpress.Confirmations;
 
 /// <summary>
-/// Teyit (organizasyon-içi karşılıklı ayna onayı) servisi. Karşı taraf bir İÇ KASA olduğunda process HEMEN
+/// Teyit (organizasyon-içi karşılıklı mirror onayı) servisi. Karşı taraf bir İÇ KASA olduğunda process HEMEN
 /// postlanmaz: <see cref="ProposeAsync"/> Teyit kaydı doğurur (Proposed, postlama YOK) → alıcı
-/// <see cref="DeclareAsync"/> ile KENDİ satırını KENDİ ELİYLE yazar (sistem AYNALAMAZ; sunucu yalnız iki
-/// satırın AYNA olduğunu doğrular) → gönderen <see cref="ConfirmAsync"/> ile teyit edince iki bacak TEK
+/// <see cref="DeclareAsync"/> ile KENDİ satırını KENDİ ELİYLE yazar (sistem KOPYALAMAZ; sunucu yalnız iki
+/// satırın MIRROR olduğunu doğrular) → gönderen <see cref="ConfirmAsync"/> ile teyit edince iki taraf TEK
 /// transaction'da atomik postlanır.
 ///
 /// <para><b>Generic (process-agnostik):</b> her taraf kendi TAM <see cref="VoucherLineDto"/>'sunu yazar,
@@ -33,7 +33,7 @@ namespace Integration.TradeXpress.Confirmations;
 /// açıktır (yalnız o tipin kendi izni aranır).</para>
 ///
 /// <para><b>Zero-trust:</b> tek taraflı beyan ötekinin defterini kımıldatmaz — Confirmed öncesi ledger'a
-/// HİÇBİR ŞEY yazılmaz. Ayna TAM tutmalıdır (emtia+varyant+miktar+tutar+ana/karşılık birimi+karşılık tutarı,
+/// HİÇBİR ŞEY yazılmaz. Mirror (ConfirmationMirrorKey) TAM tutmalıdır (emtia+varyant+miktar+tutar+ana/karşılık birimi+karşılık tutarı,
 /// ZIT yön); tutmazsa teyit açılmaz, fark yüzeye çıkar (fire/kayıp dedektörü).
 /// <b>İPTAL YOKTUR:</b> gönderen teklifi geri çekemez (sorumluluk onda); süreci yalnız alıcı
 /// <see cref="RejectAsync"/> ile durdurur.</para>
@@ -101,8 +101,8 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
         return await MapToDtoAsync(confirmation);
     }
 
-    /// <summary>BEYAN: alıcı KENDİ ELİYLE kendi satırını yazar (sistem aynalamaz) — input onun KENDİ gözlediği
-    /// process satırıdır. Sunucu bunun gönderenin satırıyla AYNA olduğunu doğrular; tutmazsa Teyit AÇILMAZ
+    /// <summary>BEYAN: alıcı KENDİ ELİYLE kendi satırını yazar (sistem kopyalamaz) — input onun KENDİ gözlediği
+    /// process satırıdır. Sunucu bunun gönderenin satırıyla MIRROR olduğunu doğrular; tutmazsa Teyit AÇILMAZ
     /// (uyuşmazlık yüzeye çıkar). <b>POSTLAMA YOK.</b> Yetki = KARŞI kasa.</summary>
     [Authorize(TradeXpressPermissions.Confirmations.Declare)]
     public virtual async Task<ConfirmationDto> DeclareAsync(DeclareConfirmationInput input)
@@ -122,8 +122,8 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
         return await MapToDtoAsync(confirmation);
     }
 
-    /// <summary>TEYİT: gönderen alıcının kaydını teyit eder → iki ayna bacak AYNI transaction'da atomik
-    /// postlanır. Her bacak, o tarafın KENDİ payload'undan, o process tipinin KENDİ poster'ı üzerinden
+    /// <summary>TEYİT: gönderen alıcının kaydını teyit eder → iki mirror taraf AYNI transaction'da atomik
+    /// postlanır. Her taraf, o tarafın KENDİ payload'undan, o process tipinin KENDİ poster'ı üzerinden
     /// materyalize edilir; fiş başlığının karşı tarafı KARŞI KASADIR (AccountType=Vault) → karşılıklı
     /// borç/alacak kendiliğinden doğar. Gerçekleşen fişler Teyit'e iliştirilir. Yetki = BAŞLATAN kasa.</summary>
     [Authorize(TradeXpressPermissions.Confirmations.Confirm)]
@@ -157,7 +157,7 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
         return await MapToDtoAsync(confirmation);
     }
 
-    /// <summary>RED: alıcı kabul etmez → durum kapanır (postlanmış bacak yok). Süreci durdurmanın TEK yolu —
+    /// <summary>RED: alıcı kabul etmez → durum kapanır (postlanmış fiş yok). Süreci durdurmanın TEK yolu —
     /// gönderenin iptali yoktur. Yetki = KARŞI kasa.</summary>
     [Authorize(TradeXpressPermissions.Confirmations.Reject)]
     public virtual async Task<ConfirmationDto> RejectAsync(RejectConfirmationInput input)
@@ -254,12 +254,12 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
         return ConfirmationPayloadSerializer.Deserialize(payload);
     }
 
-    // ── ayna doğrulama (zero-trust çekirdeği) ────────────────────────────────────
+    // ── mirror doğrulama (zero-trust çekirdeği) ────────────────────────────────────
 
-    /// <summary>Satırdan AYNA ANAHTARI türetir — client anahtarı ayrıca göndermez (çift kaynak = sapma riski).
+    /// <summary>Satırdan MIRROR ANAHTARI (ConfirmationMirrorKey) türetir — client anahtarı ayrıca göndermez (çift kaynak = sapma riski).
     /// <para><c>MainUnitId</c> NORMALİZE edilir (<c>Guid.Empty</c> → null): satır DTO'sunda ana birim
     /// non-nullable'dır ve ana bacağı olmayan tipler (Dekont) oraya <c>Guid.Empty</c> yazar. "Boş"un tek
-    /// gösterimi olmazsa iki taraf aynı şeyi farklı kodlayıp ayna yanlış kırılabilir.</para></summary>
+    /// gösterimi olmazsa iki taraf aynı şeyi farklı kodlayıp mirror yanlış kırılabilir.</para></summary>
     private static ConfirmationMirrorKey ToMirrorKey(VoucherLineDto line)
     {
         return new ConfirmationMirrorKey(
@@ -274,7 +274,7 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
             line.PayTotal);
     }
 
-    /// <summary>TAM AYNA kriteri (spec §3): emtia + varyant + miktar + tutar + ana birim + karşılık birimi +
+    /// <summary>TAM MIRROR kriteri (ConfirmationMirrorKey, spec §3): emtia + varyant + miktar + tutar + ana birim + karşılık birimi +
     /// karşılık tutarı AYNI, yön ZIT. Tutmazsa Teyit AÇILMAZ — beklenen/gelen değerler hataya iliştirilir ki
     /// fark (fire/kayıp) adresli teşhir edilsin.</summary>
     private static void EnsureMirrors(Confirmation confirmation, VoucherLineDto line)
@@ -321,7 +321,7 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
     }
 
     /// <summary>İç kip guard'ı: kullanıcı o process tipinin KENDİ iznine sahip olmalı — Teyit, normal yolda
-    /// yazamayacağı bir satırı yazmanın arka kapısı OLAMAZ (ProcessTypePermissionMap tek kaynak).
+    /// yazamayacağı bir satırı yazmanın arka yolu OLAMAZ (ProcessTypePermissionMap tek kaynak).
     /// <para><b>Tip kısıtı YOK</b> (2026-07-15 kullanıcı kararı): iç kipte TÜM process tipleri açıktır —
     /// Teyit process-agnostiktir, her tip kendi poster'ı üzerinden materyalize olur.</para></summary>
     private async Task EnsureProcessAllowedAsync(ProcessType type)
@@ -353,7 +353,7 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
         return vault;
     }
 
-    /// <summary>Teyit'in ön şartı: karşı taraf AYNI ŞİRKETTE bir iç kasa olmalı. Değilse ayna onayının öznesi
+    /// <summary>Teyit'in ön şartı: karşı taraf AYNI ŞİRKETTE bir iç kasa olmalı. Değilse mirror onayının öznesi
     /// yoktur (dış taraf kendi eliyle kayıt yazamaz) → process normal yolundan işler.</summary>
     private async Task<Vault> GetInternalCounterpartyVaultAsync(Guid companyId, Guid counterpartyVaultId)
     {

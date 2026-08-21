@@ -23,7 +23,7 @@ namespace Integration.TradeXpress.Vouchers;
 /// Fiş + satır servisi — ORKESTRATÖR. Dış sözleşme (<see cref="IVoucherAppService"/>) burada; iş
 /// parçaları ayrı servislerde: guard'lar (<c>VoucherAppService.Guards.cs</c> partial), numara tahsisi
 /// (<see cref="VoucherNumberAllocator"/>), ekstre/bakiye (<see cref="VoucherStatementService"/>),
-/// takoz/çeşni stok (<see cref="VoucherBullionStockService"/>), virman çift-bacak
+/// takoz/çeşni stok (<see cref="VoucherBullionStockService"/>), virman çift-satır
 /// (<see cref="VoucherTransferService"/>), DTO eşleme (<see cref="VoucherLineDtoFactory"/>),
 /// denormalize kod çözümü (<see cref="VoucherCodeResolver"/>).
 /// Cash satırları WYSIWYG kaydedilir (istemci aynı motoru çalıştırır; sunucu recompute YOK).
@@ -151,9 +151,9 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         // Virman: karşı hesap doğrulaması + LinkId (sunucu otoritedir) + legacy açıklama formatı.
         // Diğer tiplerde virman alanları temizlenir (istemciden sızan değere güvenilmez).
         VoucherTransferService.TransferContext? transferCtx = null;
-        // ÇİFT BACAK: karşı hesaba YENİ FİŞ açılır ve satırın AYNASI (ters yön) yazılır — 2026-07-26 Hakan kararı.
-        // Virman TİP GEREĞİ çift bacaklıdır (karşı hesap zorunlu); diğer tiplerde karşı hesap OPSİYONELDİR ve
-        // yalnız doluysa ayna üretilir. Kargo gideri bu yolla işler: fiş başlığı kanal carisi, satır hizmet
+        // ÇİFT SATIR: karşı hesaba YENİ FİŞ açılır ve satırın İKİZİ (ters yön) yazılır — 2026-07-26 Hakan kararı.
+        // Virman TİP GEREĞİ çift satırlıdır (karşı hesap zorunlu); diğer tiplerde karşı hesap OPSİYONELDİR ve
+        // yalnız doluysa ikiz üretilir. Kargo gideri bu yolla işler: fiş başlığı kanal carisi, satır hizmet
         // çıkışı, karşı hesap kargo firmasının alt hesabı → kargo firmasının kendi defterinde giriş belirir.
         // Motor zaten tip-agnostik (ikiz = birincilin kopyası, yön ters); eskiden yalnız Transfer'e açıktı —
         // bu bir daraltmaydı: ERPPRO'da karşı hesap TÜM işlem tiplerinde taşınıyor (Islem.ProvizyonHesapId).
@@ -250,8 +250,8 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         // Ledger senkronu (poster çıktısı → kalıcı): voucher kaydedildikten sonra, aynı UoW içinde.
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
 
-        // Virman: karşı bacak (ikiz satır) AYNI UoW içinde — karşı hesabın kendi fişinde bul/oluştur/güncelle
-        // + o fişin ledger senkronu. İki bacak tek transaction'da tutarlı yazılır.
+        // Virman: karşı satır (ikiz VoucherLine) AYNI UoW içinde — karşı hesabın kendi fişinde bul/oluştur/güncelle
+        // + o fişin ledger senkronu. İki satır tek transaction'da tutarlı yazılır.
         if (transferCtx is not null)
         {
             await _transferService.SyncTransferTwinAsync(voucher, lineId, lineInput, transferCtx);
@@ -485,7 +485,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         }
 
         // Virman satırlarının ikizleri BAŞKA fişlerde yaşar — fiş silinirken ikizler de tutarlı düşer
-        // (aksi hâlde karşı hesapta tek bacak kalır; çift bacak değişmezi bozulur).
+        // (aksi hâlde karşı hesapta tek satır kalır; çift satır değişmezi bozulur).
         var transferLines = voucher.Lines
             .Where(l => !l.IsDeleted && l.Type == ProcessType.Transfer && l.LinkId != null)
             .ToList();

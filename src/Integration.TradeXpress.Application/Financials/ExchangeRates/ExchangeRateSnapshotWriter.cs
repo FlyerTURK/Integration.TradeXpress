@@ -17,7 +17,7 @@ namespace Integration.TradeXpress.Financials.ExchangeRates;
 
 /// <summary>
 /// Bir piyasa snapshot'ını <b>host</b> (TenantId=null) ExchangeRate satırları olarak yazar.
-/// Worker'dan ayrı (test edilebilir): köprü olmadan doğrudan kotasyon verilip çağrılabilir.
+/// Worker'dan ayrı (test edilebilir): HaremBridge olmadan doğrudan kotasyon verilip çağrılabilir.
 ///
 /// <para>Satır HAM piyasa fiyatıdır (AppliedMargin=Passthrough); margin per-tenant okumada uygulanır.
 /// İdempotent: aynı (CurrencyUnit, RateDate) penceresi tekrar yazılmaz; fiyat değişmediyse atlanır.

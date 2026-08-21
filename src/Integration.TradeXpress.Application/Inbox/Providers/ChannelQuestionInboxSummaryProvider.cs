@@ -21,7 +21,7 @@ namespace Integration.TradeXpress.Inbox.Providers;
 ///
 /// <para><b>Kapsam FAIL-CLOSED (<c>ChannelQuestionAppService</c> ile AYNI gerekçe):</b> tenant sınırını ABP global
 /// filtresi uygular, ama şirket filtresi <c>CurrentCompanyId</c> null iken PERMISSIVE'dir — working company
-/// olmayan bir bağlamda (HTTP yüzeyi/Swagger, arka plan işi) sayaç tenant'ın TÜM şirketlerinin sorularını
+/// olmayan bir bağlamda (HTTP API/Swagger, arka plan işi) sayaç tenant'ın TÜM şirketlerinin sorularını
 /// toplardı. Şirket bağlamı yoksa kart HİÇ üretilmez ve sorgu ayrıca <c>CompanyId</c> ile açıkça daraltılır.</para>
 ///
 /// <para><b>Bekleyen</b> = kanalda hâlâ AÇIK (<see cref="ChannelQuestionStatus.Pending"/>) ve cevabı pazaryerine
@@ -41,7 +41,7 @@ public class ChannelQuestionInboxSummaryProvider : IInboxSummaryProvider, ITrans
     private const string ChannelQuestionIconCssClass = "custom-icon-comments";
 
     /// <summary>Kart satırında soru metninin gösterilecek azami uzunluğu — kart bir ÖNİZLEMEDİR, tam metin
-    /// tam ekranda okunur. Soru gövdesi 4000 karaktere kadar olabilir (<see cref="ChannelQuestionConsts"/>).</summary>
+    /// tam ekranda okunur. QuestionText 4000 karaktere kadar olabilir (<see cref="ChannelQuestionConsts"/>).</summary>
     private const int QuestionPreviewMaxLength = 120;
 
     /// <summary>Kırpma işareti (tek karakterlik yatay elips).</summary>
@@ -150,14 +150,14 @@ public class ChannelQuestionInboxSummaryProvider : IInboxSummaryProvider, ITrans
                 Id            = question.Id,
                 PrimaryText   = BuildQuestionPreview(question),
                 SecondaryText = question.ProductTitle,
-                // Damga UTC saklanır; yerel saate çeviri UI'nın işi (kayıt=UTC / görüntü=yerel kuralı).
+                // Timestamp UTC saklanır; yerel saate çeviri UI'nın işi (kayıt=UTC / görüntü=yerel kuralı).
                 OccurredAt    = question.FirstSeenAt,
                 IsPending     = IsPending(question),
             })
             .ToList();
     }
 
-    /// <summary>Soru önizlemesi: gövde yoksa başlığa düşer (pazaryerinden gövdesiz satır gelebilir — kırpma da
+    /// <summary>Soru önizlemesi: QuestionText yoksa başlığa düşer (pazaryerinden metinsiz satır gelebilir — kırpma da
     /// başlığa düşme de fail-fast DEĞİL, satır görünür kalmalı).</summary>
     private static string BuildQuestionPreview(ChannelQuestion question)
     {

@@ -113,7 +113,7 @@ public static class N11OrderStatusCatalog
     ///
     /// <para><b>52 (iade) ve 53 (değişim) BİLİNÇLİ OLARAK DIŞARIDA:</b> onlar iptal değil İADE sürecinin
     /// sinyalidir ve tamamen farklı bir yol izler — iade, malın fiziksel olarak kasaya girmesini bekler.
-    /// İkisini aynı köprüye bağlamak, teslim edilmiş bir siparişin iade talebini "iptal kararı bekliyor" diye
+    /// İkisini aynı eksene (<c>OrderCancellationDecision</c>) bağlamak, teslim edilmiş bir siparişin iade talebini "iptal kararı bekliyor" diye
     /// göstermek olurdu; operatör iptali onaylarsa stok geri verilir ama mal hâlâ müşteridedir.</para>
     ///
     /// <para>Bilinmeyen/boş kod → <c>false</c> (fail-safe: uydurma iptal sinyali üretme).</para></summary>

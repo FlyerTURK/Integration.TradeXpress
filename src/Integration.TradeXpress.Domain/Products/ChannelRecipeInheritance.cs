@@ -7,7 +7,7 @@ using Integration.TradeXpress.Vouchers;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// Reçete satırının EMTİA İMZASI — kanal reçetesinin çekirdeği izleyip izlemediği bununla anlaşılır.
+/// Reçete satırının EMTİA İMZASI — kanal reçetesinin core'u izleyip izlemediği bununla anlaşılır.
 ///
 /// <para><b>Neden yalnız bu alanlar:</b> imza, satırın <i>fiziksel bileşim</i> beyanıdır. Sıra
 /// (<c>LineOrder</c>), açıklama ve hesaplanmış tutar (<c>Amount</c>) dışarıda: ilki kozmetik, sonuncusu
@@ -22,8 +22,8 @@ public readonly record struct RecipeCommoditySignature(
     decimal Factor,
     Guid? ValuationUnitId);
 
-/// <summary>Emtia imzası taşıyan reçete satırı — çekirdek (<see cref="ProductVariantRecipeLine"/>) ve
-/// kanal klonları (N11/Trendyol) ortak yüzeyi. Üçü de bu alanları ZATEN taşıyordu; arayüz yalnız tek bir
+/// <summary>Emtia imzası taşıyan reçete satırı — core (<see cref="ProductVariantRecipeLine"/>) ve
+/// kanal klonlarının (N11/Trendyol) ORTAK ARAYÜZÜ. Üçü de bu alanları ZATEN taşıyordu; arayüz yalnız tek bir
 /// karşılaştırıcının üçüne birden hizmet edebilmesi için eklendi (üç ayrı kopya = üç ayrı sapma).</summary>
 public interface IRecipeCommodityLine
 {
@@ -44,11 +44,11 @@ public interface IRecipeCommodityLine
 }
 
 /// <summary>
-/// KANAL REÇETESİ ÇEKİRDEĞİ İZLİYOR MU — devir/override kararının TEK yeri (2026-08-11 Hakan tasarımı).
+/// KANAL REÇETESİ CORE'U İZLİYOR MU — devir/override kararının TEK yeri (2026-08-11 Hakan tasarımı).
 ///
-/// <para><b>Model:</b> çekirdek varyant reçetesi OTORİTEDİR; kanal reçetesi ondan türer ve yalnız
-/// <i>override</i> hakkı vardır. Otoritenin çekirdekte olması tercih değil ZORUNLULUKTUR: stok zinciri
-/// (ters-endeks → <c>SellableStockCalculator</c>) ve sipariş rezervasyonu yalnız çekirdek reçeteyi okur.
+/// <para><b>Model:</b> core varyant reçetesi OTORİTEDİR; kanal reçetesi ondan türer ve yalnız
+/// <i>override</i> hakkı vardır. Otoritenin core'da olması tercih değil ZORUNLULUKTUR: stok zinciri
+/// (ters-endeks → <c>SellableStockCalculator</c>) ve sipariş rezervasyonu yalnız core reçeteyi okur.
 /// Emtia sadece kanal reçetesinde yaşasaydı stok zinciri onu HİÇ görmez, ürün hiç düşmez ve sessizce
 /// aşırı satış üretirdi.</para>
 ///
@@ -60,19 +60,19 @@ public interface IRecipeCommodityLine
 /// <para><b>YAN MALİYETLER KARŞILAŞTIRMAYA GİRMEZ</b> (Hakan'ın ısrarla ayırdığı nokta): paketleme ve
 /// kargo her kanalda meşru şekilde farklıdır; komisyon zaten kanalın kategorisinden gelir. Bunları
 /// bileşim farkı sanmak, her kanalı kalıcı olarak "override edilmiş" ilan eder ve devir mekanizması hiç
-/// çalışmazdı. Ayrım <c>ComponentType</c> üzerinden DEĞİL <c>SideCostKind</c> üzerinden yapılır: çekirdek
+/// çalışmazdı. Ayrım <c>ComponentType</c> üzerinden DEĞİL <c>SideCostKind</c> üzerinden yapılır: core
 /// İŞÇİLİK satırları <c>ComponentType = Service</c>'tir ama fiziksel bileşimin parçasıdır ve devralınmalıdır;
 /// onları <c>SideCostKind == null</c> koşulu doğru tarafta tutar.</para>
 /// </summary>
 public static class ChannelRecipeInheritance
 {
     /// <summary>
-    /// Kanal reçetesi çekirdeği İZLİYOR mu (devralınmış mı)?
+    /// Kanal reçetesi core'u İZLİYOR mu (devralınmış mı)?
     ///
-    /// <para><c>true</c> → kullanıcı kanalda bileşime dokunmamış; çekirdek değişince kanal TAZELENEBİLİR.
+    /// <para><c>true</c> → kullanıcı kanalda bileşime dokunmamış; core değişince kanal TAZELENEBİLİR.
     /// <c>false</c> → override var; kanala DOKUNULMAZ.</para>
     ///
-    /// <para><b>Boş çekirdek + boş kanal = devralınmış</b> sayılır: henüz sınıflandırılmamış ürün, üzerine
+    /// <para><b>Boş core + boş kanal = devralınmış</b> sayılır: henüz sınıflandırılmamış ürün, üzerine
     /// yazılacak bir kullanıcı kararı taşımaz — devir mekanizmasının asıl hedefi tam da bu durumdur.</para>
     /// </summary>
     public static bool IsInherited(
@@ -83,12 +83,12 @@ public static class ChannelRecipeInheritance
     }
 
     /// <summary>
-    /// Aynı karar, çekirdek tarafı ÖNCEDEN ALINMIŞ İMZA FOTOĞRAFI olarak — <see cref="SnapshotOf"/> ile.
+    /// Aynı karar, core tarafı ÖNCEDEN ALINMIŞ İMZA SNAPSHOT'I olarak — <see cref="SnapshotOf"/> ile.
     ///
-    /// <para><b>Neden gerekli:</b> "kayıt-öncesi çekirdek" tek UoW içinde entity REFERANSI olarak tutulamaz —
+    /// <para><b>Neden gerekli:</b> "kayıt-öncesi core" tek UoW içinde entity REFERANSI olarak tutulamaz —
     /// EF kimlik haritası aynı satırı aynı instance'la döndürür ve yerinde güncelleme o instance'ı mutasyona
     /// uğratır; "eski" liste sessizce yeni değerleri gösterir, kıyas hep "aynı" der ve tazeleme HİÇ çalışmaz.
-    /// İmzalar değer tipi (<see cref="RecipeCommoditySignature"/> record struct) olduğundan fotoğraf gerçekten
+    /// İmzalar değer tipi (<see cref="RecipeCommoditySignature"/> record struct) olduğundan snapshot gerçekten
     /// donuktur.</para>
     /// </summary>
     public static bool IsInherited(
@@ -116,7 +116,7 @@ public static class ChannelRecipeInheritance
         return true;
     }
 
-    /// <summary>Devralınabilir satırların DONUK imza fotoğrafı (yan maliyetler elenmiş) — entity mutasyona
+    /// <summary>Devralınabilir satırların DONUK imza snapshot'ı (yan maliyetler elenmiş) — entity mutasyona
     /// uğrasa da değişmez; kayıt-öncesi durum bununla saklanır.</summary>
     public static IReadOnlyList<RecipeCommoditySignature> SnapshotOf(IEnumerable<IRecipeCommodityLine> lines)
     {

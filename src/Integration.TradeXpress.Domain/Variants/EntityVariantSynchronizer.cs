@@ -163,7 +163,7 @@ public class EntityVariantSynchronizer : DomainService
     }
 
     /// <summary>Kombinasyon imzası — sıralı valueId dizisi. PUBLIC: AppService/servis kayıt-öncesi üretilen (Id'siz)
-    /// varyantı DB kombinasyonuyla eşlerken AYNI imzayı kullanır (DRY). Format çekirdekte.</summary>
+    /// varyantı DB kombinasyonuyla eşlerken AYNI imzayı kullanır (DRY). Format <c>VariantCombinationEngine</c>'dedir.</summary>
     public static string BuildKey(IEnumerable<Guid> valueIds)
     {
         return VariantCombinationEngine.BuildKey(valueIds);
@@ -199,7 +199,7 @@ public class EntityVariantSynchronizer : DomainService
             : joined[..EntityVariantConsts.VariantNameMaxLength];
     }
 
-    // Kartezyen: her nitelikten (axis) bir değer. Matematik çekirdekte (VariantCombinationEngine).
+    // Kartezyen: her nitelikten (axis) bir değer. Matematik VariantCombinationEngine'dedir.
     private static List<List<(EntityAttribute Attribute, EntityAttributeValue Value)>> BuildCartesian(
         List<(EntityAttribute Attribute, List<EntityAttributeValue> Values)> axes)
     {

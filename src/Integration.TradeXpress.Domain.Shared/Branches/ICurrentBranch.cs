@@ -4,7 +4,7 @@ namespace Integration.TradeXpress.Branches;
 
 /// <summary>
 /// Aktif (çalışılan) şube — <see cref="MultiCompany.ICurrentCompany"/> deseninin şube eşdeğeri. Değer
-/// <see cref="IBranchContextProvider"/>'dan gelir (Blazor'da working-context köprüsü); sunucu işlemleri
+/// <see cref="IBranchContextProvider"/>'dan gelir (Blazor'da bunu <c>WorkingBranchContextProvider</c> karşılar); sunucu işlemleri
 /// <see cref="Change"/> ile geçici override edebilir (seed / cross-branch).
 ///
 /// <para><b>Kapsam notu:</b> şube bir GLOBAL QUERY FILTER'a bağlı DEĞİLDİR; bu ambient, çalışma bağlamının
@@ -19,7 +19,8 @@ public interface ICurrentBranch
 }
 
 /// <summary>
-/// Aktif şubenin kaynağı. Varsayılan (host/API): null. Blazor circuit'inde working-context'e köprülenir.
+/// Aktif şubenin kaynağı. Varsayılan (host/API): null. Blazor circuit'inde <c>WorkingBranchContextProvider</c>
+/// bunu working-context'e bağlar.
 /// </summary>
 public interface IBranchContextProvider
 {
