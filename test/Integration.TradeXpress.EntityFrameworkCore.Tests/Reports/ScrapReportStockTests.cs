@@ -13,10 +13,10 @@ namespace Integration.TradeXpress.Reports;
 /// <summary>
 /// Hurda STOK raporu davranış pini (K4 SQL-side aggregation refactor'unun güvenlik ağı):
 /// <see cref="IScrapReportAppService.GetStockAsync"/> artık satırları belleğe çekmeden SQL-side GROUP BY + SUM ile
-/// Giren/Çıkan/Net üretir. Gerçek EF (SQLite) üzerinde çalışır → hem SQL ÇEVRİLDİĞİNİ hem de bacak/işaret/birim-gruplama
+/// Giren/Çıkan/Net üretir. Gerçek EF (SQLite) üzerinde çalışır → hem SQL ÇEVRİLDİĞİNİ hem de leg/işaret/birim-gruplama
 /// sonucunun ELLE hesaplı beklenenle BİREBİR aynı kaldığını kanıtlar:
 /// <list type="bullet">
-///   <item>Ana bacak (Normal, MainUnit): Giriş +Amount / Çıkış −Amount.</item>
+///   <item>Ana leg (Normal, MainUnit): Giriş +Amount / Çıkış −Amount.</item>
 ///   <item>Peşin (WithCash): bakiyeye YANSIMAZ (leg üretilmez).</item>
 ///   <item>Bedelli (WithCurrency, PayUnit): PayTotal @ PayUnit — ayrı birim satırı.</item>
 /// </list>
@@ -43,7 +43,7 @@ public class ScrapReportStockTests : TradeXpressEntityFrameworkCoreTestBase
         var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync());
         _companyContext.CompanyId = data.CompanyId;
 
-        // Ana bacak HAS: Normal Giriş 10 (+), Normal Çıkış 4 (−).
+        // Ana leg HAS: Normal Giriş 10 (+), Normal Çıkış 4 (−).
         await _voucherAppService.SaveLineAsync(ScrapLine(data, ProcessDirectionType.Inbound, ProcessPaymentType.Normal,
             mainUnitId: data.HasUnitId, amount: 10m));
         await _voucherAppService.SaveLineAsync(ScrapLine(data, ProcessDirectionType.Outbound, ProcessPaymentType.Normal,
@@ -61,13 +61,13 @@ public class ScrapReportStockTests : TradeXpressEntityFrameworkCoreTestBase
 
         rows.Count.ShouldBe(2);
 
-        // HAS ana bacak: Giren 10, Çıkan 4, Net 6 (Peşin 7 dahil DEĞİL).
+        // HAS ana leg: Giren 10, Çıkan 4, Net 6 (Peşin 7 dahil DEĞİL).
         var hasRow = rows.Single(r => r.UnitId == data.HasUnitId);
         hasRow.InTotal.ShouldBe(10m);
         hasRow.OutTotal.ShouldBe(4m);
         hasRow.Net.ShouldBe(6m);
 
-        // TRY Bedelli bacak: Giren 500, Çıkan 0, Net 500.
+        // TRY Bedelli leg: Giren 500, Çıkan 0, Net 500.
         var tryRow = rows.Single(r => r.UnitId == data.TryUnitId);
         tryRow.InTotal.ShouldBe(500m);
         tryRow.OutTotal.ShouldBe(0m);

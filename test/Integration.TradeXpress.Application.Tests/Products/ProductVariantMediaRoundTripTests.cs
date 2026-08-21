@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Products;
 
 /// <summary>
 /// Ürün VARYANT medyasının kaydet/yükle/sil round-trip REGRESYON ağı — public <see cref="IProductAppService"/>
-/// yüzeyinden (client kapısı güven sınırı değildir; ReplaceFor/GetFor zinciri sunucuda durur).
+/// üzerinden (client tarafı güven sınırı değildir; ReplaceFor/GetFor zinciri sunucuda durur).
 ///
 /// <para><b>Neden kural:</b> varyant medyası ürün medyasından AYRI bağlamda yaşar
 /// (<see cref="MediaEntityNames.ProductVariant"/> + varyant Id'si; link üzerinde varyant kolonu YOKTUR).
@@ -137,7 +137,7 @@ public abstract class ProductVariantMediaRoundTripTests<TStartupModule> : TradeX
         });
     }
 
-    /// <summary>Bir bağlamın (EntityName + EntityId) görünür link satır sayısı — public repository yüzeyi
+    /// <summary>Bir bağlamın (EntityName + EntityId) görünür link satır sayısı — public repository API'si
     /// (soft-delete filtresi AÇIK: temizlik ister hard ister soft olsun kullanıcıya 0 satır görünmeli).</summary>
     private async Task<int> CountLinksAsync(string entityName, Guid entityId)
     {

@@ -4,7 +4,7 @@ using Xunit;
 namespace Integration.Framework;
 
 /// <summary>
-/// StringFieldGuard'ın YENİ eklenen iki kapısının testleri (framework reusable kod = test zorunlu):
+/// StringFieldGuard'ın YENİ eklenen iki metodunun testleri (framework reusable kod = test zorunlu):
 /// NormalizeInvariantCode (ISO kod — kültür-bağımsız UPPER) ve EnsureRequiredText (serbest zorunlu metin).
 /// </summary>
 public class StringFieldGuardTests

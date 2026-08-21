@@ -9,7 +9,7 @@ namespace Integration.TradeXpress.N11Products;
 
 /// <summary>KDV oranı kuralı — N11 serbest yüzde KABUL ETMEZ (resmî v9.0 REST dokümanı: kapalı küme 0/1/10/20).
 ///
-/// <para><b>Neden mekanik ağ:</b> kuyumcuda oran ürüne göre değişir (külçe ≠ işçilikli mücevher). Yanlış oranla
+/// <para><b>Neden konvansiyon testi:</b> kuyumcuda oran ürüne göre değişir (külçe ≠ işçilikli mücevher). Yanlış oranla
 /// push, N11'in müşteriye YANLIŞ fatura kesip farkı satıcıya rücu etmesi demektir → oran ne tahmin edilir ne de
 /// "standart %20" varsayılır. İki koruma birlikte test edilir: (1) küme dışı oran DB'ye giremez, (2) alanın
 /// VARSAYILANI YOKTUR — biri ileride "kolaylık olsun" diye 20 default'u koyarsa bu test kırmızıya döner.</para></summary>

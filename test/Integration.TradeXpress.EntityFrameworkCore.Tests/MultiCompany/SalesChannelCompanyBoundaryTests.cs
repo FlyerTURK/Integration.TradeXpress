@@ -21,7 +21,7 @@ namespace Integration.TradeXpress.MultiCompany;
 /// <c>null</c> kalıyor, filtre PERMISSIVE (konsolide) kola düşüyor ve koruma <b>sessizce</b> yok oluyordu —
 /// tenant içindeki her şirketin kanalı okunabilir, güncellenebilir ve silinebilirdi.</para>
 ///
-/// <para>Bu testler iki bağımsız kapıyı da sürer: bağlam YOKSA açık hata (filtreye düşme), bağlam VARSA
+/// <para>Bu testler iki bağımsız guard'ı da sürer: bağlam YOKSA açık hata (filtreye düşme), bağlam VARSA
 /// yabancı şirketin kaydı <see cref="EntityNotFoundException"/> (var olmayan kayıtla aynı cevap — yabancı
 /// kaydın VARLIĞI da sızmaz).</para>
 /// </summary>
@@ -65,7 +65,7 @@ public class SalesChannelCompanyBoundaryTests : TradeXpressEntityFrameworkCoreTe
             await Should.ThrowAsync<EntityNotFoundException>(
                 () => WithUnitOfWorkAsync(() => _channelService.DeleteAsync(scenario.ChannelId)));
 
-            // Sahibi hâlâ okuyabiliyor — kapı yalnız YABANCIYA kapalı, kanal silinmedi.
+            // Sahibi hâlâ okuyabiliyor — guard yalnız YABANCIYA kapalı, kanal silinmedi.
             _companyContext.CompanyId = scenario.OwnerCompanyId;
             (await WithUnitOfWorkAsync(() => _n11Service.GetAsync(scenario.ChannelId)))
                 .Id.ShouldBe(scenario.ChannelId);

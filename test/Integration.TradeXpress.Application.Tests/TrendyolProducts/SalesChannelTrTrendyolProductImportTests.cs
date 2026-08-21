@@ -40,6 +40,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _headerRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
     private readonly IEntityMediaAppService _entityMedia;
+    private readonly IRepository<EntityMediaLink, Guid> _mediaLinkRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly IProductAppService _productAppService;
 
@@ -56,6 +57,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
         _headerRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductStockItem, Guid>>();
         _currencyUnitRepository = GetRequiredService<IRepository<CurrencyUnit, Guid>>();
         _entityMedia = GetRequiredService<IEntityMediaAppService>();
+        _mediaLinkRepository = GetRequiredService<IRepository<EntityMediaLink, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
     }
 
@@ -112,8 +114,10 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             product.Code.ShouldBe("STK RED 1");
             product.Name.ShouldBe("iPhone 15 Deri Kılıf");   // TitleCase EZMEDİ (SetName normalizeTitle:false yolu)
 
-            // Görseller DAM'a import edilir (legacy URL-kaynağı 2026-07-31'de emekli). Test ortamında uzak URL
-            // erişilemez → indirme ATLANIR ama import KIRILMAZ (dayanıklılık kuralı) — ürün medyasız kalır.
+            // Görseller DAM'a import edilir (legacy URL-kaynağı 2026-07-31'de emekli). Testte indirme sahtelenir
+            // (FakeMarketplaceImageDownloader) ama KÜTÜPHANE kaydı açılmaz → bağ yazılır, okuma yolu onu "yetim
+            // link" diye eler. Yani buradaki boşluk "görsel dalı hiç koşmadı" DEĞİL, "kütüphanede karşılığı yok"
+            // demektir; bağların kendisi EntityMediaLink tablosundan sayılır (aşağıdaki varyant görseli testi).
             var mediaLinks = await _entityMedia.GetForAsync(MediaEntityNames.Product, product.Id);
             mediaLinks.ShouldBeEmpty();
 
@@ -148,7 +152,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             record.Attributes.ShouldContain(a => a.AttributeId == 47 && a.AttributeValueId == 686234);
 
             // StockItem override: uzak fiyat kanal katmanına yazıldı (kullanıcı onaylı yön). STOK — K12 politikası:
-            // varyant BU importta doğdu → çekirdek remote'la tohumlandı → fark yok → OverrideStock NULL kalır
+            // varyant BU importta doğdu → core remote'la seed'lendi → fark yok → OverrideStock NULL kalır
             // (gürültü üretilmez; null = ERP StockQuantity devralınır) ve fark sayacı 0'dır.
             report.StockDifferenceCount.ShouldBe(0);
             var headers = await WithUnitOfWorkAsync(async () =>
@@ -332,7 +336,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             second.CreatedChannelProducts.ShouldBe(0);
             second.UpdatedChannelProducts.ShouldBe(1);
 
-            // K12 politikası: çekirdek varyant ZATEN VARDI (update yolu) → remote stok (9) çekirdeği (5) EZMEZ,
+            // K12 politikası: core varyant ZATEN VARDI (update yolu) → remote stok (9) core'u (5) EZMEZ,
             // fark kanal override'ına yazılır + fark sayacıyla görünür kılınır (sessiz geçilmez).
             second.StockDifferenceCount.ShouldBe(1);
 
@@ -348,7 +352,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             header.OverridePrice.ShouldBe(4650m);
             header.OverrideStock.ShouldBe(9);
 
-            // Çekirdek stok İLK import tohumunda kaldı — sonraki import EZMEDİ (son-import-kazanır kapandı).
+            // Core stok İLK import seed'inda kaldı — sonraki import EZMEDİ (son-import-kazanır kapandı).
             var coreVariant = (await WithUnitOfWorkAsync(async () =>
                 await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.CompanyId == companyId))).ShouldHaveSingleItem();
             coreVariant.StockQuantity.ShouldBe(5);
@@ -393,7 +397,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 mainId: "MAIN-3", barcode: "BR-Y-1", stockCode: "STK-Y-1", title: "Uzakta Değişen Başlık",
                 quantity: 4, salePrice: 150m, listPrice: null, contentId: 5, approved: null));
             var second = await _appService.ImportFromMarketplaceAsync(channel.Id);
-            second.StockDifferenceCount.ShouldBe(1);   // K12: çekirdek 2 vs remote 4 → fark sayaçta görünür
+            second.StockDifferenceCount.ShouldBe(1);   // K12: core 2 vs remote 4 → fark sayaçta görünür
 
             var after = await WithUnitOfWorkAsync(async () => await _productRepository.GetAsync(product.Id));
             after.Name.ShouldBe("Kullanıcı Ürün Adı");   // şablon korunur
@@ -567,7 +571,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
     ///
     /// <para><b>Gereksinim değişti (Hakan):</b> "Bir tenantta birden çok şirket kurup, o şirketler üzerinden aynı
     /// tenant içerisinde farklı Trendyol satış kanalı oluşturup aynı barkodlu ürünü satmayı planlıyorum."
-    /// İndeks <c>(TenantId, CompanyId, Barcode)</c>'a daraltıldı; testin iddiası da yeni kuralı çiviliyor.
+    /// İndeks <c>(TenantId, CompanyId, Barcode)</c>'a daraltıldı; testin iddiası da yeni kuralı sabitliyor.
     /// Bu bir assertion GEVŞETMESİ değildir — eski test bir gereksinimi kodluyordu, gereksinim değişti.</para>
     /// </summary>
     [Fact]
@@ -659,7 +663,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
     ///
     /// <para><b>Yakaladığı hata:</b> import ürün-seviyesi nitelikleri grubun İLK kaleminden olduğu gibi alıyordu.
     /// Eksen varsa bu, birinci varyantın değerini (ör. "Kırmızı") ÜRÜNÜN değeri sanıp kaydetmek demekti; push
-    /// gövdesi de ürün niteliklerini HER item'a kopyaladığından tüm varyantlar aynı renk beyanıyla gidiyordu.
+    /// body'si de ürün niteliklerini HER item'a kopyaladığından tüm varyantlar aynı renk beyanıyla gidiyordu.
     /// Çözüm <c>TrendyolVariantAxisResolver</c>: değeri kalemler arasında DEĞİŞEN nitelik = eksen, elenir.</para></summary>
     [Fact]
     public async Task Import_writes_only_shared_attributes_to_product_level_not_the_variant_axis()
@@ -717,8 +721,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             record.Attributes.ShouldContain(a => a.AttributeId == 60);
             record.Attributes.ShouldNotContain(a => a.AttributeId == 47);
 
-            // Eksen değeri KALEMİN fotoğrafına yazılır (push'un item-düzeyi attribute kaynağı): her SKU kendi
-            // renk kimliğini taşır, ortak nitelik (60) fotoğrafa GİRMEZ (o ürün seviyesinde).
+            // Eksen değeri KALEMİN RemoteVariantAttributes'ına yazılır (push'un item-düzeyi attribute kaynağı):
+            // her SKU kendi renk kimliğini taşır, ortak nitelik (60) oraya GİRMEZ (o ürün seviyesinde).
             var redSku = record.Skus.Single(s => s.Barcode == "BR-AX-RED");
             redSku.RemoteVariantAttributes.ShouldHaveSingleItem();
             redSku.RemoteVariantAttributes[0].AttributeId.ShouldBe(47);
@@ -885,7 +889,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             result.SkippedRows.ShouldBeEmpty();          // 'VariantMissingOnTemplate' skip nedeni KALKTI
             result.CreatedProducts.ShouldBe(0);          // şablon yeniden üretilmedi
             result.UpdatedChannelProducts.ShouldBe(1);
-            result.StockDifferenceCount.ShouldBe(1);     // yalnız MEVCUT varyantta fark (5→9); yeni eklenenler tohumlandı
+            result.StockDifferenceCount.ShouldBe(1);     // yalnız MEVCUT varyantta fark (5→9); yeni eklenenler seed'lendi
 
             var variants = await WithUnitOfWorkAsync(async () =>
                 await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
@@ -1030,7 +1034,115 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
         }
     }
 
+    // ── Varyant görselleri: her kalem KENDİ bağlamına iner ──────────────────────────────────────────
+
+    /// <summary>Trendyol görselleri KALEM (barkod = varyant) başına döndürür; içe aktarım ise yalnız ilk kalemin
+    /// setini alıp ürün-geneli bağlama yazıyor, kalan kalemlerin görsellerini SESSİZCE düşürüyordu. Sonuç hatasız
+    /// ama yanlıştı: "mavi kılıf"ın kendi fotoğrafı hiçbir okuma yolunda bulunmuyor, push zinciri kayıt-geneli
+    /// fallback'iyle kırmızının fotoğrafını gönderiyordu.
+    ///
+    /// <para>Bu test iki şeyi çiviler: her varyantın bağı KENDİ bağlamında ("ProductVariant" + varyant Id'si)
+    /// oluşur ve varyantlar arası ÇAPRAZ sızma yoktur. İçe aktarım ikinci kez koşturulur — bağ sayısı ARTMAZ
+    /// (aynı içerik ikinci kez bağlanmaz), yani tekrar eden mağaza senkronu galeriyi şişirmez.</para></summary>
+    [Fact]
+    public async Task Import_links_each_remote_items_images_to_its_own_variant_context()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMGVAR");
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-IMG", barcode: "BR-IMG-RED", stockCode: "STK-IMG-RED", title: "Deri Kılıf",
+                quantity: 5, salePrice: 100m, listPrice: 120m, contentId: 771001, approved: true,
+                variantImageUrls: new[] { "https://cdn.example.com/kirmizi-1.jpg" }));
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-IMG", barcode: "BR-IMG-BLUE", stockCode: "STK-IMG-BLUE", title: "Deri Kılıf",
+                quantity: 6, salePrice: 110m, listPrice: 130m, contentId: 771002, approved: true,
+                variantImageUrls: new[] { "https://cdn.example.com/mavi-1.jpg", "https://cdn.example.com/mavi-2.jpg" }));
+
+            await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            var product = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            var variants = await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
+            var red = variants.Single(v => v.Barcode == "BR-IMG-RED");
+            var blue = variants.Single(v => v.Barcode == "BR-IMG-BLUE");
+
+            var redLinks = await LoadVariantMediaLinksAsync(red.Id);
+            var blueLinks = await LoadVariantMediaLinksAsync(blue.Id);
+            redLinks.Count.ShouldBe(1);
+            blueLinks.Count.ShouldBe(2);
+
+            // Çapraz sızma YOK: kırmızının görseli mavinin bağlamında görünmez (ve tersi).
+            redLinks.Select(l => l.MediaId).Intersect(blueLinks.Select(l => l.MediaId)).ShouldBeEmpty();
+
+            // Her bağlamın KENDİ cover'ı var (varyantın vitrini kendi fotoğrafıdır).
+            redLinks.Count(l => l.IsDefault).ShouldBe(1);
+            blueLinks.Count(l => l.IsDefault).ShouldBe(1);
+
+            // İkinci içe aktarım İDEMPOTENT: aynı görsel ikinci kez bağlanmaz (kütüphane dedup'ı aynı MediaId'yi verir).
+            await _appService.ImportFromMarketplaceAsync(channel.Id);
+            (await LoadVariantMediaLinksAsync(red.Id)).Count.ShouldBe(1);
+            (await LoadVariantMediaLinksAsync(blue.Id)).Count.ShouldBe(2);
+        }
+    }
+
+    /// <summary>Görsel sınırına takılan pazaryeri görselleri KULLANICIYA ULAŞIR: sayı rapora yazılır ve rapor
+    /// uyarı satırı taşır.
+    ///
+    /// <para><b>Neden çivileniyor:</b> kırpma indiricide sayılıyordu ama çağıranlar dönüş değerini ATIYORDU —
+    /// yani kayıt yalnız server-log'da kalıyor, kullanıcı "içe aktarım başarılı" raporunu görüp fotoğrafın neden
+    /// gelmediğini hiçbir ekranda bulamıyordu. Bu test o boruyu (indirici → rapor → panel) uçtan uca tutar.</para>
+    ///
+    /// <para>Uyarının METNİ doğrulanmaz (lokalizasyon anahtarı JSON'a ana oturumda düşer); doğrulanan şey
+    /// SATIRIN VAR OLMASIDIR — panel <c>Warnings</c> listesini olduğu gibi ekrana basar.</para></summary>
+    [Fact]
+    public async Task Import_reports_images_that_did_not_fit_the_limit()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMGCAP");
+            var overLimit = Enumerable
+                .Range(1, ProductConsts.MaxImageCount + 2)
+                .Select(i => $"https://cdn.example.com/kapasite-{i}.jpg")
+                .ToArray();
+
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-CAP", barcode: "BR-CAP", stockCode: "STK-CAP", title: "Çok Görselli Kılıf",
+                quantity: 3, salePrice: 100m, listPrice: 120m, contentId: 772001, approved: true,
+                variantImageUrls: overLimit));
+
+            var report = await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            var product = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            var variant = (await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id)))
+                .Single(v => v.Barcode == "BR-CAP");
+
+            // Sınır kadarı bağlanır — fazlası bağlanmaz (mevcutları silerek yer AÇILMAZ).
+            (await LoadVariantMediaLinksAsync(variant.Id)).Count.ShouldBe(ProductConsts.MaxImageCount);
+
+            // ...ve düşen sayı SESSİZ kalmaz: hem sayaçta hem okunabilir uyarı satırında.
+            report.SkippedImages.ShouldBe(2);
+            report.Warnings.ShouldNotBeEmpty();
+        }
+    }
+
     // ── Yardımcılar ──────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Varyantın DAM bağlarını doğrudan tablodan okur. <c>GetForAsync</c> kullanılmaz: testte kütüphane
+    /// kaydı açılmadığından (bkz. <c>FakeMarketplaceImageDownloader</c>) o yol bağları "yetim" sayıp elerdi.</summary>
+    private async Task<List<EntityMediaLink>> LoadVariantMediaLinksAsync(Guid variantId)
+    {
+        return await WithUnitOfWorkAsync(async () =>
+            await _mediaLinkRepository.GetListAsync(
+                l => l.EntityName == MediaEntityNames.ProductVariant && l.EntityId == variantId));
+    }
 
     private async Task<SalesChannelTrTrendyol> SeedChannelAsync(Guid companyId, string suffix)
     {
@@ -1040,10 +1152,13 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 autoSave: true));
     }
 
-    /// <summary>DÜZ uzak kalem kurar (parse çıktısının aynısı — tek varyant taşır; gruplama import içinde).</summary>
+    /// <summary>DÜZ uzak kalem kurar (parse çıktısının aynısı — tek varyant taşır; gruplama import içinde).
+    /// <paramref name="variantImageUrls"/> KALEM-BAŞINA görsel setidir (Trendyol görselleri barkod başına verir);
+    /// verilmezse kalem görselsizdir ve yalnız ürün-geneli set (<c>ImageUrls</c>) iner.</summary>
     private static TrendyolRemoteProduct BuildRemoteItem(
         string? mainId, string barcode, string? stockCode, string title,
-        int quantity, decimal? salePrice, decimal? listPrice, long contentId, bool? approved)
+        int quantity, decimal? salePrice, decimal? listPrice, long contentId, bool? approved,
+        IReadOnlyList<string>? variantImageUrls = null)
     {
         return new TrendyolRemoteProduct(
             ProductMainId: mainId,
@@ -1071,7 +1186,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                     Attributes: new List<TrendyolRemoteAttribute>
                     {
                         new(47, "Renk", 686234, "Kırmızı", null),
-                    }),
+                    },
+                    ImageUrls: variantImageUrls),   // null → record BOŞ listeye normalize eder
             });
     }
 }

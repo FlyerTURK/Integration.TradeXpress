@@ -10,7 +10,7 @@ using Xunit;
 namespace Integration.TradeXpress.TrendyolCategories;
 
 /// <summary>
-/// Komisyon oranı KALITIMININ mekanik ağı (2026-08-06 Hakan kararı: oran yalnız belirgin parent'lara girilir,
+/// Komisyon oranı KALITIMININ konvansiyon testiı (2026-08-06 Hakan kararı: oran yalnız belirgin parent'lara girilir,
 /// çocuklar miras alır).
 ///
 /// <para><b>Neden test:</b> bu zincirin bozulma biçimi SESSİZDİR — oran bulunamayınca istisna atılmaz, yalnız

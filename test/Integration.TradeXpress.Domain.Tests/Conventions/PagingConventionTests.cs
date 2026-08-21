@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.Conventions;
 /// <para><b>Kural:</b> <c>ListRequestDto</c> taşıyan bir sorguda sayfalama ELLE yazılmaz —
 /// <c>ApplyPaging(input)</c> kullanılır.</para>
 ///
-/// <para><b>Neden mekanik ağ:</b> <c>MaxResultCount</c> artık pozitif olmayan değerlerle "TÜM kayıtlar"
+/// <para><b>Neden konvansiyon testi:</b> <c>MaxResultCount</c> artık pozitif olmayan değerlerle "TÜM kayıtlar"
 /// (<c>ListRequestDto.AllPages</c>) anlamına gelir. Elle yazılan <c>Take(input.MaxResultCount)</c> bu durumda
 /// <c>Take(-1)</c> olur ve LINQ bunu <b>istisna atmadan BOŞ liste</b> olarak değerlendirir → grid'in "Tümü"
 /// seçeneği sessizce 0 satır gösterir. Sessiz olduğu için code review'da da kaçar; bu yüzden derlemeye değil

@@ -9,7 +9,7 @@ namespace Integration.TradeXpress.ProductCategories;
 /// <summary>
 /// Kategori adında YOL AYRACI yasağı (2026-08-04 Hakan).
 ///
-/// <para><b>Neden mekanik ağ:</b> kategori yolu düz metin olarak kuruluyor — segmentler <c>›</c> ile
+/// <para><b>Neden konvansiyon testi:</b> kategori yolu düz metin olarak kuruluyor — segmentler <c>›</c> ile
 /// birleştiriliyor ("Takı › Yüzük › Alyans"). Ada ayraç karakteri girerse TEK bir kategori listede İKİ SEVİYE
 /// gibi görünür; üstelik yol hesaplanmış bir alan olduğundan geri ayrıştırıp düzeltmek de mümkün değildir.
 /// Kirlenme kayıt anında engellenmezse veri kalıcı olarak yanlış okunur.</para>

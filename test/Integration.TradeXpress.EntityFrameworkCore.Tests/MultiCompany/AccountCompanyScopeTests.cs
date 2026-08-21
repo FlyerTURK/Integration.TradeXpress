@@ -188,7 +188,7 @@ public class AccountCompanyScopeTests : TradeXpressEntityFrameworkCoreTestBase
     // ── kurulum / yardımcılar ────────────────────────────────────────────────
 
     /// <summary>Tek tenant altında iki şirket grafı (mine/foreign) + host hesabı (TenantId=null) kurar.
-    /// Hesaplar TENANT altında tohumlanır (aksi hâlde TenantId=null olur → host-muafiyetiyle sızmaz test etmezdik).</summary>
+    /// Hesaplar TENANT altında seed'lenir (aksi hâlde TenantId=null olur → host-muafiyetiyle sızmaz test etmezdik).</summary>
     private async Task<AccountScopeData> SeedAsync()
     {
         _companyContext.CompanyId = null; // seed sırasında context yok

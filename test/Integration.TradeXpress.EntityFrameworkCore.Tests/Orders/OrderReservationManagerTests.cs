@@ -223,7 +223,7 @@ public class OrderReservationManagerTests : TradeXpressEntityFrameworkCoreTestBa
         links.Count.ShouldBe(1);
     }
 
-    // ── Terminal statü kapısı ────────────────────────────────────────────────────────────────────────
+    // ── Terminal statü guard'ı ───────────────────────────────────────────────────────────────────────
 
     /// <summary>TESLİM EDİLMİŞ sipariş rezervasyon KURMAZ — eşleşmesi ve reçetesi kusursuz olsa bile.
     ///
@@ -250,7 +250,7 @@ public class OrderReservationManagerTests : TradeXpressEntityFrameworkCoreTestBa
     }
 
     /// <summary>İPTAL edilmiş + eşleşmesi OLMAYAN sipariş <c>Blocked</c> kaydı da DOĞURMAZ.
-    /// <para>Terminal kapısı Blocked'tan ÖNCE gelir: 106 tarihsel siparişin her biri gelen kutusuna "eşleşmedi"
+    /// <para>Terminal guard'ı Blocked'tan ÖNCE gelir: 106 tarihsel siparişin her biri gelen kutusuna "eşleşmedi"
     /// diye düşseydi, gerçek işi görünmez kılan bir gürültü yığını oluşurdu. Ortada kurulmuş bir taahhüt
     /// yokken "bloklandı" demek de yanlış olurdu.</para></summary>
     [Fact]
@@ -268,7 +268,7 @@ public class OrderReservationManagerTests : TradeXpressEntityFrameworkCoreTestBa
     }
 
     /// <summary>Zaten REZERVE edilmiş sipariş sonradan terminale geçerse kayda DOKUNULMAZ.
-    /// <para>Kapı yalnız KURULUMU keser. Rezerveyi fiziki çıkışa çevirmek ya da serbest bırakmak state
+    /// <para>Guard yalnız KURULUMU keser. Rezerveyi fiziki çıkışa çevirmek ya da serbest bırakmak state
     /// machine'in / kullanıcının işidir; burada sessizce silmek denetim izini yok eder ve stoğu kimsenin
     /// karar vermediği bir anda geri verirdi.</para></summary>
     [Fact]

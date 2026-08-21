@@ -14,9 +14,9 @@ namespace Integration.TradeXpress.Attachments;
 /// Pazaryerine GİDECEK medya seçimi — <c>GetPushMediaAsync</c> sözleşmesi.
 ///
 /// <para><b>Neden var:</b> push'un görsel kaynağı legacy <c>ProductImage</c>'dan DAM'a taşındı. Buradaki üç kural
-/// (kapak önce · pasif elenir · tür süzülür) bozulduğunda hiçbir istisna fırlamaz: pazaryerinde vitrin görseli
+/// (cover önce · pasif elenir · tür süzülür) bozulduğunda hiçbir istisna fırlamaz: pazaryerinde vitrin görseli
 /// sessizce değişir, kullanıcının gizlediği görsel yayına çıkar ya da görsel listesine mp4 sızıp XML reddedilir.
-/// Düzenleme yüzeyinin kullandığı <c>GetForAsync</c> bu üç kuralın HİÇBİRİNİ uygulamaz — ayrım kasıtlıdır.</para>
+/// Düzenleme formunun kullandığı <c>GetForAsync</c> bu üç kuralın HİÇBİRİNİ uygulamaz — ayrım kasıtlıdır.</para>
 /// </summary>
 public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
@@ -40,7 +40,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
     [Fact]
     public async Task Cover_comes_first_even_when_its_display_order_is_last()
     {
-        // DAM'da IsDefault ile DisplayOrder BAĞIMSIZDIR: kullanıcı 3. sıradaki görseli kapak seçebilir.
+        // DAM'da IsDefault ile DisplayOrder BAĞIMSIZDIR: kullanıcı 3. sıradaki görseli cover seçebilir.
         // Sıralama push tarafında açıkça uygulanmazsa pazaryerinde vitrin görseli değişir.
         var companyId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
@@ -51,7 +51,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
             {
                 ("a", MediaType.Image, 0, false, true),
                 ("b", MediaType.Image, 1, false, true),
-                ("cover", MediaType.Image, 2, true, true),   // kapak EN SONDA
+                ("cover", MediaType.Image, 2, true, true),   // cover EN SONDA
             });
 
             var result = await _entityMedia.GetPushMediaAsync(OwnerEntityName, ownerId, MediaType.Image);
@@ -63,7 +63,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
     [Fact]
     public async Task Inactive_links_are_excluded()
     {
-        // Pasif link düzenleme yüzeyinde GÖRÜNÜR (kullanıcı geri açabilsin) ama pazaryerine GİTMEZ.
+        // Pasif link düzenleme formunda GÖRÜNÜR (kullanıcı geri açabilsin) ama pazaryerine GİTMEZ.
         var companyId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
 
@@ -79,7 +79,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
 
             (await NamesOfAsync(result)).ShouldBe(new[] { "visible" });
 
-            // Düzenleme yüzeyi ikisini de görmeye devam etmeli — filtre yalnız push'a ait.
+            // Düzenleme formu ikisini de görmeye devam etmeli — filtre yalnız push'a ait.
             var editSet = await _entityMedia.GetForAsync(OwnerEntityName, ownerId);
             editSet.Count.ShouldBe(2);
         }
@@ -96,7 +96,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
         {
             await SeedAsync(companyId, ownerId, new[]
             {
-                ("clip", MediaType.Video, 0, true, true),   // video üstelik KAPAK
+                ("clip", MediaType.Video, 0, true, true),   // video üstelik COVER
                 ("photo", MediaType.Image, 1, false, true),
             });
 
@@ -107,7 +107,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
             var videos = await _entityMedia.GetPushMediaAsync(OwnerEntityName, ownerId, MediaType.Video);
             (await NamesOfAsync(videos)).ShouldBe(new[] { "clip" });
 
-            // Tür verilmezse ayrım yapılmaz (kapak yine önce).
+            // Tür verilmezse ayrım yapılmaz (cover yine önce).
             var all = await _entityMedia.GetPushMediaAsync(OwnerEntityName, ownerId);
             all.Count.ShouldBe(2);
         }
@@ -154,7 +154,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
         }
     }
 
-    /// <summary>Medya + link çifti kurar. Demet: (ad, tür, sıra, kapak mı, aktif mi).
+    /// <summary>Medya + link çifti kurar. Demet: (ad, tür, sıra, cover mı [<c>IsDefault</c>], aktif mi).
     /// <paramref name="entityName"/> ile bağlam seçilir (kayıt geneli ya da varyant bağlamı).</summary>
     private async Task SeedAsync(
         Guid companyId,

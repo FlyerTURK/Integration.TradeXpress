@@ -173,7 +173,7 @@ public abstract class ChannelQuestionAppServiceTests<TStartupModule> : TradeXpre
 
             draft.AnswerText.ShouldBe("Yarın kargoya verilecek.");
             draft.AnswerState.ShouldBe(ChannelAnswerState.Draft);
-            draft.AnsweredAt.ShouldNotBeNull();      // YAZMA anı damgalanır
+            draft.AnsweredAt.ShouldNotBeNull();      // YAZMA anı AnsweredAt'e yazılır
             draft.AnswerPushedAt.ShouldBeNull();     // GÖNDERME anı boş kalır
 
             var queued = await _appService.WriteAnswerAsync(
@@ -220,7 +220,7 @@ public abstract class ChannelQuestionAppServiceTests<TStartupModule> : TradeXpre
     [Fact]
     public async Task SetRead_toggles_the_inbox_flag_both_ways()
     {
-        // Okunmamış sayacı gelen kutusunun tek uyarı yüzeyi; işaret TEK YÖNLÜ olsaydı yanlışlıkla okundu
+        // Okunmamış sayacı gelen kutusunun tek uyarı göstergesi; işaret TEK YÖNLÜ olsaydı yanlışlıkla okundu
         // yapılan soru bir daha dikkat çekmezdi → geri alınabilir olmalı.
         var companyId = NewId();
         using (_currentCompany.Change(companyId))
@@ -288,7 +288,7 @@ public abstract class ChannelQuestionAppServiceTests<TStartupModule> : TradeXpre
                 autoSave: true));
     }
 
-    /// <summary>Çekimden gelmiş gibi tam bir soru satırı kurar (uzak alanlar + <c>FirstSeenAt</c> damgası).
+    /// <summary>Çekimden gelmiş gibi tam bir soru satırı kurar (uzak alanlar + <c>FirstSeenAt</c> timestamp'i).
     /// <paramref name="finalize"/> yalnız AppService'in AÇMADIĞI durumları (gönderilmiş cevap gibi) elde
     /// kurmak içindir — normal akış her zaman servis üzerinden test edilir.</summary>
     private async Task<Guid> SeedQuestionAsync(

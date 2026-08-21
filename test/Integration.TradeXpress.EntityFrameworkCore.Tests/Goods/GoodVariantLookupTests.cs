@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.EntityFrameworkCore.Goods;
 /// "VARYANTLI HER EMTİA REÇETEDE MADEN GİBİ DAVRANIR" (2026-08-15 Hakan kararı) — reçete panelinin mamül/mücevher
 /// combo'sunu besleyen yassı varyant lookup'ları.
 ///
-/// <para><b>Çivilenen delik:</b> Good'da fiyat VARYANTTADIR ve sunucu maliyet motoru <c>CommodityVariantId</c> ile
+/// <para><b>Sabitlenen delik:</b> Good'da fiyat VARYANTTADIR ve sunucu maliyet motoru <c>CommodityVariantId</c> ile
 /// seçili varyantın fiyatını okur; ama UI emtia-seviyesi combo gösteriyor, varyant kimliği hiç yazılmıyor, satır
 /// hep ana varyantın fiyatına düşüyordu. Bu lookup her varyant satırına KENDİ fiyatını taşır (Good) — Jewelry'de
 /// ise fiyat paylaşılır (bilinçli kısıt), satırlar mücevherin fiyatını taşır.</para>

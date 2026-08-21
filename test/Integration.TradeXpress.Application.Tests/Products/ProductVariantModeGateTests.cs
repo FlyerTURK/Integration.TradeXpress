@@ -17,16 +17,16 @@ using Xunit;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// Ürün varyant modu SUNUCU KAPISI testleri (Dilim-3) — public <see cref="IProductAppService"/> yüzeyinden:
+/// Ürün varyant modu SUNUCU GUARD'I testleri (Dilim-3) — public <see cref="IProductAppService"/> üzerinden:
 /// <list type="bullet">
 ///   <item>(a) KORUMA: VariantMode göndermeyen mevcut akış MultiVariant statükosunda kalır.</item>
-///   <item>(b) SingleVariant kapısı: DÜŞMANCA nitelikli graf gönderilse bile sunucu nitelik grafını boşaltır →
+///   <item>(b) SingleVariant guard'ı: DÜŞMANCA nitelikli graf gönderilse bile sunucu nitelik grafını boşaltır →
 ///   synchronizer tek ana varyanta indirir (client güven sınırı DEĞİLDİR).</item>
 ///   <item>(c) Muadil konfigürasyon fail-fast'leri servis yolundan da çalışır (entity mutator'ı Create/Update'te).</item>
 ///   <item>(e) Muadil modunda uygulanan kombinasyon reçete satırları <c>CommodityVariantId</c>'li persist olur
 ///   (SaveRecipeLinesAsync yolu) + konfigürasyon alanları round-trip eder.</item>
 /// </list>
-/// KIRMIZIYSA mod kapısı deliktir (nitelik grafı sızar) ya da muadil konfigürasyonu kaybolur — testi gevşetme.
+/// KIRMIZIYSA mod guard'ı deliktir (nitelik grafı sızar) ya da muadil konfigürasyonu kaybolur — testi gevşetme.
 /// </summary>
 public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
@@ -92,7 +92,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
             created.Variants.Count.ShouldBe(2);
 
             // 2) DÜŞMANCA update: mod SingleVariant AMA nitelik grafı + çoklu varyantlar hâlâ gönderiliyor
-            //    (client kapısı atlatılmış gibi) → sunucu kapısı nitelikleri boşaltmalı.
+            //    (client tarafı atlatılmış gibi) → sunucu guard'ı nitelikleri boşaltmalı.
             var after = await _productAppService.UpdateAsync(created.Id, new ProductUpdateDto
             {
                 Code = created.Code,
@@ -165,7 +165,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
             var metalVariantId = Guid.NewGuid();
 
             // Muadil ürün: tek ana varyant + "Reçeteye Uygula" çıktısını temsil eden CommodityVariantId'li metal satırı
-            // (satır kurulumu host BuildTrialRecipeLine / köprü BuildRecipeLineDtos alan kümesi).
+            // (satır kurulumu ProductEditHost.BuildTrialRecipeLine / sunucu tarafı BuildRecipeLineDtos alan kümesi).
             var categoryId = await CreateTestProductCategoryAsync();
             var created = await _productAppService.CreateAsync(new ProductCreateDto
             {

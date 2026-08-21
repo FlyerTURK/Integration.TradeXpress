@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.Reports;
 /// <see cref="IMetalReportAppService.GetStockAsync"/> fiziksel Net'e Rezervasyon satırlarını DAHİL ETMEZ;
 /// rezervasyonlar ayrı sayaçlarda toplanır ve Kullanılabilir = Net − RezerveÇıkış hesaplanır:
 /// <list type="bullet">
-///   <item>Fiziksel bacaklar (Normal/Peşin dahil): Giriş +Amount/+Quantity, Çıkış −.</item>
+///   <item>Fiziksel leg'ler (Normal/Peşin dahil): Giriş +Amount/+Quantity, Çıkış −.</item>
 ///   <item>Rezervasyon ÇIKIŞ: müşteriye ayrılan → ReservedOut*, kullanılabilirden düşer.</item>
 ///   <item>Rezervasyon GİRİŞ: tedarikçiden beklenen → ReservedIn* (bilgi amaçlı; kullanılabilire eklenmez).</item>
 /// </list>

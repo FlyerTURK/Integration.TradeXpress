@@ -221,7 +221,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
             await _productRepository.InsertAsync(product, autoSave: true);
 
             // Push en az bir görsel ister (ImagesRequired guard'ı). Kaynak merkezi DAM: kütüphane kaydı + ürün
-            // bağlamına link. Bu testlerin konusu görsel DEĞİL varyant/SKU eşlemesi — tek kapak görseli yeter.
+            // bağlamına link. Bu testlerin konusu görsel DEĞİL varyant/SKU eşlemesi — tek cover görseli yeter.
             var media = await _mediaRepository.InsertAsync(
                 new Media(
                     companyId,
@@ -274,11 +274,11 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
                 var detail = new ProductVariantDetail(companyId, variant.Id);
                 detail.SetSalePrice(price, null);
 
-                // PUSH KAPISI (2026-08-05): varyant push aday listesine ancak İNSAN onayıyla girer
-                // (ProductSaleStatus.Ready + damgası güncel). Bu fixture'ın premisi "varyantlar onaylıdır" —
+                // PUSH GUARD'I (2026-08-05): varyant push aday listesine ancak İNSAN onayıyla girer
+                // (ProductSaleStatus.Ready + VerifiedRecipeStamp güncel). Bu fixture'ın premisi "varyantlar onaylıdır" —
                 // testlerin konusu doğrulama akışı DEĞİL, push planı. Premis burada AÇIKÇA ilan edilir;
                 // aksi halde tüm push testleri "aday yok" diye düşerdi ve sebebi görünmezdi.
-                // Tohum anında reçete satırı yok → boş-reçete damgası.
+                // Seed anında reçete satırı yok → boş-reçete stamp'i.
                 detail.MarkVerified(
                     RecipeVerificationStamp.EmptyRecipe, DateTime.UtcNow, verifiedBy: null);
 

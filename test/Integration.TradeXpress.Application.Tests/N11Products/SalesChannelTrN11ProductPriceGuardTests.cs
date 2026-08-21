@@ -44,7 +44,7 @@ public abstract class SalesChannelTrN11ProductPriceGuardTests<TStartupModule> : 
         }
     }
 
-    /// <summary>Hafif senkron dalı da AYNI kapıdan geçer — tam push korunup senkron açık kalsaydı, insansız
+    /// <summary>Hafif senkron dalı da AYNI guard'dan geçer — tam push korunup senkron açık kalsaydı, insansız
     /// yolun tamamı (repricing → senkron) guard'ı baypas ederdi ve bant yalnız elle push'ta işe yarardı.</summary>
     [Fact]
     public async Task The_light_sync_path_is_guarded_too()
@@ -68,7 +68,7 @@ public abstract class SalesChannelTrN11ProductPriceGuardTests<TStartupModule> : 
         }
     }
 
-    /// <summary>(a') Fiyat TAVANIN üstünde → aynı kapı. Aşırı yüksek fiyat satmaz ama listelemeyi bozar ve
+    /// <summary>(a') Fiyat TAVANIN üstünde → aynı guard. Aşırı yüksek fiyat satmaz ama listelemeyi bozar ve
     /// genelde bir hesap hatasının işaretidir; sessizce göndermek onu "normal" yapardı.</summary>
     [Fact]
     public async Task A_price_above_the_ceiling_stops_the_push()
@@ -103,7 +103,7 @@ public abstract class SalesChannelTrN11ProductPriceGuardTests<TStartupModule> : 
         }
     }
 
-    /// <summary>(d) Bant TANIMSIZKEN davranış değişmez — regresyon kapısı (canlıdaki tüm kayıtlar bugün böyle).</summary>
+    /// <summary>(d) Bant TANIMSIZKEN davranış değişmez — regresyon testi (canlıdaki tüm kayıtlar bugün böyle).</summary>
     [Fact]
     public async Task Without_a_band_nothing_changes()
     {

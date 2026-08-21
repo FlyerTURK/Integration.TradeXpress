@@ -8,9 +8,9 @@ using Xunit;
 namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>
-/// TRENDYOL HAFİF FİYAT/STOK GÖVDESİ — <see cref="TrendyolProductClient.BuildPriceInventoryBody"/>.
+/// TRENDYOL HAFİF FİYAT/STOK BODY'Sİ — <see cref="TrendyolProductClient.BuildPriceInventoryBody"/>.
 ///
-/// <para><b>Neden gövde seviyesinde pinliyoruz:</b> bu dilim saf taşıma katmanı ve tek gerçek riski gövdenin
+/// <para><b>Neden body seviyesinde pinliyoruz:</b> bu dilim saf taşıma katmanı ve tek gerçek riski body'nin
 /// ŞEKLİ. Yanlış alan adı ya da yanlış atlama, Trendyol'dan HTTP 200 dönerken bile yanlış stoğu/fiyatı yazar —
 /// hiçbir istisna çıkmaz, log temiz görünür, yalnız pazaryerindeki sayı yanlıştır. HTTP katmanı (URL, auth,
 /// User-Agent) burada KOŞMUYOR: <c>BaseUrl</c> sabit ve Trendyol için mock sunucu yok; o boşluk go-live smoke'una
@@ -202,7 +202,7 @@ public class TrendyolPriceInventoryBodyTests
         ex.Data["barcode"].ShouldBe("BC-BAD");
     }
 
-    /// <summary>Çok satırlı gövde SIRAYI korur — satır sırası kaybolursa hata ayıklamada "hangi satır" sorusu
+    /// <summary>Çok satırlı body SIRAYI korur — satır sırası kaybolursa hata ayıklamada "hangi satır" sorusu
     /// cevapsız kalır (ve ileride item-bazlı statü eşleştirmesi buna dayanacak).</summary>
     [Fact]
     public void Rows_keep_their_order()

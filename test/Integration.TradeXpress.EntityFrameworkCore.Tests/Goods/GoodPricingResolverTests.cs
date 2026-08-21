@@ -102,7 +102,7 @@ public class GoodPricingResolverTests : TradeXpressEntityFrameworkCoreTestBase
         }
     }
 
-    // ── Tohum ───────────────────────────────────────────────────────────────────────────────────────
+    // ── Seed ────────────────────────────────────────────────────────────────────────────────────────
 
     private async Task<(Guid GoodId, Guid MainVariantId, Guid OtherVariantId)> SeedGoodWithTwoPricedVariantsAsync(
         Guid companyId, decimal mainPrice, decimal otherPrice)

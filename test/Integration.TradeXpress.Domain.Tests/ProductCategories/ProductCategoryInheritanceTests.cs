@@ -8,7 +8,7 @@ using Xunit;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// Kategori KALITIMININ mekanik ağı (DB'siz — <see cref="ProductCategoryTreeManager.MergeAttributes"/> saf).
+/// Kategori KALITIMININ konvansiyon testiı (DB'siz — <see cref="ProductCategoryTreeManager.MergeAttributes"/> saf).
 ///
 /// <para>Kural (2026-07-27 Hakan): "üst kategorinin attribute ve value'larını alt kategoriler inherit alsın."
 /// Birleştirme EKLEMELİDİR (union), ezme değil — bu testler ezmeye dönülürse kırmızı yanar.</para>

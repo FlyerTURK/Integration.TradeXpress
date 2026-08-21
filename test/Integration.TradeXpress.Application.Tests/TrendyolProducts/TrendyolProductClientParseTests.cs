@@ -123,7 +123,110 @@ public class TrendyolProductClientParseTests
         var product = grouped[0];                       // iki kalem aynı MAIN-1 grubunda
         product.ProductMainId.ShouldBe("MAIN-1");
         product.Variants.Select(v => v.Barcode).ShouldBe(new[] { "BR-RED-1", "BR-BLUE-1" });
-        product.ImageUrls.Count.ShouldBe(2);            // ortak alanlar İLK kalemden
+        product.ImageUrls.Count.ShouldBe(2);            // havuz = ortak alanlar gibi İLK kalemden
+    }
+
+    // ── KALEM BAŞINA GÖRSEL ─────────────────────────────────────────────────────────────────────────
+    // Trendyol "images" dizisini content[] öğesi (barkod = varyant) başına döndürüyor. Görseller yalnız ürün
+    // havuzuna yazıldığı sürece hangi fotoğrafın hangi varyanta ait olduğu kayboluyordu ve gruplamada
+    // 2..N'inci kalemin fotoğrafları hiçbir yere ulaşmıyordu (havuz "ilk kalemden" alınır).
+    // Çözüm kalemi varyantına bağlamak; havuzu birleşime çevirmek DEĞİL — varyant-farkı fotoğrafı kayıt
+    // geneli medya bağlamına ait değildir (CLAUDE.md §6). Birleşime ihtiyaç duyan tek yer kanal CDN adres
+    // damgasıdır (RemoteImageMediaIds) ve o birleşimi CollectAllImageUrls verir (aşağıdaki son test).
+
+    private const string VariantImagePayload = """
+    {
+      "totalElements": 3, "totalPages": 1, "page": 0, "size": 200,
+      "content": [
+        {
+          "barcode": "BR-RED", "title": "Bileklik", "productMainId": "MAIN-V", "quantity": 2,
+          "images": [ { "url": "https://cdn.example.com/red.jpg" }, { "url": "https://cdn.example.com/ortak.jpg" } ]
+        },
+        {
+          "barcode": "BR-BLUE", "title": "Bileklik", "productMainId": "MAIN-V", "quantity": 4,
+          "images": [ { "url": "https://cdn.example.com/blue.jpg" }, { "url": "https://cdn.example.com/ORTAK.jpg" } ]
+        },
+        {
+          "barcode": "BR-NOIMG", "title": "Görselsiz", "productMainId": "MAIN-N", "quantity": 1
+        }
+      ]
+    }
+    """;
+
+    [Fact]
+    public void Each_item_carries_its_own_images_down_to_its_variant()
+    {
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, VariantImagePayload);
+
+        // Aynı liste iki yere birden yazılır: kalemin varyantı (varyant bağlamının kaynağı) + ürün havuzu.
+        var red = page.Items[0];
+        red.Variants.Single().ImageUrls.ShouldBe(new[] { "https://cdn.example.com/red.jpg", "https://cdn.example.com/ortak.jpg" });
+        red.ImageUrls.ShouldBe(red.Variants.Single().ImageUrls);
+
+        page.Items[1].Variants.Single().ImageUrls.ShouldBe(new[] { "https://cdn.example.com/blue.jpg", "https://cdn.example.com/ORTAK.jpg" });
+    }
+
+    [Fact]
+    public void Grouping_keeps_every_variants_own_images_while_the_pool_stays_first_item()
+    {
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, VariantImagePayload);
+
+        var grouped = TrendyolProductClient.GroupByProductMainId(page.Items);
+
+        var product = grouped[0];
+        product.ProductMainId.ShouldBe("MAIN-V");
+
+        // (1) Kalem↔görsel eşleşmesi gruplamayı SAĞ GEÇER — varyant bağlamına inecek veri budur.
+        product.Variants[0].ImageUrls.ShouldBe(new[] { "https://cdn.example.com/red.jpg", "https://cdn.example.com/ortak.jpg" });
+        product.Variants[1].ImageUrls.ShouldBe(new[] { "https://cdn.example.com/blue.jpg", "https://cdn.example.com/ORTAK.jpg" });
+
+        // (2) Havuz İLK kalemde kalır: kayıt geneli medya bağlamına inen küme budur ve mavi varyantın
+        // fotoğrafı oraya AİT DEĞİLDİR (kendi bağlamında duruyor — bir üstteki assert).
+        product.ImageUrls.ShouldBe(new[] { "https://cdn.example.com/red.jpg", "https://cdn.example.com/ortak.jpg" });
+    }
+
+    [Fact]
+    public void CollectAllImageUrls_unions_the_pool_with_every_variant_set()
+    {
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, VariantImagePayload);
+        var product = TrendyolProductClient.GroupByProductMainId(page.Items)[0];
+
+        // Kanal CDN adres damgası (RemoteImageMediaIds) bu kümeyi yazar: aday medya listesi (ürün + TÜM varyant
+        // medyası) ile aynı kapsamda olmalı, yoksa push yeniden-kullanım dalı eksik adres gönderip PushHistory'yi yanlış yazar.
+        // Aynı adres iki kalemde de geçtiği için tekilleşir (büyük/küçük harf farkı aynı adrestir) ve sıra
+        // korunur — ilk görsel vitrindir.
+        TrendyolProductClient.CollectAllImageUrls(product).ShouldBe(new[]
+        {
+            "https://cdn.example.com/red.jpg",
+            "https://cdn.example.com/ortak.jpg",
+            "https://cdn.example.com/blue.jpg"
+        });
+    }
+
+    [Fact]
+    public void An_item_without_images_yields_an_empty_list_rather_than_null()
+    {
+        // "Görsel yok" hâli BOŞ LİSTE ile temsil edilir: null olsaydı her tüketici null kontrolü yapmak zorunda
+        // kalırdı ve o kontrol bir gün unutulurdu (import görsel yazma yolunda NRE).
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, VariantImagePayload);
+
+        var variant = page.Items[2].Variants.Single();
+        variant.ImageUrls.ShouldNotBeNull();
+        variant.ImageUrls.ShouldBeEmpty();
+        page.Items[2].ImageUrls.ShouldBeEmpty();
+
+        // Parametre hiç verilmeden kurulan kalem de aynı sözleşmeyi taşır (mevcut çağrı yerleri değişmedi).
+        new TrendyolRemoteVariant(
+            Barcode: "BR-X",
+            StockCode: null,
+            Quantity: 0,
+            ListPrice: null,
+            SalePrice: null,
+            ProductContentId: null,
+            Approved: null,
+            OnSale: null,
+            Attributes: Array.Empty<TrendyolRemoteAttribute>())
+            .ImageUrls.ShouldBeEmpty();
     }
 
     // ── PAZARYERİ ENGEL BEYANI ──────────────────────────────────────────────────────────────────────
@@ -207,7 +310,7 @@ public class TrendyolProductClientParseTests
         flags.UpdatedAtUtc.Value.ShouldBeGreaterThan(flags.CreatedAtUtc!.Value);
     }
 
-    // Bozuk gövde SESSİZCE boş sayfa dönmez (o ve sonraki sayfaların kalemleri raporsuz kaybolurdu) —
+    // Bozuk body SESSİZCE boş sayfa dönmez (o ve sonraki sayfaların kalemleri raporsuz kaybolurdu) —
     // dostane hatayla import durur; upsert-only olduğundan yeniden deneme güvenlidir.
     [Fact]
     public void Parse_of_malformed_payload_throws_friendly_error_instead_of_silent_partial_result()

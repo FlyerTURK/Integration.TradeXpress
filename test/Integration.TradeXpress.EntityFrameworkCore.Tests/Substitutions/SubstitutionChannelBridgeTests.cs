@@ -18,7 +18,7 @@ using Xunit;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Muadil M4 köprüsü uçtan uca — <c>ApplySubstitutionAsync</c>: gerçek grup + maden kataloğu + voucher-beslemeli
+/// Muadil M4 kanal aktarımı uçtan uca — <c>ApplySubstitutionAsync</c>: gerçek grup + maden kataloğu + voucher-beslemeli
 /// stok üzerinden Top-N kombinasyonun kanal "Kombinasyon" özelliği + StockItem'lara (reçete + paket stoğu)
 /// dönüştüğü, yeniden uygulamanın imza-bazlı RECONCILE olduğu (id/override korunur, fazlası silinir) ve
 /// kullanıcının elle eklediği DİĞER özelliğin bozulmadığı pinlenir. Trendyol adaptörü aynı nötr planın
@@ -136,7 +136,7 @@ public class SubstitutionChannelBridgeTests : TradeXpressEntityFrameworkCoreTest
         var headersBefore = await GetN11HeadersAsync(created.Id);
         headersBefore.Count.ShouldBe(3);
 
-        // Kullanıcı emeği: Rank1 satırına fiyat + marj override'ı (köprü bunlara DOKUNMAZ).
+        // Kullanıcı emeği: Rank1 satırına fiyat + marj override'ı (ApplySubstitutionAsync bunlara DOKUNMAZ).
         var bestHeader = HeaderOfValue(headersBefore, attributeId, valuesBefore[0].Id);
         await WithUnitOfWorkAsync(async () =>
         {
@@ -157,7 +157,7 @@ public class SubstitutionChannelBridgeTests : TradeXpressEntityFrameworkCoreTest
         var headersAfter = await GetN11HeadersAsync(created.Id);
         headersAfter.Count.ShouldBe(2);
 
-        // Korunan Rank1 satırı: AYNI id + kullanıcı override'ları yaşıyor; paket stoğu köprüce tazelendi.
+        // Korunan Rank1 satırı: AYNI id + kullanıcı override'ları yaşıyor; paket stoğu aktarımda tazelendi.
         var preserved = headersAfter.Single(h => h.Id == bestHeader.Id);
         preserved.OverridePrice.ShouldBe(150m);
         preserved.Margin.ShouldBe(20m);
@@ -194,7 +194,7 @@ public class SubstitutionChannelBridgeTests : TradeXpressEntityFrameworkCoreTest
         (await GetN11ValuesAsync(renk.Id)).ShouldHaveSingleItem().Value.ShouldBe("Kirmizi");
 
         // Kartezyen: 1 Renk × 2 Kombinasyon = 2 StockItem; her kombinasyon değeri 1'er satır taşıyor
-        // ve köprü her satıra reçete + paket stoğu yazdı.
+        // ve aktarım her satıra reçete + paket stoğu yazdı.
         result.Items.ShouldAllBe(i => i.StockItemCount == 1);
         var headers = await GetN11HeadersAsync(created.Id);
         headers.Count.ShouldBe(2);
@@ -214,7 +214,7 @@ public class SubstitutionChannelBridgeTests : TradeXpressEntityFrameworkCoreTest
         var scenario = await SeedScenarioAsync("MB4", toleranceType: ToleranceType.PerMille, toleranceValue: 1m);
         var created = await CreateN11ProductAsync(scenario);
 
-        // Tolerans > 0 → push açıklamasına iliştirilecek ticari metin köprü sonucunda döner (üretim bu dilimde;
+        // Tolerans > 0 → push açıklamasına iliştirilecek ticari metin ApplySubstitutionAsync sonucunda döner (üretim bu dilimde;
         // açıklamaya ekleme ayrı dilim).
         var result = await _n11AppService.ApplySubstitutionAsync(created.Id, ApplyInput(scenario, topN: 1));
         result.ToleranceNotice.ShouldBe("+/− binde 1 tolerans hakkı saklıdır");

@@ -13,8 +13,8 @@ namespace Integration.TradeXpress.ChannelQuestions;
 /// <summary>
 /// <see cref="N11QuestionClient"/> birim testleri (istek kurma + yanıt ayrıştırma) — ağ/DI YOK, örnek SOAP XML
 /// üzerinden. Örnekler WSDL yapısından üretilmiştir: canlı keşif anında (2026-08-01) hesapta HİÇ soru yoktu, yani
-/// gerçek soru gövdesi görülmedi. Bu testler o boşluğun yerini tutar — ilk gerçek soru geldiğinde örnek XML canlı
-/// gövdeyle DEĞİŞTİRİLMELİ, silinmemelidir.
+/// gerçek soru body'si görülmedi. Bu testler o boşluğun yerini tutar — ilk gerçek soru geldiğinde örnek XML canlı
+/// body'yle DEĞİŞTİRİLMELİ, silinmemelidir.
 ///
 /// <para><b>Kilitlenen davranışlar:</b> liste/detay asimetrisi (listede müşteri/tarih/durum YOK · detayda id YOK) ·
 /// kota duvarının İSTİSNA OLMAMASI · gerçek hatanın dostane istisnaya çevrilmesi · sayfalama alanları ·
@@ -257,7 +257,7 @@ public class N11QuestionClientTests
     [Fact]
     public void Missing_result_block_is_treated_as_failure_not_as_an_empty_page()
     {
-        // Fail-closed: N11 bu serviste her yanıta result ekler. Yokluğu beklenmedik bir gövdedir; "boş liste"
+        // Fail-closed: N11 bu serviste her yanıta result ekler. Yokluğu beklenmedik bir body'dir; "boş liste"
         // saymak veri kaybını GİZLERDİ.
         var xml = """<GetProductQuestionListResponse xmlns="http://www.n11.com/ws/schemas"><productQuestions/></GetProductQuestionListResponse>""";
 

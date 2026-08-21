@@ -4,7 +4,7 @@ using Volo.Abp.DependencyInjection;
 namespace Integration.TradeXpress.MultiCompany;
 
 /// <summary>
-/// Test working-company köprüsü — <see cref="NullCompanyContextProvider"/>'ın (daima null) yerine geçer.
+/// Test working-company sağlayıcısı — <see cref="NullCompanyContextProvider"/>'ın (daima null) yerine geçer.
 /// Blazor'daki working-context'in test eşdeğeri: test, aktif şirketi <see cref="CompanyId"/> ile belirler;
 /// <c>VoucherAppService.EnsureCurrentCompanyId</c> ve BalanceSheet company-scope zorlaması bu değeri görür.
 /// Varsayılan null → "company context yok" senaryosu ek kurulum istemez.

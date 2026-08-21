@@ -8,7 +8,7 @@ using Xunit;
 namespace Integration.TradeXpress.Conventions;
 
 /// <summary>
-/// UI İZİN KAPISI SESSİZCE AÇILAMAZ (governance Katman 2).
+/// UI İZİN KATMANI SESSİZCE AÇILAMAZ (governance Katman 2).
 ///
 /// <para><b>Kapatılan açık (2026-08-07):</b> <c>CrudPageBase.SetPermissionsAsync</c> içinde
 /// <c>!OperatingSystem.IsBrowser()</c> koşullu bir baypas vardı ve üç izin bayrağını da koşulsuz <c>true</c>

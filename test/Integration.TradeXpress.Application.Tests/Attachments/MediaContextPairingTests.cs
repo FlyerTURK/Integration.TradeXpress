@@ -11,7 +11,7 @@ using Xunit;
 namespace Integration.TradeXpress.Attachments;
 
 /// <summary>
-/// CLAUDE.md §6 <b>"HER MEDYA TİPİ İKİ BAĞLAMI DA TAŞIR"</b> kuralının mekanik ağı.
+/// CLAUDE.md §6 <b>"HER MEDYA TİPİ İKİ BAĞLAMI DA TAŞIR"</b> kuralının konvansiyon testiı.
 ///
 /// <para><b>Neden gerekli:</b> bir bağlamı bağlayıp diğerini unutmak istisna FIRLATMAZ — medya sessizce "yok"
 /// görünür. Sapma kimsenin bakmadığı yerde büyür: canlıda 185 medya bağının tamamı <c>Product</c> bağlamındaydı,

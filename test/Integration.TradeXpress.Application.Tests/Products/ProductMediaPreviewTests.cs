@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.Products;
 
 /// <summary>
 /// Ürün liste önizlemesinin MERKEZİ DAM'dan geldiğini kilitler (legacy ProductImage 2026-07-31'de emekli).
-/// Önizleme <c>GetDefaultPosterMapAsync</c> batch'inden dolar: kapaklı üründe kapağın poster'ı, medyasız
+/// Önizleme <c>GetDefaultPosterMapAsync</c> batch'inden dolar: cover'lı üründe cover'ın poster'ı, medyasız
 /// üründe null. Kırılırsa grid önizlemesi sessizce boşalır — istisna fırlamaz, kullanıcı görselleri "kayboldu" görür.
 /// </summary>
 public abstract class ProductMediaPreviewTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>

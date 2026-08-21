@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Products;
 /// KARAKTERİZASYON ağı (2026-07-16 kullanıcı kararı) — Product-özel varyant UZANTISI (SalePrice + reçete satırları;
 /// <see cref="ProductVariantDetail"/> + <see cref="ProductVariantRecipeLine"/>) nitelik-değer EKLEMESİ tetiklediği
 /// resync'te KOMBİNASYON DEĞİŞMEYEN varyantta korunur, YENİ kombinasyonda boş başlar. Public
-/// <see cref="IProductAppService"/> yüzeyinden, client'ın <c>VariantGraphMerge</c>'ünün "kept" (var olan dto, aynı
+/// <see cref="IProductAppService"/> üzerinden, client'ın <c>VariantGraphMerge</c>'ünün "kept" (var olan dto, aynı
 /// Id) davranışını simüle ederek — gerçek risk zinciri (merge + extension upsert) uçtan uca kilitlenir. Gerçek
 /// Sqlite repository'leriyle çalışır (EfCore concrete: EfCoreProductVariantExtensionSurvivalTests).
 /// KIRMIZIYSA save/load zincirinde fiyat/reçete kaybı demektir — testi gevşetme, kök nedeni düzelt.

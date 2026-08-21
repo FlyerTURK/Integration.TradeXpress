@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Conventions;
 /// <summary>
 /// ARAÇ ÇUBUĞU ETİKETİ DAR EKRANDA DA VERİLİR — <c>Text</c> asla ekran genişliğine göre boşaltılmaz.
 ///
-/// <para><b>Çivilenen hata:</b> iki araç çubuğu düğmesi <c>Text = IsMobile ? null : L[...]</c> yazıyordu.
+/// <para><b>Sabitlenen hata:</b> iki araç çubuğu düğmesi <c>Text = IsMobile ? null : L[...]</c> yazıyordu.
 /// Amaç dar çubukta uzun etiketin diğer öğeleri ezmesini önlemekti; sonuç, öğe TAŞMA MENÜSÜNE düştüğünde
 /// orada da yazısız kalmasıydı — kullanıcı ne yaptığı belirsiz ikonlara bakıyordu ve tooltip dokunmatikte
 /// açılmadığı için başka ipucu da yoktu.</para>

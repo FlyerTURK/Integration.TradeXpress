@@ -12,11 +12,11 @@ namespace Integration.TradeXpress.Reports;
 /// <summary>
 /// Nakit STOK raporu davranış pini (K4 SQL-side aggregation refactor'unun güvenlik ağı): <see cref="ICashReportAppService.GetStockAsync"/>
 /// artık satırları belleğe çekmeden SQL-side GROUP BY + SUM ile Giren/Çıkan/Net üretir. Bu test gerçek EF (SQLite)
-/// üzerinde çalışır → hem sorgunun ÇEVRİLDİĞİNİ (translation) hem de iki-bacak/işaret/birim-gruplama sonucunun
+/// üzerinde çalışır → hem sorgunun ÇEVRİLDİĞİNİ (translation) hem de iki-leg/işaret/birim-gruplama sonucunun
 /// ELLE hesaplı beklenenle BİREBİR aynı kaldığını kanıtlar (in-memory desenin karakterizasyonu, sonuç değişmez).
 /// <list type="bullet">
-///   <item>Sol bacak (Cash process, MainUnit): Giriş +Total / Çıkış −Total.</item>
-///   <item>Sağ bacak (WithCash, PayUnit): işaret tersi — Giriş −PayTotal / Çıkış +PayTotal.</item>
+///   <item>Sol leg (Cash process, MainUnit): Giriş +Total / Çıkış −Total.</item>
+///   <item>Sağ leg (WithCash, PayUnit): işaret tersi — Giriş −PayTotal / Çıkış +PayTotal.</item>
 ///   <item>Çok-birim gruplama: farklı MainUnit ayrı satır.</item>
 /// </list>
 /// </summary>
@@ -42,15 +42,15 @@ public class CashReportStockTests : TradeXpressEntityFrameworkCoreTestBase
         var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync());
         _companyContext.CompanyId = data.CompanyId;
 
-        // TRY sol bacak: Cash Giriş 1000 (+), Cash Çıkış 300 (−).
+        // TRY sol leg: Cash Giriş 1000 (+), Cash Çıkış 300 (−).
         await _voucherAppService.SaveLineAsync(VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 1000m));
         await _voucherAppService.SaveLineAsync(VoucherTestLines.CashLine(data, ProcessDirectionType.Outbound, 300m));
 
-        // TRY iki bacak birden: Cash Giriş 500 PEŞİN → sol bacak +500, sağ bacak −500 (aynı birim TRY).
+        // TRY iki leg birden: Cash Giriş 500 PEŞİN → sol leg +500, sağ leg −500 (aynı birim TRY).
         await _voucherAppService.SaveLineAsync(
             VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 500m, ProcessPaymentType.WithCash));
 
-        // HAS sol bacak (çok-birim gruplama): Cash Giriş 20, ana birim HAS'a çekilir.
+        // HAS sol leg (çok-birim gruplama): Cash Giriş 20, ana birim HAS'a çekilir.
         var hasCash = VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 20m);
         hasCash.MainUnitId    = data.HasUnitId;
         hasCash.CommodityCode = CurrencyUnitCode.HAS;
@@ -66,7 +66,7 @@ public class CashReportStockTests : TradeXpressEntityFrameworkCoreTestBase
         tryRow.OutTotal.ShouldBe(800m);
         tryRow.Net.ShouldBe(700m);
 
-        // HAS: Giren 20, Çıkan 0, Net 20 (tek sol bacak).
+        // HAS: Giren 20, Çıkan 0, Net 20 (tek sol leg).
         var hasRow = rows.Single(r => r.UnitId == data.HasUnitId);
         hasRow.InTotal.ShouldBe(20m);
         hasRow.OutTotal.ShouldBe(0m);

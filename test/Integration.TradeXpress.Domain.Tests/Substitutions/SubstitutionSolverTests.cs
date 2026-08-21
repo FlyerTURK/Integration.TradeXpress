@@ -8,7 +8,7 @@ using Xunit;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Saf çekirdek karakterizasyonu — <see cref="SubstitutionSolver"/> (DB'siz/DI'sız; VariantCombinationEngine
+/// Saf çözücü karakterizasyonu — <see cref="SubstitutionSolver"/> (DB'siz/DI'sız; VariantCombinationEngine
 /// test deseni). SSOT: .claude/research/muadil/konsept.md — kullanıcının çalışılmış 12gr örneği birebir
 /// kilitlenir (6 başarılı kombinasyon + numaralandırma sırası). KIRMIZIYSA motor semantiği değişmiş demektir.
 /// </summary>

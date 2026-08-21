@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.Blazor.Tests.Pages;
 /// <summary>
 /// Reçete şablonu ("orta reçete") formunun gerçek render testleri.
 ///
-/// <para>Şablon satırı iki farklı yüzey gösterir: sabit tutar satırında para birimi alanı açılır, yüzde/brütleştir
+/// <para>Şablon satırı iki farklı görünüm gösterir: sabit tutar satırında para birimi alanı açılır, yüzde/brütleştir
 /// satırında açılmaz. Bu koşullu render en kolay kırılan yerdir — testler onu sabitler.</para>
 /// </summary>
 public class RecipeTemplateLayoutTests : BlazorComponentTestBase

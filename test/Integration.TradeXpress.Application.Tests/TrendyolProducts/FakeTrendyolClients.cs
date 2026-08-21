@@ -8,7 +8,7 @@ using Volo.Abp;
 namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>
-/// Trendyol ürün REST istemcisinin TEST sahtesi — testte ağ yok (READ-ONLY pazaryeri ilkesinin test aynası).
+/// Trendyol ürün REST istemcisinin TEST sahtesi — testte ağ yok (READ-ONLY pazaryeri ilkesi testte de korunur).
 /// <see cref="RemoteItems"/>'a konan DÜZ kalemler (barcode başına tek-varyantlı <see cref="TrendyolRemoteProduct"/>)
 /// sayfa yanıtı gibi servis edilir; <see cref="GetAllSellerProductsAsync"/> GERÇEK sayfalama döngüsünü
 /// (<see cref="TrendyolProductClient.FetchAllPagesAsync"/>) + GERÇEK gruplama mantığını
@@ -35,10 +35,10 @@ public sealed class FakeTrendyolProductClient : ITrendyolProductClient
     public string? NextBatchRequestId { get; set; } = "BATCH-PI-1";
 
     /// <summary>TAM push izni — VARSAYILAN <c>false</c> (import/senkron testleri kazayla create yapamaz).
-    /// Açan test gönderilen gövdeyi <see cref="SubmittedProducts"/>'tan doğrular.</summary>
+    /// Açan test gönderilen body'yi <see cref="SubmittedProducts"/>'tan doğrular.</summary>
     public bool AllowProductSubmit { get; set; }
 
-    /// <summary>Gönderilen tam-push gövdeleri (çağrı başına bir kayıt) — "ne gönderildi" bununla doğrulanır.</summary>
+    /// <summary>Gönderilen tam-push body'leri (çağrı başına bir kayıt) — "ne gönderildi" bununla doğrulanır.</summary>
     public List<TrendyolProductData> SubmittedProducts { get; } = new();
 
     public Task<TrendyolSubmitResult> SubmitProductAsync(

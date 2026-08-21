@@ -6,7 +6,7 @@ using Xunit;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// <see cref="SubstitutionEffectiveVariantResolver"/> — 2026-07-27'de DEĞİŞEN kapsam semantiğini çiviler.
+/// <see cref="SubstitutionEffectiveVariantResolver"/> — 2026-07-27'de DEĞİŞEN kapsam semantiğini sabitler.
 ///
 /// <para>ESKİ kural: ürünün override listesi boşsa gruptan devralınırdı; yani kullanıcı bir madenin son
 /// işaretini kaldırdığında sistem sessizce gruba dönüyor, kaldırma eylemi ETKİSİZ kalıyordu.

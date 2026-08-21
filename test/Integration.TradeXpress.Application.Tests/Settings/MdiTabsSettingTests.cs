@@ -8,7 +8,7 @@ namespace Integration.TradeXpress.Settings;
 
 /// <summary>MDI sekme kalıcılığının sunucu-tarafı anahtar çözümlemesi + legacy anahtar göçü.
 /// Anahtar SUNUCUDA working-branch ayarından kurulur (client yükleme sırasından bağımsız);
-/// eski client-side ham anahtar ("MdiTabs") verisi yeni anahtara köprülenir (çift-yazım, rollback güvenliği).</summary>
+/// eski client-side ham anahtar ("MdiTabs") verisi yeni anahtara TAŞINIR (çift-yazım, rollback güvenliği).</summary>
 public abstract class MdiTabsSettingTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
@@ -36,7 +36,7 @@ public abstract class MdiTabsSettingTests<TStartupModule> : TradeXpressApplicati
     [Fact]
     public async Task Legacy_raw_key_is_read_when_new_key_is_empty()
     {
-        // Eski TabManager doğrudan ham "MdiTabs" anahtarına yazıyordu — göç köprüsü mevcut kullanıcı
+        // Eski TabManager doğrudan ham "MdiTabs" anahtarına yazıyordu — göç yolu mevcut kullanıcı
         // verisini kaybetmeden devralmalı.
         const string legacyJson = """{"Tabs":[{"Url":"/companies","Title":"Şirketler"}],"ActiveUrl":null}""";
         await _appService.SetGridStateAsync("MdiTabs", legacyJson);

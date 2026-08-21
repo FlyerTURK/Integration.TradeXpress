@@ -10,7 +10,7 @@ using Xunit;
 namespace Integration.TradeXpress.Conventions;
 
 /// <summary>
-/// PAYLAŞILAN bileşenlere TANIMSIZ parametre verilmesini yakalayan mekanik ağ.
+/// PAYLAŞILAN bileşenlere TANIMSIZ parametre verilmesini yakalayan konvansiyon testi.
 ///
 /// <para><b>Neden var:</b> Blazor'da bir bileşene olmayan bir parametreyi vermek DERLEME hatası DEĞİLDİR —
 /// çalışma anında <c>"Object of type 'X' does not have a property matching the name 'Y'"</c> ile patlar ve

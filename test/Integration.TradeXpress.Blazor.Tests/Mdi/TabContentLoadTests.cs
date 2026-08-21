@@ -5,7 +5,7 @@ using Xunit;
 namespace Integration.TradeXpress.Blazor.Tests.Mdi;
 
 /// <summary>
-/// MDI sekmesi yükleniyor-bileti sözleşmesi. İki kırılgan nokta buraya çivilenir:
+/// MDI sekmesi yükleniyor-bileti sözleşmesi. İki kırılgan nokta buraya sabitlenir:
 /// <b>sayaç</b> (aynı sekmede birden çok yükleyici — panel erken kapanmamalı) ve
 /// <b>idempotent Dispose</b> (bileşen hem normal akışta hem Dispose'da kapattığı için
 /// çift kapatma NORMAL bir durum, sayacı bozmamalı).

@@ -14,14 +14,14 @@ using Xunit;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// SATIŞA DOĞRULAMANIN İNSAN YOLU — <see cref="ProductSaleVerifier"/> + push kapısı birlikte.
+/// SATIŞA DOĞRULAMANIN İNSAN YOLU — <see cref="ProductSaleVerifier"/> + push guard'ı birlikte.
 ///
-/// <para><b>Kapatılan açık:</b> kapı (<see cref="VariantSaleReadinessResolver"/>) fail-closed ÇALIŞIYORDU ama
+/// <para><b>Kapatılan açık:</b> guard (<see cref="VariantSaleReadinessResolver"/>) fail-closed ÇALIŞIYORDU ama
 /// onayı verecek yol yoktu — <c>MarkVerified</c>/<c>MarkSaleReady</c>'nin üretim kodunda sıfır çağıranı vardı.
-/// Canlıda 165/165 varyant <c>Draft</c>, hiçbir ürün pazaryerine çıkamıyordu. Kapı tasarlandığı gibi
+/// Canlıda 165/165 varyant <c>Draft</c>, hiçbir ürün pazaryerine çıkamıyordu. Guard tasarlandığı gibi
 /// çalışıyordu; yalnız açacak kimse yoktu.</para>
 ///
-/// <para><b>Neden entegrasyon testi:</b> sınanan şey iki ayrı bileşenin AYNI damgayı üretip tüketmesi. Birim
+/// <para><b>Neden entegrasyon testi:</b> sınanan şey iki ayrı bileşenin AYNI stamp'i üretip tüketmesi. Birim
 /// testi her iki tarafı ayrı ayrı yeşil gösterirdi; formüller ayrışsaydı ortaya "onaylandı ama asla geçerli
 /// sayılmıyor" gibi mesajsız bir kilit çıkardı ve hiçbir birim testi bunu göremezdi.</para>
 /// </summary>
@@ -53,15 +53,15 @@ public class VariantSaleVerificationTests : TradeXpressEntityFrameworkCoreTestBa
         _asyncExecuter  = GetRequiredService<IAsyncQueryableExecuter>();
     }
 
-    /// <summary>① Doğrulanan varyant kapıdan GEÇER. Doğrulama ÖNCESİ geçmediği de aynı testte pinli —
-    /// yoksa test "kapı hep açık" hâlinde de yeşil kalırdı.</summary>
+    /// <summary>① Doğrulanan varyant guard'dan GEÇER. Doğrulama ÖNCESİ geçmediği de aynı testte pinli —
+    /// yoksa test "guard hep açık" hâlinde de yeşil kalırdı.</summary>
     [Fact]
     public async Task Verified_variant_passes_the_sale_gate()
     {
         var scenario = await SeedAsync("VSV1", variantCount: 2);
 
         (await WithUnitOfWorkAsync(() => _resolver.ResolveSellableAsync(scenario.VariantIds)))
-            .ShouldBeEmpty();   // kapı KAPALI: onay yok
+            .ShouldBeEmpty();   // guard KAPALI: onay yok
 
         var result = await WithUnitOfWorkAsync(
             () => _verifier.VerifyAsync(new ProductSaleVerifyInputDto { ProductId = scenario.ProductId }));
@@ -77,7 +77,7 @@ public class VariantSaleVerificationTests : TradeXpressEntityFrameworkCoreTestBa
             .SaleStatus.ShouldBe(ProductSaleStatus.Ready);
     }
 
-    /// <summary>② REÇETE DEĞİŞİRSE onay kendiliğinden düşer — damga eskir.
+    /// <summary>② REÇETE DEĞİŞİRSE onay kendiliğinden düşer — stamp eskir.
     /// <para>Bu, tasarımın en önemli parçası: onay bir kereye mahsus bir mühür değil, o ANDAKİ reçeteye
     /// verilmiş bir onaydır. Reçete değişip onay ayakta kalsaydı, kullanıcı 5 gram için onayladığı ürünü
     /// 50 gram olarak satmaya devam ederdi ve hiçbir uyarı almazdı.</para></summary>
@@ -91,7 +91,7 @@ public class VariantSaleVerificationTests : TradeXpressEntityFrameworkCoreTestBa
         (await WithUnitOfWorkAsync(() => _resolver.ResolveSellableAsync(scenario.VariantIds)))
             .ShouldHaveSingleItem();
 
-        // Reçeteye satır eklenir → damga değişir.
+        // Reçeteye satır eklenir → stamp değişir.
         await WithUnitOfWorkAsync(async () =>
         {
             var line = new ProductVariantRecipeLine(
@@ -111,11 +111,13 @@ public class VariantSaleVerificationTests : TradeXpressEntityFrameworkCoreTestBa
     {
         var scenario = await SeedAsync("VSV3", variantCount: 1);
 
+        // Detay kaydı fixture'da (fiyatla) açılmıştır; burada yalnız KAPATILIR.
         await WithUnitOfWorkAsync(async () =>
         {
-            var detail = new ProductVariantDetail(scenario.CompanyId, scenario.VariantIds[0]);
+            var detail = await _asyncExecuter.FirstAsync(
+                (await _details.GetQueryableAsync()).Where(d => d.EntityVariantId == scenario.VariantIds[0]));
             detail.Close();
-            await _details.InsertAsync(detail, autoSave: true);
+            await _details.UpdateAsync(detail, autoSave: true);
         });
 
         await WithUnitOfWorkAsync(
@@ -163,11 +165,75 @@ public class VariantSaleVerificationTests : TradeXpressEntityFrameworkCoreTestBa
         result.Issues.ShouldHaveSingleItem().ShouldContain(stranger.ToString());
     }
 
+    // ── otomatik validasyon (2026-08-19 satışa hazırlık paneli ölçeği) ──────────────────────────────────────────────
+
+    /// <summary>⑥ FİYATSIZ varyant doğrulanMAZ ve Issues'ta görünür; fiyatlı kardeşi doğrulanır.
+    /// <para>Fiyatsız varyant push aday setinden SESSİZCE elenir; onu Ready yapmak, kullanıcıya "satışa açıldı"
+    /// deyip kanala hiç göndermemek olurdu. Hata doğrulama anında, kodla (<c>Variant:NoSalePrice</c>) söylenir.</para></summary>
+    [Fact]
+    public async Task Unpriced_variant_is_not_verified_and_is_reported()
+    {
+        var scenario = await SeedAsync("VSV6", variantCount: 2, priceSecondVariant: false);
+
+        var result = await WithUnitOfWorkAsync(
+            () => _verifier.VerifyAsync(new ProductSaleVerifyInputDto { ProductId = scenario.ProductId }));
+
+        result.VerifiedVariants.ShouldBe(1);
+        result.ProductMarkedReady.ShouldBeTrue();
+        // Yalnız KOD pinlenir: mesaj metni localizer'dan gelir ve anahtar tr/en.json'a eklenmeden
+        // (ABP eksik anahtarda anahtar adını aynen döndürür) varyant kodu metne girmez — metne bağımlı
+        // assert, lokalizasyon kaydına bağımlı kırılganlık üretirdi. Hangi varyantın elendiği aşağıda
+        // guard'dan (ResolveSellableAsync) davranışsal olarak pinlenir.
+        result.Issues.ShouldContain(i => i.StartsWith(ProductSaleValidator.VariantNoSalePrice, StringComparison.Ordinal));
+
+        var sellable = await WithUnitOfWorkAsync(() => _resolver.ResolveSellableAsync(scenario.VariantIds));
+        sellable.ShouldHaveSingleItem().ShouldBe(scenario.VariantIds[0]);
+    }
+
+    /// <summary>⑦ KDV'SİZ ürün YİNE doğrulanır ve KDV doğrulama SONUCUNA HİÇ taşınmaz — ne Issues ne Warnings
+    /// (Hakan 2026-08-19: KDV yalnız Info; satışa hazırlık panelinin issue listesinde bilgi satırı olarak yaşar, doğrulama
+    /// diyaloğunda tekrarlanmaz). Fixture KDV yazmaz; yani ① zaten KDV'siz doğruluyor — bu fact o gerçeği
+    /// AÇIKÇA sabitler.</summary>
+    [Fact]
+    public async Task Missing_vat_does_not_block_verification_and_stays_out_of_the_result()
+    {
+        var scenario = await SeedAsync("VSV7", variantCount: 1);
+
+        var result = await WithUnitOfWorkAsync(
+            () => _verifier.VerifyAsync(new ProductSaleVerifyInputDto { ProductId = scenario.ProductId }));
+
+        result.VerifiedVariants.ShouldBe(1);
+        result.Issues.ShouldNotContain(i => i.Contains(ProductSaleValidator.ProductVatMissing));
+        result.Warnings.ShouldNotContain(w => w.StartsWith(ProductSaleValidator.ProductVatMissing, StringComparison.Ordinal));
+    }
+
+    /// <summary>⑧ ÜRÜN-DÜZEYİ Error (Calculated ama takip edilen emtia satırı yok) HİÇBİR varyantı doğrulatmaz.</summary>
+    [Fact]
+    public async Task Product_level_error_blocks_every_variant()
+    {
+        var scenario = await SeedAsync("VSV8", variantCount: 2, stockPolicy: ProductStockPolicy.Calculated);
+
+        var result = await WithUnitOfWorkAsync(
+            () => _verifier.VerifyAsync(new ProductSaleVerifyInputDto { ProductId = scenario.ProductId }));
+
+        result.VerifiedVariants.ShouldBe(0);
+        result.ProductMarkedReady.ShouldBeFalse();
+        result.Issues.ShouldContain(i => i.StartsWith(
+            ProductSaleValidator.ProductCalculatedWithoutTrackedCommodity, StringComparison.Ordinal));
+        (await WithUnitOfWorkAsync(() => _resolver.ResolveSellableAsync(scenario.VariantIds))).ShouldBeEmpty();
+    }
+
     // ── fixture ──────────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Reçeteli bir ürün + varyantları. Reçete ŞART: damganın gerçekten bir içerikten hesaplandığını
-    /// (boş-reçete damgasıyla yanlışlıkla eşleşmediğini) sürmek için.</summary>
-    private async Task<VerificationScenario> SeedAsync(string prefix, int variantCount)
+    /// <summary>Reçeteli + fiyatlı bir ürün + varyantları. Reçete ŞART: stamp'in gerçekten bir içerikten
+    /// hesaplandığını (boş-reçete stamp'iyle yanlışlıkla eşleşmediğini) sürmek için. Fiyat ŞART (2026-08-19):
+    /// fiyatsız varyant artık doğrulanmaz. Stok politikası varsayılan <c>Fixed</c> — hizmet satırlı reçete
+    /// Calculated'ı karşılamaz (takip edilen emtia yok) ve o hâl ⑧'de ayrıca sınanır.</summary>
+    private async Task<VerificationScenario> SeedAsync(
+        string prefix,
+        int variantCount,
+        bool priceSecondVariant = true,
+        ProductStockPolicy stockPolicy = ProductStockPolicy.Fixed)
     {
         var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync(prefix));
         _companyContext.CompanyId = data.CompanyId;
@@ -175,7 +241,8 @@ public class VariantSaleVerificationTests : TradeXpressEntityFrameworkCoreTestBa
         return await WithUnitOfWorkAsync(async () =>
         {
             var product = new Product(data.CompanyId, $"{prefix}-URN", $"{prefix} Ürünü");
-            product.SetStockPolicy(ProductStockPolicy.Calculated);
+            product.SetStockPolicy(stockPolicy);
+            product.SetProductCategory(Guid.NewGuid());   // kategori bağı: yalnız "var mı" sorulur (FK doğrulaması yok)
             await _products.InsertAsync(product, autoSave: true);
 
             var variantIds = new List<Guid>();
@@ -190,11 +257,19 @@ public class VariantSaleVerificationTests : TradeXpressEntityFrameworkCoreTestBa
                 var line = new ProductVariantRecipeLine(
                     data.CompanyId, variant.Id, RecipeComponentType.Service, lineOrder: 0);
                 await _recipeLines.InsertAsync(line, autoSave: true);
+
+                var detail = new ProductVariantDetail(data.CompanyId, variant.Id);
+                if (i == 1 || priceSecondVariant)
+                {
+                    detail.SetSalePrice(1000m + i, null);
+                }
+
+                await _details.InsertAsync(detail, autoSave: true);
             }
 
-            return new VerificationScenario(data.CompanyId, product.Id, variantIds);
+            return new VerificationScenario(data.CompanyId, product.Id, variantIds, prefix);
         });
     }
 
-    private sealed record VerificationScenario(Guid CompanyId, Guid ProductId, List<Guid> VariantIds);
+    private sealed record VerificationScenario(Guid CompanyId, Guid ProductId, List<Guid> VariantIds, string Prefix);
 }

@@ -6,7 +6,7 @@ using Xunit;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// <see cref="ProductCategoryTreeManager.CollectSubtreeIds"/> mekanik ağı (DB'siz).
+/// <see cref="ProductCategoryTreeManager.CollectSubtreeIds"/> konvansiyon testiı (DB'siz).
 ///
 /// <para><b>Neden bu testler var (2026-07-27 Hakan):</b> "üst kategoriler alt kategorilerinden üst kategori
 /// seçemesin, circular oluşur." Bu küme "üst kategori" combo'sundan DÜŞÜLENLERİ belirler; eksik hesaplanırsa

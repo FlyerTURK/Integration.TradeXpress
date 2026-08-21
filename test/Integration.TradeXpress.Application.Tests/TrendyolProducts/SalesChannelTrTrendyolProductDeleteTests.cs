@@ -16,8 +16,8 @@ namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>
 /// "SİL" HEM BİZDEN HEM TRENDYOL'DAN KALDIRIR (2026-08-16 Hakan kararı: <i>"önce DB sonra Trendyol; Trendyol'dan
-/// silinemezse DB geri dönsün"</i>). Üç kilit: ① silme kanala barkodla gider + <c>Delete</c> delil satırı düşer;
-/// ② kanal reddederse DB silmesi GERİ DÖNER (tek UoW rollback) + Failed delil satırı; ③ kanala hiç ulaşmamış
+/// silinemezse DB geri dönsün"</i>). Üç kilit: ① silme kanala barkodla gider + <c>Delete</c> PushHistory satırı düşer;
+/// ② kanal reddederse DB silmesi GERİ DÖNER (tek UoW rollback) + Failed PushHistory satırı; ③ kanala hiç ulaşmamış
 /// (SKU'suz) kayıtta pazaryerine hiç gidilmez.
 /// </summary>
 public abstract class SalesChannelTrTrendyolProductDeleteTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
@@ -111,7 +111,7 @@ public abstract class SalesChannelTrTrendyolProductDeleteTests<TStartupModule> :
         }
     }
 
-    // ── IsActive = kanal ARŞİV aynası (2026-08-17 Hakan kararı) ─────────────────────────────────────
+    // ── IsActive = kanal ARŞİV durumunun yansıması (2026-08-17 Hakan kararı) ──────────────────────
 
     [Fact]
     public async Task Deactivating_a_listed_record_archives_it_on_trendyol_and_reactivating_unarchives()
@@ -178,12 +178,46 @@ public abstract class SalesChannelTrTrendyolProductDeleteTests<TStartupModule> :
         }
     }
 
+    // ── Ana ürün pasif → kanal ürünleri pasif (tek yönlü baskı; 2026-08-17 Hakan kararı "A") ─────────
+
+    [Fact]
+    public async Task Deactivating_the_product_archives_its_channel_listings_but_reactivating_does_not_reopen_them()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var (recordId, _) = await SeedListedRecordAsync(companyId, "PRD1", "BR-PRD-1");
+            var productId = (await _appService.GetAsync(recordId)).ProductId;
+            var products = GetRequiredService<IProductAppService>();
+            _fakeClient.RejectArchiveChanges = false;
+            _fakeClient.ArchiveBatches.Clear();
+
+            // Ürün PASİF → kanal ürünü pasif + Trendyol'a arşiv. (Ürün kategorisi güncellemede ZORUNLU —
+            // 2026-07-28 kuralı; seed kategorisiz açıldığından round-trip'e burada verilir.)
+            var product = await products.GetAsync(productId);
+            var input = ObjectMapperOf().Map<ProductGetDto, ProductUpdateDto>(product);
+            input.ProductCategoryId = await CreateTestProductCategoryAsync("Pasif Cascade Kategori");
+            input.IsActive = false;
+            await products.UpdateAsync(productId, input);
+
+            (await _appService.GetAsync(recordId)).IsActive.ShouldBeFalse();
+            _fakeClient.ArchiveBatches.ShouldHaveSingleItem().Archived.ShouldBeTrue();
+
+            // Ürün yeniden AKTİF → kanal ürünü pasif KALIR (kanal kanal insan kararı), Trendyol'a yeni istek YOK.
+            input.IsActive = true;
+            await products.UpdateAsync(productId, input);
+
+            (await _appService.GetAsync(recordId)).IsActive.ShouldBeFalse();
+            _fakeClient.ArchiveBatches.Count.ShouldBe(1);
+        }
+    }
+
     private Volo.Abp.ObjectMapping.IObjectMapper ObjectMapperOf()
     {
         return GetRequiredService<Volo.Abp.ObjectMapping.IObjectMapper>();
     }
 
-    // ── Tohum ───────────────────────────────────────────────────────────────────────────────────────
+    // ── Seed ────────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Kanala ULAŞMIŞ kayıt: SKU satırı olan (barkodu bilinen) Trendyol kanal ürünü.</summary>
     private async Task<(Guid RecordId, Guid ChannelId)> SeedListedRecordAsync(Guid companyId, string suffix, string barcode)

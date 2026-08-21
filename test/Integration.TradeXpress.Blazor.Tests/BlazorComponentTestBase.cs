@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Bunit;
@@ -63,7 +63,7 @@ public abstract class BlazorComponentTestBase : BunitContext
         // patlıyor. Testlerde amaç render olduğundan HER İZİN VERİLİR.
         Services.AddSingleton<IAuthorizationService>(new AlwaysGrantedAuthorizationService());
 
-        // DevExpress ve Blazor'un JS köprüsü — render sırasında çağrılır, davranışı sınamıyoruz.
+        // DevExpress ve Blazor'un JS interop'u — render sırasında çağrılır, davranışı sınamıyoruz.
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         // DevExpress'in tarayıcı-bağımlı ORTAM servisleri sahteleriyle değiştirilir. JS çağrısını taklit

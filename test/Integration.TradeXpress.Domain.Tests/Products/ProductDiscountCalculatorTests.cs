@@ -94,7 +94,7 @@ public class ProductDiscountCalculatorTests
             .Code.ShouldBe("TradeXpress:Product:DiscountExceedsPrice");
     }
 
-    /// <summary>%100 indirim de aynı kapıya çarpar — yüzde kolu ayrı bir kaçak bırakmaz.</summary>
+    /// <summary>%100 indirim de aynı guard'a çarpar — yüzde kolu ayrı bir kaçak bırakmaz.</summary>
     [Fact]
     public void Hundred_percent_discount_throws_as_well()
     {

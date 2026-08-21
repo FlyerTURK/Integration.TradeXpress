@@ -21,7 +21,7 @@ namespace Integration.TradeXpress.N11Products;
 /// N11 sahte sunucusunun GERÇEK istemcilerle uçtan uca sözleşme testi.
 ///
 /// <para><b>Bu sınıfın varlık sebebi somut bir hata:</b> 2026-08-05'te sahte sunucunun tüm uçları HTTP 200
-/// dönüyor ama gövde BOŞ geliyordu — çünkü minimal-API handler'ları <c>RequestDelegate</c> aşırı yüklemesine
+/// dönüyor ama body BOŞ geliyordu — çünkü minimal-API handler'ları <c>RequestDelegate</c> aşırı yüklemesine
 /// bağlanmış ve dönen <c>IResult</c> sessizce atılmıştı. Derleme temizdi, birim testleri yeşildi, log
 /// "Executed endpoint" diyordu. Hata ancak ELLE curl atılınca görüldü. Bu sınıf o sınıfı mekanikleştirir.</para>
 ///
@@ -117,8 +117,8 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
             VatRate: 20);
     }
 
-    /// <summary>Yazma ucu <c>taskId</c> döndürmeli — ve bu, gövdenin GERÇEKTEN yazıldığının kanıtıdır
-    /// (boş gövde hatasında bu satır <c>id</c> bulamayıp fail-fast atardı).</summary>
+    /// <summary>Yazma ucu <c>taskId</c> döndürmeli — ve bu, body'nin GERÇEKTEN yazıldığının kanıtıdır
+    /// (boş body hatasında bu satır <c>id</c> bulamayıp fail-fast atardı).</summary>
     [Fact]
     public async Task Create_returns_a_task_id_over_real_http()
     {

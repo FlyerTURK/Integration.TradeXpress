@@ -14,7 +14,7 @@ using Xunit;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// Çekirdek kategori ↔ kanal kategorisi eşleştirmesi ve KOMİSYON çözümü.
+/// Core kategori ↔ kanal kategorisi eşleştirmesi ve KOMİSYON çözümü.
 ///
 /// <para><b>Sınanan asıl kural KALITIM:</b> kullanıcı "Takı" düzeyinde bir kez eşleştirir, altındaki onlarca
 /// kategori otomatik çözülür; kendi eşleştirmesi olan ise onu ezer (en dar tanım kazanır). Bu davranış Hakan'ın
@@ -132,7 +132,7 @@ public class ProductCategoryChannelMappingTests : TradeXpressEntityFrameworkCore
     [Fact]
     public async Task Commission_is_resolved_from_the_mapped_channel_category()
     {
-        // Zincirin bütünü: çekirdek kategori → eşleştirme → kanal taksonomisi → efektif oran.
+        // Zincirin bütünü: core kategori → eşleştirme → kanal taksonomisi → efektif oran.
         // Efektif oran = komisyon + (pazarlama + pazaryeri) × 1,20 → 19 + (1 + 0,67) × 1,20 = 21,004.
         var externalId = "TEST-" + SimpleGuidGenerator.Instance.Create().ToString("N")[..8];
 

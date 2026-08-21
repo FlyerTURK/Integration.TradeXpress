@@ -83,7 +83,7 @@ public class ReservationSplitTests
         totals.AvailableQuantity.ShouldBe(-2m);
     }
 
-    /// <summary>Bacaksız satır sıfırlarla döner (boş grup hesabı çökertmemeli).</summary>
+    /// <summary>Leg'siz satır sıfırlarla döner (boş grup hesabı çökertmemeli).</summary>
     [Fact]
     public void No_legs_yields_zeroes()
     {

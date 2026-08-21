@@ -16,13 +16,13 @@ using Xunit;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// ÇEKİRDEK REÇETE DEĞİŞİNCE DEVRALINMIŞ KANAL KOPYALARI TAZELENİR — <see cref="ChannelRecipeRefresher"/>'ın
-/// yazıcı (<see cref="ProductRecipeLineWriter"/>) kancası üzerinden uçtan uca ağı.
+/// CORE REÇETE DEĞİŞİNCE DEVRALINMIŞ KANAL KOPYALARI TAZELENİR — <see cref="ChannelRecipeRefresher"/>'ın
+/// yazıcı (<see cref="ProductRecipeLineWriter"/>) çağrısı üzerinden uçtan uca ağı.
 ///
-/// <para><b>Çivilenen delik:</b> kanal reçetesi "klon-sonra-ayrış" yaşar; kullanıcı kanal formunu bileşime hiç
-/// dokunmadan kaydettiyse kopya DONMUŞ ama fiilen devralınmıştır. Çekirdek sonra değişince push fiyatlaması
+/// <para><b>Sabitlenen delik:</b> kanal reçetesi "klon-sonra-ayrış" yaşar; kullanıcı kanal formunu bileşime hiç
+/// dokunmadan kaydettiyse kopya DONMUŞ ama fiilen devralınmıştır. Core sonra değişince push fiyatlaması
 /// (yalnız persist edilmiş kanal satırlarını okur) ESKİ bileşimle fiyatlamaya devam ediyordu — hatasız, logsuz.
-/// Tazeleme kararı KAYIT-ÖNCESİ çekirdeğe karşı verilir (kalıcı bayrak yok; yeni çekirdekle kıyas her devralınmış
+/// Tazeleme kararı KAYIT-ÖNCESİ core'a karşı verilir (kalıcı bayrak yok; yeni core ile kıyas her devralınmış
 /// kopyayı "override" sanıp sonsuza dek dondururdu — bu test o yanlış kurgunun da ağıdır).</para>
 /// </summary>
 [Collection(TradeXpressTestConsts.CollectionDefinitionName)]
@@ -66,7 +66,7 @@ public class ChannelRecipeRefreshTests : TradeXpressEntityFrameworkCoreTestBase
             });
             var coreLine = (await _coreLines.GetListAsync(l => l.ProductVariantId == variantId)).ShouldHaveSingleItem();
 
-            // Başlık 1 — DEVRALINMIŞ persist kopya: bileşim çekirdekle birebir + kanalın kendi komisyon satırı.
+            // Başlık 1 — DEVRALINMIŞ persist kopya: bileşim core ile birebir + kanalın kendi komisyon satırı.
             var inherited = await _trendyolHeaders.InsertAsync(
                 new SalesChannelTrTrendyolProductStockItem(companyId, channelProductId, variantId), autoSave: true);
             var inheritedLine = new SalesChannelTrTrendyolProductStockItemRecipeLine(
@@ -93,7 +93,7 @@ public class ChannelRecipeRefreshTests : TradeXpressEntityFrameworkCoreTestBase
             var untouched = await _trendyolHeaders.InsertAsync(
                 new SalesChannelTrTrendyolProductStockItem(companyId, channelProductId, variantId), autoSave: true);
 
-            // ÇEKİRDEK DEĞİŞİR: miktar 2 → 3 (yazıcı yolu — üretimdeki tek kapı).
+            // CORE DEĞİŞİR: miktar 2 → 3 (yazıcı yolu — üretimdeki tek yol).
             await _writer.SaveAsync(companyId, variantId, new List<ProductRecipeLineGraphDto>
             {
                 BuildMetalLine(metalId, quantity: 3m, amount: 6m, id: coreLine.Id),
@@ -159,7 +159,7 @@ public class ChannelRecipeRefreshTests : TradeXpressEntityFrameworkCoreTestBase
 
     /// <summary>
     /// ÜRETİM KOŞULU: yazıcı TEK UoW içinde çalışır ve satırı YERİNDE günceller (GetAsync → ApplyFields → Update).
-    /// EF kimlik haritası aynı instance'ı döndürdüğünden, "kayıt-öncesi çekirdek" entity referansı olarak
+    /// EF kimlik haritası aynı instance'ı döndürdüğünden, "kayıt-öncesi core" entity referansı olarak
     /// tutulursa mutasyondan sonra yeni değeri gösterir → refresher "aynı bileşim" der → tazeleme HİÇ çalışmaz.
     /// Diğer testler repository çağrılarını ayrı UoW'larda koştuğu için bu deliği GÖRMÜYORDU (yeşil kalırken
     /// üretimde ölüydü — bağımsız denetimde yakalandı, 2026-08-14). Bu test tek UoW'u zorlar.
@@ -208,7 +208,7 @@ public class ChannelRecipeRefreshTests : TradeXpressEntityFrameworkCoreTestBase
         }
     }
 
-    /// <summary>Çekirdek/kanal kıyasında kullanılan basit maden satırı grafı (Factor 0.916 sabit — imzanın parçası).</summary>
+    /// <summary>Core/kanal kıyasında kullanılan basit maden satırı grafı (Factor 0.916 sabit — imzanın parçası).</summary>
     private static ProductRecipeLineGraphDto BuildMetalLine(Guid metalId, decimal quantity, decimal amount, Guid id = default)
     {
         return new ProductRecipeLineGraphDto

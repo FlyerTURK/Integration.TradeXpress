@@ -5,7 +5,7 @@ namespace Integration.TradeXpress.MarketplaceShipmentTariffs;
 
 /// <summary>
 /// <see cref="PackageDesiResolver"/> testleri. Desi kargo tarifesinin girdisidir ve tarife doğrudan satış
-/// fiyatına girer — bu yüzden "hangi değer kazanır" kuralı tek yerde ve testle çivilenir.
+/// fiyatına girer — bu yüzden "hangi değer kazanır" kuralı tek yerde ve testle sabitlenir.
 /// </summary>
 public class PackageDesiResolverTests
 {
@@ -22,7 +22,7 @@ public class PackageDesiResolverTests
     }
 
     /// <summary>0 BOŞ DEĞİLDİR — pazaryerinin "Dosya" basamağıdır ve geçerli bir override'dır.
-    /// Kural "?? " ile yazıldığında da doğru çalışır ama burada niyet çivileniyor: varyantta 0 yazan kullanıcı
+    /// Kural "?? " ile yazıldığında da doğru çalışır ama burada niyet sabitleniyor: varyantta 0 yazan kullanıcı
     /// kanal varsayılanına düşmemeli.</summary>
     [Fact]
     public void Variant_zero_is_a_real_override_not_an_empty_value()

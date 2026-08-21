@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.N11Products;
 /// SOAP push verisi → REST <c>product-create</c> satırları çevirisi.
 ///
 /// <para><b>Neden bu testler kritik:</b> iki uç aynı ürünü FARKLI modelliyor — SOAP'ta tek ürün + içinde
-/// varyantlar, REST'te her SKU bağımsız satır. Çeviri yanlışsa N11'e giden gövde sessizce bozulur:
+/// varyantlar, REST'te her SKU bağımsız satır. Çeviri yanlışsa N11'e giden body sessizce bozulur:
 /// varyantlar tek satıra çöker, fiyat yanlış satıra yazılır ya da nitelik kimliği uydurulur. Hiçbiri
 /// derleme hatası vermez.</para>
 /// </summary>

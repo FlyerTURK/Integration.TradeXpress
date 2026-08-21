@@ -155,7 +155,7 @@ public abstract class SalesChannelTrN11ProductImportTests<TStartupModule> : Trad
         }
     }
 
-    /// <summary>Çekirdek (ERP) stok pazaryerinin anlık verisiyle EZİLMEZ — fark kanal override'ına yazılır ve
+    /// <summary>Core (ERP) stok pazaryerinin anlık verisiyle EZİLMEZ — fark kanal override'ına yazılır ve
     /// raporda sayılır (K12 politikası; Trendyol içe aktarımıyla aynı kural).</summary>
     [Fact]
     public async Task Remote_stock_never_overwrites_core_stock_on_a_later_import()
@@ -174,7 +174,7 @@ public abstract class SalesChannelTrN11ProductImportTests<TStartupModule> : Trad
 
             var channelProduct = await SingleChannelProductAsync();
             var variants = await LoadVariantsAsync(channelProduct.ProductId);
-            variants.ShouldHaveSingleItem().StockQuantity.ShouldBe(10);   // çekirdek KORUNDU
+            variants.ShouldHaveSingleItem().StockQuantity.ShouldBe(10);   // core KORUNDU
 
             var header = (await WithUnitOfWorkAsync(async () =>
                 await _headerRepository.GetListAsync(h => h.SalesChannelTrN11ProductId == channelProduct.Id))).ShouldHaveSingleItem();

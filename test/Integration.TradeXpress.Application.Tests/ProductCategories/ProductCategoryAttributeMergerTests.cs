@@ -9,7 +9,7 @@ using Xunit;
 namespace Integration.TradeXpress.ProductCategories;
 
 /// <summary>
-/// <see cref="ProductCategoryAttributeMerger"/> mekanik ağı (DB'siz).
+/// <see cref="ProductCategoryAttributeMerger"/> konvansiyon testiı (DB'siz).
 ///
 /// <para><b>Neden bu testler var:</b> nitelik ve değer kimlikleri pazaryeri eşleştirmesinin hedefidir. Merge
 /// yerine "hepsini yeniden yarat" davranışına dönülürse kimlikler her kaydetmede değişir ve tüm eşleştirmeler

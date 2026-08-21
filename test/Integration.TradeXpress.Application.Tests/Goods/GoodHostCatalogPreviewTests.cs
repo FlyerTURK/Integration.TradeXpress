@@ -68,7 +68,7 @@ public abstract class GoodHostCatalogPreviewTests<TStartupModule> : TradeXpressA
         var main = got.Variants.ShouldHaveSingleItem();
         main.IsMain.ShouldBeTrue();
 
-        // 3) Ana varyanta VARSAYILAN medya link'i + alış fiyatı bağla (public Update yüzeyi — uçtan uca).
+        // 3) Ana varyanta VARSAYILAN medya link'i + alış fiyatı bağla (public UpdateAsync üzerinden — uçtan uca).
         main.Media.Add(new EntityMediaLinkEditDto { MediaId = media.Id, IsDefault = true });
         main.EntryPrice = 100m;
         await _goodAppService.UpdateAsync(created.Id, new GoodUpdateDto

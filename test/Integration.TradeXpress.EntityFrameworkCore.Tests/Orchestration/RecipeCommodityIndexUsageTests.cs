@@ -29,7 +29,7 @@ namespace Integration.TradeXpress.Orchestration;
 /// <c>IUnitOfWorkEnabled</c> DEĞİL — yani kendi UoW'unu AÇMAZ. <c>GetQueryableAsync()</c> kendi (çağrı-başına)
 /// UoW'unda DbContext üretip queryable döndürür, o UoW kapanır, sonra <c>ToListAsync</c> DISPOSE EDİLMİŞ
 /// DbContext üzerinde koşar → <c>ObjectDisposedException</c>. Üretimde bunu <c>ProductOrchestrationManager</c>
-/// açıyor ("TAZE UoW ZORUNLU" yorumu orada). Bu yüzden testte HEM tohum HEM sorgu
+/// açıyor ("TAZE UoW ZORUNLU" yorumu orada). Bu yüzden testte HEM seed HEM sorgu
 /// <see cref="TradeXpressTestBase{TStartupModule}.WithUnitOfWorkAsync{TResult}"/> ile sarılır.
 /// Sıra kritik: tenant/şirket değişimi DIŞTA, UoW İÇTE.</para>
 /// </summary>
@@ -176,7 +176,7 @@ public class RecipeCommodityIndexUsageTests : TradeXpressEntityFrameworkCoreTest
 
     // ── fixture ──────────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Tohum TEK UoW'da — üç ayrı örtük UoW yerine bir tane (kod tabanının hakim deseni:
+    /// <summary>Seed TEK UoW'da — üç ayrı örtük UoW yerine bir tane (kod tabanının hakim deseni:
     /// SubstitutionCalculationTests.SeedMetalAsync, GoodPricingResolverTests.SeedGood...).</summary>
     private Task<Guid> SeedProductWithCommodityLineAsync(
         Guid companyId, string code, ProductStockPolicy policy, ProcessType family, Guid commodityId)

@@ -91,7 +91,7 @@ public class LookupEditButtonConventionTests
     private static HashSet<string> RegisteredTypeNames(
         Integration.Framework.Blazor.Client.Components.Crud.ILookupEditComponentRegistry registry)
     {
-        // Kayıt defteri anahtarlarını dışa vermiyor (Resolve tek yüzey) → razor'daki adları TİP ADIYLA
+        // Kayıt defteri anahtarlarını dışa vermiyor (Resolve tek public API) → razor'daki adları TİP ADIYLA
         // eşleştirmek için bilinen adayları çözerek doğruluyoruz. Basit ve kırılgan olmayan yol: razor'da
         // geçen her adı, o adı taşıyan bir tip bulup Resolve'a sorarak sınamak.
         var names = new HashSet<string>(StringComparer.Ordinal);

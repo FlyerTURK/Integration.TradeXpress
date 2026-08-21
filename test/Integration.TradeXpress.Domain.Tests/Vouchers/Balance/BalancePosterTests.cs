@@ -7,12 +7,12 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 
 /// <summary>
 /// 12 <see cref="IVoucherLineBalancePoster"/>'ın karakterizasyon testleri — her ProcessType
-/// için işaret doğruluğu (+ giriş / − çıkış), peşin (WithCash) muafiyeti dalları ve bacak
+/// için işaret doğruluğu (+ giriş / − çıkış), peşin (WithCash) muafiyeti dalları ve leg
 /// dağıtımı. İşaret konvansiyonu: + = ALACAK, − = BORÇ (<see cref="BalanceEffect"/>).
 /// </summary>
 public class BalancePosterTests
 {
-    // ── NAKİT (Cash) — pay-bacağı, peşin muaf ────────────────────────────────
+    // ── NAKİT (Cash) — pay leg'i, peşin muaf ─────────────────────────────────
 
     [Fact]
     public void Cash_with_cash_payment_has_no_effect()
@@ -71,7 +71,7 @@ public class BalancePosterTests
     [Fact]
     public void Debit_note_posts_even_with_cash_payment()
     {
-        // Dekont DAİMA bakiyeye yazar (legacy BORC=999 tek bacak paritesi).
+        // Dekont DAİMA bakiyeye yazar (legacy BORC=999 tek leg paritesi).
         var line = Create(ProcessType.DebitNote, paymentType: ProcessPaymentType.WithCash,
                           payUnitId: TryUnit, payTotal: 200m);
 
@@ -104,7 +104,7 @@ public class BalancePosterTests
         new TransferBalancePoster().Post(twin).ShouldBe(new[] { new BalanceEffect(TryUnit, 300m) });
     }
 
-    // ── TAŞ (Stone) / MÜCEVHER (Jewelry) — parasal tek bacak ─────────────────
+    // ── TAŞ (Stone) / MÜCEVHER (Jewelry) — parasal tek leg ───────────────────
 
     [Fact]
     public void Stone_with_cash_payment_or_zero_total_has_no_effect()
@@ -159,7 +159,7 @@ public class BalancePosterTests
         new GoodBalancePoster().Post(outbound).ShouldBe(new[] { new BalanceEffect(TryUnit, -750m) });
     }
 
-    // ── ÇEVİR (Convert) — iki bacak: ana − / karşı + (Alacak yönünde) ────────
+    // ── ÇEVİR (Convert) — iki leg: ana − / karşı + (Alacak yönünde) ──────────
 
     [Fact]
     public void Convert_credit_debits_main_and_credits_pay_leg()
@@ -231,7 +231,7 @@ public class BalancePosterTests
         });
     }
 
-    // ── MADEN (Metal) — ödeme tipine göre 0/1/2 bacak ────────────────────────
+    // ── MADEN (Metal) — ödeme tipine göre 0/1/2 leg ──────────────────────────
 
     [Fact]
     public void Metal_with_cash_payment_has_no_effect()
@@ -246,7 +246,7 @@ public class BalancePosterTests
     public void Metal_reservation_has_no_effect_in_both_directions()
     {
         // Rezervasyon = taahhüt sayacı — bakiyeye YANSIMAZ (Peşin gibi bakiye-dışı),
-        // ana Has + işçilik alanları dolu olsa bile hiçbir bacak yazılmaz.
+        // ana Has + işçilik alanları dolu olsa bile hiçbir leg yazılmaz.
         var inbound  = Create(ProcessType.Metal, ProcessDirectionType.Inbound,
                               paymentType: ProcessPaymentType.Reservation,
                               mainUnitId: HasUnit, total: 100m, payUnitId: LaborUnit, payTotal: 20m);
@@ -261,7 +261,7 @@ public class BalancePosterTests
     [Fact]
     public void Metal_with_currency_posts_only_price_leg()
     {
-        // Bedelli: maden bacağı YOK (işçilik Factor'a yedirilmiş) → yalnız bedel.
+        // Bedelli: maden leg'i YOK (işçilik Factor'a yedirilmiş) → yalnız bedel.
         var line = Create(ProcessType.Metal, paymentType: ProcessPaymentType.WithCurrency,
                           mainUnitId: HasUnit, total: 100m, payUnitId: TryUnit, payTotal: 4500m);
 
@@ -288,7 +288,7 @@ public class BalancePosterTests
         });
     }
 
-    // ── HURDA (Scrap) — Metal'den fark: Normal'de işçilik bacağı YOK ─────────
+    // ── HURDA (Scrap) — Metal'den fark: Normal'de işçilik leg'i YOK ──────────
 
     [Fact]
     public void Scrap_with_cash_payment_has_no_effect()
@@ -311,14 +311,14 @@ public class BalancePosterTests
     [Fact]
     public void Scrap_normal_posts_main_leg_only_even_if_pay_leg_is_filled()
     {
-        // Metal'den fark: Normal'de yalnız ana Has bacağı — işçilik cariye YAZILMAZ.
+        // Metal'den fark: Normal'de yalnız ana Has leg'i — işçilik cariye YAZILMAZ.
         var line = Create(ProcessType.Scrap, ProcessDirectionType.Outbound,
                           mainUnitId: HasUnit, total: 91.6m, payUnitId: LaborUnit, payTotal: 20m);
 
         new ScrapBalancePoster().Post(line).ShouldBe(new[] { new BalanceEffect(HasUnit, -91.6m) });
     }
 
-    // ── ÇEŞNİ (Assay) — daima çıkış, para bacağı yok ─────────────────────────
+    // ── ÇEŞNİ (Assay) — daima çıkış, para leg'i yok ──────────────────────────
 
     [Fact]
     public void Assay_posts_negative_metal_legs_from_millesimals()
@@ -355,7 +355,7 @@ public class BalancePosterTests
         new AssayBalancePoster().Post(inbound).ShouldBe(new[] { new BalanceEffect(HasUnit, -9m) });
     }
 
-    // ── TAKOZ (Bullion) — bacaklar motor işaretli, poster ek işaret UYGULAMAZ ─
+    // ── TAKOZ (Bullion) — leg'ler motor işaretli, poster ek işaret UYGULAMAZ ─
 
     [Fact]
     public void Bullion_unreported_posts_single_pseudo_leg_without_extra_sign()
@@ -393,7 +393,7 @@ public class BalancePosterTests
     [Fact]
     public void Bullion_missing_side_unit_drops_that_leg()
     {
-        // Gümüş bacağı hesaplansa da SilverUnitId yoksa postlanamaz — sessizce düşer.
+        // Gümüş leg'i hesaplansa da SilverUnitId yoksa postlanamaz — sessizce düşer.
         var line = Create(ProcessType.Bullion,
                           amount: 1000m, factor: 0.9m, mainUnitId: HasUnit,
                           silverFactor: 0.10m, silverUnitId: null,

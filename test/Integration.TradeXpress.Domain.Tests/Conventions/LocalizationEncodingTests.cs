@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Conventions;
 /// <summary>
 /// LOKALİZASYON DOSYALARINDA ÇİFT-KODLANMIŞ METİN OLMAZ.
 ///
-/// <para><b>Çivilenen hata:</b> araç çubuğunda "Mağazadan İçe Aktar" yerine "MaÄazadan Ä°Ã§e Aktar"
+/// <para><b>Sabitlenen hata:</b> araç çubuğunda "Mağazadan İçe Aktar" yerine "MaÄazadan Ä°Ã§e Aktar"
 /// yazıyordu. Sebep bir kod hatası değil DOSYA KODLAMASIYDI: UTF-8 bir dosya bir noktada Latin-1/CP1252
 /// olarak okunup yeniden UTF-8 kaydedilmiş, Türkçe harfler ikişer bozuk karaktere dönüşmüştü. tr.json'da
 /// 5, en.json'da 54 satır böyleydi ve <b>hepsi commit'lenmişti</b>.</para>

@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
 /// N11 REST yolunun SÖZLEŞME testleri — <b>ağ YOK, DI YOK</b>. Girdi olarak resmî dokümanın
-/// (<c>n11-api-v9_0-duzmetin.txt</c>) kendi örnek gövdeleri/kuralları kullanılır; üçüncü taraf kaynak yoktur.
+/// (<c>n11-api-v9_0-duzmetin.txt</c>) kendi örnek body'leri/kuralları kullanılır; üçüncü taraf kaynak yoktur.
 ///
 /// <para><b>Bu sınıfın varlık sebebi:</b> N11'in üç yazma ucu (<c>product-create</c> · <c>product-update</c> ·
 /// <c>price-stock-update</c>) ASENKRONDUR — HTTP 200 "başarı" değil "kuyruğa alındı" demektir. Biçim hatası
@@ -35,7 +35,7 @@ namespace Integration.TradeXpress.N11Products;
 ///   <item><b>Bir satırın GEÇERLİ olduğunu</b> ağa çıkmadan kanıtlamanın yolu "tel tuzağı"dır: geçerli satırın
 ///   ARDINA kasten bozuk bir satır konur; hata KODU + <c>StockCode</c>'u ikinci satıra aitse birincisi tüm
 ///   guard'lardan geçmiş demektir (doğrulama listeyi sırayla gezer).</item>
-///   <item><b>JSON gövdesi</b> modelin kendisi serialize edilerek sınanır; serileştirme sözleşmesi tabanın
+///   <item><b>JSON body'si</b> modelin kendisi serialize edilerek sınanır; serileştirme sözleşmesi tabanın
 ///   SSOT'undan (<see cref="N11RestClientBase"/>) okunur, testte yeniden yazılmaz.</item>
 /// </list></para>
 ///
@@ -65,7 +65,7 @@ public class N11RestContractTests
     /// </summary>
     private sealed class RestJsonProbe : N11RestClientBase
     {
-        // Taban artık uç adresi ister. Probe yalnız STATİK JsonOptions'a erişmek için var, hiç örneklenmiyor —
+        // Taban artık endpoint adresi ister. Probe yalnız STATİK JsonOptions'a erişmek için var, hiç örneklenmiyor —
         // ctor sadece derlemenin geçmesi için; varsayılan adres yeterli (JSON sözleşmesi adresten bağımsız).
         public RestJsonProbe()
             : base(Options.Create(new N11EndpointOptions()))
@@ -76,13 +76,13 @@ public class N11RestContractTests
     }
 
     /// <summary>
-    /// Yazma gövdesinin serileştirme sözleşmesi — istemcinin <c>WriteJsonOptions</c> bileşimiyle BİREBİR aynı:
+    /// Yazma body'sinin serileştirme sözleşmesi — istemcinin <c>WriteJsonOptions</c> bileşimiyle BİREBİR aynı:
     /// taban sözleşme + fiyat dönüştürücüsü. Kopyalanan tek şey converter kaydıdır; kuralların kendisi tabandan gelir.
     /// </summary>
     private static readonly JsonSerializerOptions WriteJson =
         new(RestJsonProbe.BaseOptions) { Converters = { new N11PriceJsonConverter() } };
 
-    // ── 1) price-stock gövdesi: gönderilmeyen alan GÜNCELLENMEZ ────────────────────────────────────
+    // ── 1) price-stock body'si: gönderilmeyen alan GÜNCELLENMEZ ────────────────────────────────────
 
     [Fact]
     public void Stock_only_update_omits_the_price_keys_entirely()
@@ -121,7 +121,7 @@ public class N11RestContractTests
     [Fact]
     public void Payload_is_wrapped_in_the_documented_envelope()
     {
-        // Gövde şekli {"payload":{"integrator":..,"skus":[..]}} — düz bir dizi göndermek 4xx üretir. integrator
+        // Body şekli {"payload":{"integrator":..,"skus":[..]}} — düz bir dizi göndermek 4xx üretir. integrator
         // dokümanda ZORUNLU ve "tüm gönderimlerinizde aynı değer" isteniyor; boş bırakılırsa istek reddedilir.
         var json = SerializePriceStockBody(
             new N11RestPriceStock("A", null, null, 1, null),
@@ -299,7 +299,7 @@ public class N11RestContractTests
     {
         // Doküman görsel URL'lerinin https olmasını şart koşar. http bağlantı N11 tarafında indirilemez ⇒ ürün
         // görselsiz açılır ya da REJECT alır; ikisi de sessiz kalitesizliktir. Bizim DAM URL'lerimiz https'tir,
-        // ama pazaryerinden içe aktarılmış eski kayıtlarda http kalabilir — kapı burada.
+        // ama pazaryerinden içe aktarılmış eski kayıtlarda http kalabilir — guard burada.
         var ex = await Should.ThrowAsync<BusinessException>(() => _client.CreateProductsAsync(
             new[]
             {
@@ -376,7 +376,7 @@ public class N11RestContractTests
             N11RestPrice.Format(999m).ShouldBe("999.00");       // ölçek 0 → 2'ye tamamlanır
             N11RestPrice.Format(0.1m).ShouldBe("0.10");         // baştaki sıfır korunur (".10" değil)
 
-            // Aynı kural JSON gövdesinde de geçerli olmalı: converter fiyatı SAYI token'ı olarak ama tam 2 haneyle
+            // Aynı kural JSON body'sinde de geçerli olmalı: converter fiyatı SAYI token'ı olarak ama tam 2 haneyle
             // yazar (WriteNumberValue sondaki sıfırı düşürürdü → "1600" → REJECT).
             var json = SerializePriceStockBody(
                 new N11RestPriceStock("A", ListPrice: 1234.5m, SalePrice: 999m, Quantity: null, CurrencyType: "TL"),
@@ -617,7 +617,7 @@ public class N11RestContractTests
     // ── Yardımcılar ────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// price-stock gövdesini istemcinin gönderim yolundaki ADIMLARLA aynı şekilde kurar: dokümanın zarfı
+    /// price-stock body'sini istemcinin gönderim yolundaki ADIMLARLA aynı şekilde kurar: dokümanın zarfı
     /// (<c>payload.integrator</c> + <c>payload.skus</c>) + ortak serileştirme sözleşmesi.
     /// </summary>
     private static string SerializePriceStockBody(params N11RestPriceStock[] rows)

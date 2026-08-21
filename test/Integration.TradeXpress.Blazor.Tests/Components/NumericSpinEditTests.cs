@@ -1,4 +1,4 @@
-﻿using Bunit;
+using Bunit;
 using Integration.Framework.Blazor.Client.Components.Shared;
 using Shouldly;
 using Xunit;
@@ -6,7 +6,7 @@ using Xunit;
 namespace Integration.TradeXpress.Blazor.Tests.Components;
 
 /// <summary>
-/// <see cref="NumericSpinEdit{TValue}"/> — paylaşılan sayısal editör sarmalı.
+/// <see cref="NumericSpinEdit{TValue}"/> — paylaşılan sayısal editör bileşeni.
 ///
 /// <para>İlk test doğrudan 2026-07-28 canlı hatasının regresyonudur: <c>ReadOnly</c> parametresi wrapper'da
 /// yokken verilmişti; derleme temiz geçmiş, kullanıcının ekranında

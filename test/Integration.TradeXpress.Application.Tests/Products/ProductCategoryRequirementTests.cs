@@ -9,12 +9,12 @@ using Xunit;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// Ürün kategorisi ZORUNLU — public <see cref="IProductAppService"/> yüzeyinden (client kapısı güven sınırı
+/// Ürün kategorisi ZORUNLU — public <see cref="IProductAppService"/> üzerinden (client tarafı güven sınırı
 /// değildir; kural sunucuda durur).
 ///
 /// <para><b>Neden kural:</b> kanal kategorisi, kanal nitelikleri ve komisyon oranı ürüne kategorisi üzerinden
 /// çözülüyor. Kategorisiz ürün pazaryerine listelenemez ve fiyatı KOMİSYONSUZ — yani eksik — hesaplanır;
-/// hiçbir hata vermediği için bu sessizce yanlış fiyata yol açar. KIRMIZIYSA kapı delik demektir.</para>
+/// hiçbir hata vermediği için bu sessizce yanlış fiyata yol açar. KIRMIZIYSA guard delik demektir.</para>
 ///
 /// <para>Kategorinin KANAL EŞLEŞTİRMESİ burada aranmaz — o engellemeyen bir uyarıdır (gerekçe:
 /// <c>ProductAppService.ApplyProductCategoryAsync</c>).</para>

@@ -64,7 +64,7 @@ public abstract class SalesChannelTrN11ProductSafetyStockTests<TStartupModule> :
         }
     }
 
-    /// <summary>(c) Pay YOKKEN bugünkü değerler bit-bit aynı — regresyon kapısı. Yeni bir alan eklemenin en
+    /// <summary>(c) Pay YOKKEN bugünkü değerler bit-bit aynı — regresyon testi. Yeni bir alan eklemenin en
     /// sinsi yan etkisi, alanı hiç kullanmayan kayıtların davranışını değiştirmesidir.</summary>
     [Fact]
     public async Task Without_a_safety_stock_the_quantities_are_unchanged()

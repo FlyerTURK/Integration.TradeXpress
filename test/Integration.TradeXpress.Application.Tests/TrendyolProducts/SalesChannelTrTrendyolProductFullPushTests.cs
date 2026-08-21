@@ -14,6 +14,7 @@ using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
+using Volo.Abp.ObjectMapping;
 using Xunit;
 
 namespace Integration.TradeXpress.TrendyolProducts;
@@ -22,10 +23,10 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// TRENDYOL TAM PUSH — uçtan uca uygulama ağı (bağımsız denetim bulgusu 2026-08-14: push'a bağlanan HİÇBİR
 /// davranışın uygulama-seviyesi testi yoktu; sahte istemci create'i koşulsuz reddediyordu). Bu sınıf import →
 /// doğrulama → görsel → push → batch finalize zincirini sahtelerle (ağ yok) koşturur ve şunları pinler:
-/// ① kategori doğrulayıcısı gerçek push'ta koşar ve item-düzeyi eksen gövdeye girer (foto-öncelik);
+/// ① kategori doğrulayıcısı gerçek push'ta koşar ve item-düzeyi eksen body'ye girer (foto-öncelik);
 /// ② SKU dondurma sonrası varianter İMZASI snapshot'a yazılır (3. aşama yeniden-bağlama ölü değil);
-/// ③ defter satırı finalize'da PendingSent içeriğinden kurulur — başlık/eksen/görsel dolu, görsel listesi
-///    FİİLEN gönderilen setten; ④ import RemoteImageUrls'ü damgayla yazar; ⑤ Trendyol-only kombinasyon:
+/// ③ PushHistory satırı finalize'da PendingSent içeriğinden kurulur — başlık/eksen/görsel dolu, görsel listesi
+///    FİİLEN gönderilen setten; ④ import RemoteImageUrls'ü RemoteImageMediaIds damgasıyla yazar; ⑤ Trendyol-only kombinasyon:
 ///    fiyat+stok yoksa uyarıyla atlanır, yarım doluysa fail-fast, doluysa StockItem.Id ile SKU açılır.
 /// </summary>
 public abstract class SalesChannelTrTrendyolProductFullPushTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
@@ -87,11 +88,11 @@ public abstract class SalesChannelTrTrendyolProductFullPushTests<TStartupModule>
             var record = (await WithUnitOfWorkAsync(async () =>
                 await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
 
-            // ④ Import kanal adreslerini O ANKİ yerel setin damgasıyla yazdı (henüz DAM'da görsel yok → damga boş).
+            // ④ Import kanal adreslerini O ANKİ yerel setin RemoteImageMediaIds damgasıyla yazdı (henüz DAM'da görsel yok → damga boş).
             record.RemoteImageUrls.Count.ShouldBe(1);
             record.RemoteImageMediaIds.ShouldBeEmpty();
 
-            // Zorunlu ürün-seviyesi attribute (Materyal) doldur — doğrulayıcı kapısı için.
+            // Zorunlu ürün-seviyesi attribute (Materyal) doldur — TrendyolProductPushValidator için.
             await WithUnitOfWorkAsync(async () =>
             {
                 var tracked = await _channelProductRepository.GetAsync(record.Id);
@@ -104,7 +105,7 @@ public abstract class SalesChannelTrTrendyolProductFullPushTests<TStartupModule>
                 return true;
             });
 
-            // Satış-hazırlık kapısı + görsel.
+            // Satış-hazırlık guard'ı + görsel.
             await _productAppService.VerifySaleReadinessAsync(new ProductSaleVerifyInputDto { ProductId = product.Id });
             var mediaId = await UploadAndLinkAsync(product.Id, "kapak.png");
 
@@ -114,13 +115,13 @@ public abstract class SalesChannelTrTrendyolProductFullPushTests<TStartupModule>
             _fakeClient.SubmittedProducts.Clear();
             await _appService.PushToTrendyolAsync(record.Id);
 
-            // ① Gövde: item-düzeyi eksen foto kimlikleriyle gitti, ürün-seviyesi Materyal kanonik listede.
+            // ① Body: item-düzeyi eksen foto kimlikleriyle gitti, ürün-seviyesi Materyal kanonik listede.
             var sent = _fakeClient.SubmittedProducts.ShouldHaveSingleItem();
             sent.Items.Count.ShouldBe(2);
             sent.Items.Select(i => i.Attributes.Single().AttributeValueId).OrderBy(x => x)
                 .ShouldBe(new int?[] { 686234, 686240 });
             sent.Attributes.ShouldHaveSingleItem().AttributeId.ShouldBe(60);
-            sent.SentMediaIds.ShouldBe(new[] { mediaId });   // fiilen giden görsel seti gövdeyle birlikte taşınır
+            sent.SentMediaIds.ShouldBe(new[] { mediaId });   // fiilen giden görsel seti body'yle birlikte taşınır
 
             // ② SKU dondurma: varianter imzası snapshot'a YAZILDI (yeniden-bağlama 3. aşaması artık eşleşebilir).
             var afterPush = await WithUnitOfWorkAsync(async () => await _channelProductRepository.GetAsync(record.Id));
@@ -188,7 +189,7 @@ public abstract class SalesChannelTrTrendyolProductFullPushTests<TStartupModule>
             _fakeClient.AllowProductSubmit = true;
             _fakeClient.SubmittedProducts.Clear();
 
-            // Materyal (Required, varianter değil) DOLDURULMADI → kapıda durur, kanala hiçbir şey gitmez.
+            // Materyal (Required, varianter değil) DOLDURULMADI → guard'da durur, kanala hiçbir şey gitmez.
             var ex = await Should.ThrowAsync<BusinessException>(() => _appService.PushToTrendyolAsync(record.Id));
             ex.Code.ShouldBe("TradeXpress:Trendyol:Product:ProductAttributeMissing");
             _fakeClient.SubmittedProducts.ShouldBeEmpty();
@@ -261,6 +262,48 @@ public abstract class SalesChannelTrTrendyolProductFullPushTests<TStartupModule>
             var ex = await Should.ThrowAsync<BusinessException>(() => _appService.PushToTrendyolAsync(record.Id));
             ex.Code.ShouldBe("TradeXpress:Trendyol:Product:PriceMissingForPush");
             _fakeClient.SubmittedProducts.ShouldBeEmpty();
+        }
+    }
+
+    /// <summary>ARŞİVDEKİ kayda elle TAM PUSH reddedilir (2026-08-21 Hakan onayı — N11 PassiveNoPush'un
+    /// simetriği): IsActive Trendyol ARŞİV durumunun aynasıdır; guard olmasaydı push arşivdeki listing üzerine
+    /// yeni bir onboarding batch'i açar, finalize LastSent*'i terfi ettirir ve kayıt "arşivde" derken sistem
+    /// satış içeriği gönderdiğine inanırdı. Satışa dönüş yolu push değil AKTİFLEŞTİRMEDİR (= unarchive).</summary>
+    [Fact]
+    public async Task An_archived_record_rejects_a_manual_full_push()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "PUSH4");
+            SeedColorCategory("411");
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem("MAIN-P4", "BR-P4-RED", "STK-P4-RED", 686234, "Kırmızı", 5, 100m));
+            await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            var record = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
+
+            // GERÇEK güncelleme yolundan pasifleştir — ayna aynı transaction'da kanalı arşive çeker; entity'ye
+            // elle dokunmak UpdateAsync'in arşiv yakalamasını baypas ederdi (N11 testindeki gerekçenin aynısı).
+            _fakeClient.RejectArchiveChanges = false;
+            var dto = await _appService.GetAsync(record.Id);
+            var input = GetRequiredService<IObjectMapper>()
+                .Map<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductUpdateDto>(dto);
+            input.IsActive = false;
+            await _appService.UpdateAsync(record.Id, input);
+
+            // Submit ucu bilinçle AÇIK: guard silinirse test "sahte kapalıydı" diye değil GUARD yokluğundan kırılsın.
+            _fakeClient.AllowProductSubmit = true;
+            _fakeClient.SubmittedProducts.Clear();
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.PushToTrendyolAsync(record.Id));
+
+            ex.Code.ShouldBe("TradeXpress:Trendyol:Product:ArchivedNoPush");
+            _fakeClient.SubmittedProducts.ShouldBeEmpty("Arşivdeki kayda hiçbir gönderim çıkmamalı.");
+
+            // Guard reddi bir senkron hatası DEĞİLDİR: try'dan önce durur, kayda LastError yazılmaz.
+            (await _appService.GetAsync(record.Id)).LastError.ShouldBeNull();
         }
     }
 

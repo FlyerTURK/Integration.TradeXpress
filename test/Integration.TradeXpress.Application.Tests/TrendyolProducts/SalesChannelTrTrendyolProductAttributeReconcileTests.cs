@@ -16,7 +16,7 @@ namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>
 /// KARAKTERİZASYON ağı (S6, 2026-07-09) — Trendyol attribute-reconcile mekaniğinin davranışını kilitler
-/// (SynchronizeStockItemsAsync + klon-sonra-ayrış taslağı; public AppService yüzeyinden, gerçek Sqlite
+/// (SynchronizeStockItemsAsync + klon-sonra-ayrış taslağı; public AppService üzerinden, gerçek Sqlite
 /// repository'leriyle — EfCore concrete: EfCoreSalesChannelTrTrendyolProductAttributeReconcileTests). N11'in S1
 /// karakterizasyon desenin PORTU: imza formatı/koruma/silme/fırsatçı eşleştirme/override guard davranışı
 /// N11 ile BİREBİR aynı kalmalı — sapma KIRMIZI.

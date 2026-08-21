@@ -317,7 +317,7 @@ public static class VoucherTestLines
         };
     }
 
-    /// <summary>Maden satırı (Normal): MetalBalancePoster İKİ bacak yazar —
+    /// <summary>Maden satırı (Normal): MetalBalancePoster İKİ leg yazar —
     /// ana Has (MainUnitId/Total) + işçilik (PayUnitId/PayTotal); Giriş(+)/Çıkış(−).</summary>
     public static VoucherLineDto MetalLine(
         VoucherTestData data,
@@ -433,7 +433,7 @@ public static class VoucherTestLines
     }
 
     /// <summary>Çeşni satırı (yön SABİT ÇIKIŞ): AssayBalancePoster HAS'a −(Miktar×Factor),
-    /// GUM'a −(Miktar×SilverFactor) postlar; para bacağı yok (Total=PayTotal=0).</summary>
+    /// GUM'a −(Miktar×SilverFactor) postlar; para leg'i yok (Total=PayTotal=0).</summary>
     public static VoucherLineDto AssayLine(
         VoucherTestData data,
         decimal amount,

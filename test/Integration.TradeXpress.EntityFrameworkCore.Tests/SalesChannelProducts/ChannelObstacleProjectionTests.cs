@@ -94,7 +94,7 @@ public class ChannelObstacleProjectionTests : TradeXpressEntityFrameworkCoreTest
         // Pazaryeri hiç bildirmediyse "kampanya yok" DEĞİL "bilinmiyor" denir.
         cleanRow.HasActiveCampaign.ShouldBeNull();
 
-        // SKU'suz kayıt: sorgu düşmez, engel "bilinmiyor/yok" olarak döner, uzak damga boş kalır.
+        // SKU'suz kayıt: sorgu düşmez, engel "bilinmiyor/yok" olarak döner, RemoteUpdatedAt boş kalır.
         var emptyRow = rows.Items.Single(r => r.ChannelProductCode!.StartsWith("BOSSKU", StringComparison.Ordinal));
         emptyRow.Obstacle.ShouldBe(ChannelListingObstacle.None);
         emptyRow.ObstacleReason.ShouldBeNull();

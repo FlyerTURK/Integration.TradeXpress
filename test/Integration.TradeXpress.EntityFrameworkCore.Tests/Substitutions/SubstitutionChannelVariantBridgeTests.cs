@@ -17,9 +17,9 @@ using Xunit;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// M4 köprüsünün VARYANT boyutu (Dilim-2 + A6) uçtan uca — <c>ApplySubstitutionAsync</c>:
+/// M4 kanal aktarımının VARYANT boyutu (Dilim-2 + A6) uçtan uca — <c>ApplySubstitutionAsync</c>:
 /// çözücünün SEÇTİĞİ metal varyantı kanal StockItem reçetesine <c>CommodityVariantId</c> olarak persist edilir
-/// ve işçilik bacağı (PayFactor) SEÇİLEN varyantın MetalVariantDetail'inden gelir (ana-varyant değil).
+/// ve işçilik leg'i (PayFactor) SEÇİLEN varyantın MetalVariantDetail'inden gelir (ana-varyant değil).
 /// Kanal apply zinciri: plan → BuildRecipeLineDtos → ApplyChannelRecipeLineFields → SetCatalogCommodity(A6 kolonu).
 /// </summary>
 [Collection(TradeXpressTestConsts.CollectionDefinitionName)]

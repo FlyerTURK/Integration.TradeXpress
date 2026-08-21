@@ -16,7 +16,7 @@ namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
 /// KARAKTERİZASYON ağı (S1, 2026-07-09) — N11 attribute-reconcile mekaniğinin MEVCUT davranışını kilitler
-/// (SynchronizeStockItemsAsync + klon-sonra-ayrış taslağı; public AppService yüzeyinden, gerçek
+/// (SynchronizeStockItemsAsync + klon-sonra-ayrış taslağı; public AppService üzerinden, gerçek
 /// Sqlite repository'leriyle — EfCore concrete: EfCoreSalesChannelTrN11ProductAttributeReconcileTests). S2-S4
 /// paylaşılan çekirdeğe taşıma sırasında imza formatı/koruma/silme/eşleştirme davranışı değişirse KIRMIZI olur.
 /// </summary>

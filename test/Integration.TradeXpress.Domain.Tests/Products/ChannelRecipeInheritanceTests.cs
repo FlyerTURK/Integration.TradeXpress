@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Products;
 /// <summary>
 /// <see cref="ChannelRecipeInheritance"/> davranış testleri (saf birim — DB/DI YOK).
 ///
-/// <para><b>Kilitlenen model</b> (2026-08-11 Hakan tasarımı): çekirdek varyant reçetesi OTORİTEDİR, kanal
+/// <para><b>Kilitlenen model</b> (2026-08-11 Hakan tasarımı): core varyant reçetesi OTORİTEDİR, kanal
 /// reçetesi ondan TÜRER ve yalnız override hakkı vardır. "Override edildi mi" sorusu kalıcı bir bayrakla
 /// değil, emtia İMZALARININ karşılaştırılmasıyla cevaplanır — bayrak, yalan söyleyebilen ikinci bir durum
 /// olurdu.</para>
@@ -40,7 +40,7 @@ public class ChannelRecipeInheritanceTests
     [Fact]
     public void An_extra_commodity_on_the_channel_means_the_variant_was_overridden()
     {
-        // HAKAN'IN ÖRNEĞİ: çekirdek A+B+C, kanal A+B+C+D → kullanıcı kanalda bileşime dokunmuş.
+        // HAKAN'IN ÖRNEĞİ: core A+B+C, kanal A+B+C+D → kullanıcı kanalda bileşime dokunmuş.
         var core = new[] { Commodity(MetalA, 7m), Commodity(MetalB, 2m), Commodity(MetalC, 1m) };
         var channel = new[] { Commodity(MetalA, 7m), Commodity(MetalB, 2m), Commodity(MetalC, 1m), Commodity(MetalD, 3m) };
 
@@ -116,7 +116,7 @@ public class ChannelRecipeInheritanceTests
     public void Line_order_and_description_do_not_affect_inheritance()
     {
         // Sıra kozmetiktir; imzaya girmez. Aksi halde kullanıcı satırları sürükleyince bileşim
-        // "değişmiş" sayılır ve kanal çekirdekten kopardı.
+        // "değişmiş" sayılır ve kanal core'dan kopardı.
         var core = new[] { Commodity(MetalA, 7m), Commodity(MetalB, 2m) };
         var channel = new[] { Commodity(MetalB, 2m), Commodity(MetalA, 7m) };
 

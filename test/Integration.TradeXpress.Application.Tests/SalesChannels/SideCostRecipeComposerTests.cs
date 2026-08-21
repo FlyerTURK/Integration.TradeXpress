@@ -26,7 +26,7 @@ public class SideCostRecipeComposerTests
 
     private readonly ProductRecipeCostCalculator _calculator = new();
 
-    // Doğal birim → "1 birim = X ülke parası" (SATIŞ bacağı; TRY ülke birimi).
+    // Doğal birim → "1 birim = X ülke parası" (SATIŞ yönü; TRY ülke birimi).
     private static Dictionary<Guid, decimal> Sell()
     {
         return new Dictionary<Guid, decimal> { [Try] = 1m, [Usd] = 40m };

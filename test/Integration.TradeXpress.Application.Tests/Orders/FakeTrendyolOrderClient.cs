@@ -8,7 +8,7 @@ using Integration.TradeXpress.Trendyol;
 namespace Integration.TradeXpress.Orders;
 
 /// <summary>
-/// Trendyol SİPARİŞ REST istemcisinin TEST sahtesi — testte ağ yok (READ-ONLY ilkenin test aynası). Sahte ağı VE
+/// Trendyol SİPARİŞ REST istemcisinin TEST sahtesi — testte ağ yok (READ-ONLY ilke testte de korunur). Sahte ağı VE
 /// tarih-pencerelerini yok sayar: <see cref="RemoteOrders"/>'a konan siparişleri <see cref="GetAllOrdersAsync"/> TEK
 /// sefer döndürür (gerçek client pencere/sayfa döngüsünü yapar; onun saf döngüleri ayrı birim testlerde doğrulanır).
 /// </summary>

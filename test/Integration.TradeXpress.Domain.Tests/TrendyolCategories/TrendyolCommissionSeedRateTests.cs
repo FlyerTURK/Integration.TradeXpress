@@ -9,7 +9,7 @@ namespace Integration.TradeXpress.TrendyolCategories;
 ///
 /// <para><b>Neden ayrı bir ağ:</b> oran tablosu elle bakımı yapılan bir veri kümesidir ve bozulma biçimi
 /// SESSİZDİR — "21.75" yerine "2175" yazmak derlenir, testler yeşil kalır, yalnız fiyat saçmalar. Aralık
-/// iddiası bu sınıf hatayı kırmızıya çevirir. Kalıtım DAVRANIŞI ayrı yerde çivilenir:
+/// iddiası bu sınıf hatayı kırmızıya çevirir. Kalıtım DAVRANIŞI ayrı yerde sabitlenir:
 /// <c>TrendyolCommissionResolverTests</c>.</para>
 /// </summary>
 public class TrendyolCommissionSeedRateTests

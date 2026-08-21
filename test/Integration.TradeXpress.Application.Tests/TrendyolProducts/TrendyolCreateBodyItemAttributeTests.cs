@@ -8,9 +8,9 @@ using Xunit;
 namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>
-/// TRENDYOL CREATE GÖVDESİNDE ITEM-DÜZEYİ ATTRIBUTE — <see cref="TrendyolProductClient.BuildCreateBody"/>.
+/// TRENDYOL CREATE BODY'SİNDE ITEM-DÜZEYİ ATTRIBUTE — <see cref="TrendyolProductClient.BuildCreateBody"/>.
 ///
-/// <para><b>Çivilenen hata:</b> gövde ürün-seviyesi nitelikleri her item'a AYNEN kopyalıyordu; item'ın kendi
+/// <para><b>Çivilenen hata:</b> body ürün-seviyesi nitelikleri her item'a AYNEN kopyalıyordu; item'ın kendi
 /// (eksen) niteliği diye bir kavram yoktu. Çok varyantlı üründe iki sonuçtan biri yaşanıyordu: ya ilk varyantın
 /// eksen değeri ("Kırmızı") TÜM varyantlara gidiyordu (eski import ürün seviyesine yazarken) ya da eksen beyanı
 /// push'a HİÇ girmiyordu (import düzeltmesinden sonra). Artık her item ürün-seviyesi + KENDİ eksen değerleriyle

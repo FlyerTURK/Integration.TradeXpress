@@ -61,7 +61,7 @@ public class TrendyolSkuPendingContentAndAxisTests
             new TrendyolRemoteListingState(AxisValues: new[] { red }));
         product.Skus[0].RemoteVariantAttributes.ShouldHaveSingleItem().AttributeValueId.ShouldBe(686234);
 
-        // null = bildirilmedi → mevcut KORUNUR (kimlik-only yeniden-bağlama çağrısı fotoğrafı silmesin).
+        // null = bildirilmedi → mevcut KORUNUR (kimlik-only yeniden-bağlama çağrısı snapshot'ı silmesin).
         product.UpsertImportedSku(variantId, Barcode, "STK-1", null, new TrendyolRemoteListingState(Quantity: 3));
         product.Skus[0].RemoteVariantAttributes.ShouldHaveSingleItem();
 

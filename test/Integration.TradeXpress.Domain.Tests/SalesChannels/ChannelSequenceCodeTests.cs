@@ -5,7 +5,7 @@ using Xunit;
 namespace Integration.TradeXpress.SalesChannels;
 
 /// <summary>
-/// <see cref="ChannelSequenceCode"/> mekanik ağı — "-1" YASAĞININ çivisi (2026-08-07 Hakan bulgusu).
+/// <see cref="ChannelSequenceCode"/> konvansiyon testi — "-1" YASAĞININ sabitleyicisi (2026-08-07 Hakan bulgusu).
 ///
 /// <para>Altı kanal üreticisi (SellerCode · ProductMainId · SellerSkuBase + üç varyant SKU kodu) bu tek kurala
 /// bağlı: ilk sahip çıplak kodu alır, son ek 2'den başlar. Kural burada gevşetilirse (ör. birisi "-1"i geri

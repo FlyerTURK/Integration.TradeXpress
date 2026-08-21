@@ -13,10 +13,10 @@ using Xunit;
 namespace Integration.TradeXpress.Orders;
 
 /// <summary>
-/// SİPARİŞ SENKRON ZİNCİRİ — seed ↔ delta ayrımı, iptal köprüsü, idempotens.
+/// SİPARİŞ SENKRON ZİNCİRİ — seed ↔ delta ayrımı, iptal bildirimi (<c>NotifyCancellationRequestedAsync</c>), idempotens.
 ///
 /// <para><b>Neden bu testler:</b> <c>OrderSyncManager</c>'ın N11 dalını koşan SIFIR test vardı. Zincirin
-/// tamamı (çekim → satır yazımı → ürün eşleştirme → rezervasyon → iptal köprüsü) yalnız canlıda çalışıyordu ve
+/// tamamı (çekim → satır yazımı → ürün eşleştirme → rezervasyon → iptal bildirimi) yalnız canlıda çalışıyordu ve
 /// her halkası sessiz başarısızlığa açıktı.</para>
 ///
 /// <para><b>Sahte istemci ÇAĞRILARI KAYDEDER:</b> seed ile delta aynı siparişleri döndürdüğü için, iki kolun
@@ -137,8 +137,8 @@ public abstract class OrderSyncChainTests<TStartupModule> : TradeXpressApplicati
         }
     }
 
-    /// <summary>⑤ İPTAL edilmiş sipariş çekilirse rezervasyon KURULMAZ (terminal kapısı) — köprü de kayıt
-    /// UYDURMAZ. İptal kararı ancak ZATEN rezerve edilmiş bir siparişte anlamlıdır.</summary>
+    /// <summary>⑤ İPTAL edilmiş sipariş çekilirse rezervasyon KURULMAZ (terminal guard'ı) —
+    /// <c>NotifyCancellationRequestedAsync</c> de kayıt UYDURMAZ. İptal kararı ancak ZATEN rezerve edilmiş bir siparişte anlamlıdır.</summary>
     [Fact]
     public async Task Cancelled_order_neither_reserves_nor_invents_a_decision()
     {
@@ -160,7 +160,7 @@ public abstract class OrderSyncChainTests<TStartupModule> : TradeXpressApplicati
     }
 
     /// <summary>⑥ Eşleştirme adayları YALNIZ çalışılan şirketin ürünlerini döndürür.
-    /// <para>Aday listesi kullanıcının GÖRDÜĞÜ bir yüzeydir: yabancı şirketin ürün adları buradan sızarsa
+    /// <para>Aday listesi kullanıcının GÖRDÜĞÜ bir ekrandır: yabancı şirketin ürün adları buradan sızarsa
     /// hiçbir hata oluşmaz, yalnız görülmemesi gereken veri görünür.</para></summary>
     [Fact]
     public async Task Match_candidates_are_scoped_to_the_working_company()

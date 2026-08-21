@@ -57,7 +57,7 @@ public class ValidationDisplayNameParityTests
         "PropertyName",         // SpecialCodeDtos — sistem tanımlayıcısı (property adı)
 
         // NOT (2026-08-01): İlk taramanın 35 "geçici" girdisi, bare anahtarları tr+en'e eklendiği için
-        // listeden BUDANDI — bu adlar artık mekanik ağın korumasında: anahtar silinirse test KIRMIZI yanar.
+        // listeden BUDANDI — bu adlar artık konvansiyon testiın korumasında: anahtar silinirse test KIRMIZI yanar.
     };
 
     // Attribute satırı doğrulama ailesi mi? "[Required]"/"[StringLength(..)]"/"[Required, StringLength(..)]"

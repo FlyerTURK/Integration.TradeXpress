@@ -86,7 +86,7 @@ public class ChannelQuestionTests
     public void Second_fetch_keeps_the_first_seen_stamp()
     {
         // BU TESTİN VARLIK SEBEBİ: pazaryeri 24 saatlik cevap süresini satıcı puanına işler ve geri sayım
-        // FirstSeenAt üzerinden hesaplanır. Tazeleme çekimi bu damgayı yenileseydi SLA sayacı her senkronda
+        // FirstSeenAt üzerinden hesaplanır. Tazeleme çekimi bu timestamp'i yenileseydi SLA sayacı her senkronda
         // sıfırlanır, gecikmiş soru "yeni gelmiş" gibi görünür, ceza fark edilmeden birikirdi.
         var question = BuildQuestion();
 
@@ -132,7 +132,7 @@ public class ChannelQuestionTests
     [Fact]
     public void Answer_marked_ready_enters_the_send_queue()
     {
-        // ReadyToSend push açıldığında drenajın çekeceği durumdur; yazma anı yine de AnsweredAt'e damgalanır
+        // ReadyToSend push açıldığında drenajın çekeceği durumdur; yazma anı yine de AnsweredAt'e yazılır
         // (gönderim anı AYRI alandır ve push kapalıyken boş kalır).
         var question = BuildQuestion();
 
@@ -162,7 +162,7 @@ public class ChannelQuestionTests
         question.AnswerText.ShouldBe("Evet, 14 ayar.");   // gönderilen metin olduğu gibi durur
     }
 
-    // ── 5) Teslim damgaları: Sent / Failed ─────────────────────────────────────────────────────────
+    // ── 5) Teslim timestamp'leri: Sent / Failed ────────────────────────────────────────────────────
 
     [Fact]
     public void MarkAnswerSent_requires_an_answer()
@@ -181,7 +181,7 @@ public class ChannelQuestionTests
     [Fact]
     public void MarkAnswerSent_stamps_the_delivery()
     {
-        // "Gönderildi" yalnız GERÇEK gönderim anıyla birlikte anlamlıdır — durum + damga aynı anda kurulur.
+        // "Gönderildi" yalnız GERÇEK gönderim anıyla birlikte anlamlıdır — durum + timestamp aynı anda kurulur.
         var question = BuildQuestion();
         question.WriteAnswer("Evet, 14 ayar.", readyToSend: true, AnsweredAt);
 
@@ -268,7 +268,7 @@ public class ChannelQuestionTests
         return new ChannelQuestion(CompanyId, ChannelId, SalesChannelType.TrN11, remoteQuestionId);
     }
 
-    /// <summary>Çekim çağrısını okunur kılan sarmalayıcı — testler yalnız ilgilendikleri alanı geçer.</summary>
+    /// <summary>Çekim çağrısını okunur kılan yardımcı metot — testler yalnız ilgilendikleri alanı geçer.</summary>
     private static void ApplyRemote(
         ChannelQuestion question,
         DateTime fetchedAt,

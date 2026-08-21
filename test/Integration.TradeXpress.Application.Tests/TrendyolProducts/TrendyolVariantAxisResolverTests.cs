@@ -39,7 +39,7 @@ public class TrendyolVariantAxisResolverTests
     [Fact]
     public void Attributes_shared_by_every_item_stay_at_product_level()
     {
-        // ÇİVİLENEN HATA: eskiden ürün nitelikleri ilk kalemden OLDUĞU GİBİ alınıyordu; eksen de içine
+        // SABİTLENEN HATA: eskiden ürün nitelikleri ilk kalemden OLDUĞU GİBİ alınıyordu; eksen de içine
         // karışıyor ve birinci varyantın değeri ürüne yazılıyordu.
         var plan = TrendyolVariantAxisResolver.Resolve(new[]
         {

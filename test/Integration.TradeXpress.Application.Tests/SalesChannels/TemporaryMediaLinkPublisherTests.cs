@@ -14,7 +14,7 @@ using Xunit;
 namespace Integration.TradeXpress.SalesChannels;
 
 /// <summary>
-/// GEÇİCİ GÖRSEL LİNKİ YAYINCISI — ağ olmadan (sahte işleyici) gövde/duruş ağı.
+/// GEÇİCİ GÖRSEL LİNKİ YAYINCISI — ağ olmadan (sahte işleyici) body/duruş ağı.
 ///
 /// <para><b>Neden ağ:</b> push görselleri artık bu yoldan gidiyor; yanlış form alanı ya da hata metnini URL
 /// sanmak, Trendyol'a çekilemeyen adres göndermek demek — HTTP 200 döner, listing görselsiz kalır, log temiz
@@ -136,7 +136,7 @@ public class TemporaryMediaLinkPublisherTests
         Build(new FakeHandler(), enabled: false).IsEnabled.ShouldBeFalse();
     }
 
-    /// <summary>KAPI YAPISALDIR: kapalıyken PublishAsync doğrudan çağrılsa bile içerik okunmaz, dış ağa çıkılmaz,
+    /// <summary>GUARD YAPISALDIR: kapalıyken PublishAsync doğrudan çağrılsa bile içerik okunmaz, dış ağa çıkılmaz,
     /// <c>null</c> döner. Eski hâlde bu koruma yalnız çağırandaki <c>IsEnabled</c> koşuluna dayanıyordu — ikinci
     /// bir çağıran eklendiğinde sessizce kaybolurdu (bağımsız denetim bulgusu, 2026-08-14).</summary>
     [Fact]

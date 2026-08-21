@@ -57,7 +57,7 @@ public abstract class MetalVariantPreviewTests<TStartupModule> : TradeXpressAppl
             mainVariant.IsMain.ShouldBeTrue();
             mainVariant.Id.ShouldNotBe(Guid.Empty);
 
-            // 2) Poster'lı DAM medyası + ana varyanta VARSAYILAN link — public Update yüzeyinden (uçtan uca:
+            // 2) Poster'lı DAM medyası + ana varyanta VARSAYILAN link — public UpdateAsync üzerinden (uçtan uca:
             //    graf save "MetalVariant" bağlamına EntityMediaLink yazar).
             var media = await CreateMediaWithPosterAsync();
             mainVariant.Media.Add(new EntityMediaLinkEditDto { MediaId = media.Id, IsDefault = true });

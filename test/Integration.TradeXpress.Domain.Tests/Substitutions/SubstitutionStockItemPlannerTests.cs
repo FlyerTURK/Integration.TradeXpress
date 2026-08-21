@@ -8,7 +8,7 @@ using Xunit;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Saf köprü planlayıcısı karakterizasyonu — <see cref="SubstitutionStockItemPlanner"/> (DB'siz/DI'sız;
+/// Saf planlayıcı karakterizasyonu — <see cref="SubstitutionStockItemPlanner"/> (DB'siz/DI'sız;
 /// SubstitutionSolver test deseni). SSOT: konsept 12gr örneği — 6 başarılıdan TopN=3 → 3 plan kaydı;
 /// değer metinleri, reçete satırları, paket sayıları ve Rank1 = ANA varyant kilitlenir. Tolerans ticari
 /// bildirim metni (konsept madde 3) de burada pinlenir — push entegrasyonu ayrı dilim, metin üretimi bu dilimde.

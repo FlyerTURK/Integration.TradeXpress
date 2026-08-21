@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Orchestration;
 /// <summary>
 /// EMTİA STOK TETİĞİNİN ANAHTAR TOPLAYICISI — <see cref="CommodityStockChangeQueuer.CollectKeys"/>.
 ///
-/// <para>Bu iskelet üç sınıfa birebir kopyalanmıştı ve DÖRDÜNCÜSÜ (rezervasyonun serbest bırakılması) hiç
+/// <para>Bu mantık üç sınıfa birebir kopyalanmıştı ve DÖRDÜNCÜSÜ (rezervasyonun serbest bırakılması) hiç
 /// yoktu. Kopyaların birleştirilmesi davranış-koruyan bir refactor'dı; buradaki testler o davranışın
 /// sözleşmesini yazıya döküyor.</para>
 ///

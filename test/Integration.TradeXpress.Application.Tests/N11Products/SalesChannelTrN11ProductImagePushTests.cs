@@ -20,11 +20,11 @@ namespace Integration.TradeXpress.N11Products;
 ///
 /// <para><b>Neden yazıldı:</b> görsel kaynağı legacy <c>ProductImage</c>'dan merkezi DAM'a taşınacak
 /// (K2 kararı). Bugünkü push davranışının HİÇBİR testi yoktu: mevcut push testleri yalnız
-/// <c>ImagesRequired</c> guard'ını geçmek için fixture kuruyor, sıra/kapak/numaralandırma assert etmiyordu.
+/// <c>ImagesRequired</c> guard'ını geçmek için fixture kuruyor, sıra/cover/numaralandırma assert etmiyordu.
 /// Kaynak değiştiğinde sessizce bozulabilecek dört kural burada kilitlenir.</para>
 ///
 /// <para><b>Göç sonrası:</b> bu testler AYNEN geçmeli — yalnız fixture DAM'a kurulacak şekilde değişir.
-/// Kırmızı yanarlarsa pazaryerinde kapak görseli değişmiş ya da sıra bozulmuş demektir.</para>
+/// Kırmızı yanarlarsa pazaryerinde cover görseli değişmiş ya da sıra bozulmuş demektir.</para>
 /// </summary>
 public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
@@ -64,9 +64,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
     [Fact]
     public async Task Cover_image_is_pushed_first_regardless_of_display_order()
     {
-        // KURAL 1: kapak (IsDefault) HER ZAMAN ilk sırada gider — DisplayOrder'ı büyük olsa bile.
-        // DAM'da IsDefault ile DisplayOrder bağımsızdır (3. sıradaki medya kapak olabilir), bu yüzden
-        // sıralama push tarafında AÇIKÇA uygulanmalı; yoksa pazaryerinde kapak görsel değişir.
+        // KURAL 1: cover (IsDefault) HER ZAMAN ilk sırada gider — DisplayOrder'ı büyük olsa bile.
+        // DAM'da IsDefault ile DisplayOrder bağımsızdır (3. sıradaki medya cover olabilir), bu yüzden
+        // sıralama push tarafında AÇIKÇA uygulanmalı; yoksa pazaryerinde cover görsel değişir.
         var companyId = Guid.NewGuid();
         using (_currentCompany.Change(companyId))
         {
@@ -74,7 +74,7 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
             {
                 ("a.jpg", 0, false),
                 ("b.jpg", 1, false),
-                ("cover.jpg", 2, true),   // kapak EN SONDA tanımlı
+                ("cover.jpg", 2, true),   // cover EN SONDA tanımlı
             });
 
             await _appService.PushToN11Async(created.Id);
@@ -230,9 +230,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
             var detail = new ProductVariantDetail(companyId, mainVariant.Id);
             detail.SetSalePrice(100m, null);
 
-            // PUSH KAPISI (2026-08-05): aday olmak fiyat + İNSAN onayı ister. Bu testlerin konusu GÖRSEL
+            // PUSH GUARD'I (2026-08-05): aday olmak fiyat + İNSAN onayı ister. Bu testlerin konusu GÖRSEL
             // seçimi; premis "varyant onaylı" olarak burada AÇIKÇA ilan edilir, yoksa push aday bulamaz ve
-            // testler görselle ilgisiz bir sebeple düşerdi. Tohumda reçete yok → boş-reçete damgası.
+            // testler görselle ilgisiz bir sebeple düşerdi. Seed'de reçete yok → boş-reçete stamp'i.
             detail.MarkVerified(RecipeVerificationStamp.EmptyRecipe, DateTime.UtcNow, verifiedBy: null);
 
             await _variantDetailRepository.InsertAsync(detail, autoSave: true);

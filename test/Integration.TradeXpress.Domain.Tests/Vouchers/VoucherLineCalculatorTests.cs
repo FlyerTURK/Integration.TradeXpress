@@ -72,7 +72,7 @@ public class VoucherLineCalculatorTests
         r.PayTotal.ShouldBe(4500m);
         r.Amount.ShouldBe(100m);
         r.Factor.ShouldBe(1m);            // nakitte çarpan daima 1
-        r.Total.ShouldBe(100m);           // ana bacak toplamı = miktar
+        r.Total.ShouldBe(100m);           // ana leg toplamı = miktar
         r.Profit.ShouldBe(0m);            // piyasa fiyatından işlem → kâr 0
     }
 
@@ -93,7 +93,7 @@ public class VoucherLineCalculatorTests
     [Fact]
     public void Market_price_is_call_order_independent()
     {
-        // USD/TRY hangi bacakta olursa olsun görünen doğal parite aynıdır (45).
+        // USD/TRY hangi leg'de olursa olsun görünen doğal parite aynıdır (45).
         var mainUsd = VoucherLineCalculator.Calculate(
             Input(mainUnitId: UsdId, payUnitId: TryId, amount: 1m), BuyRate, ParityMain(UsdId));
         var mainTry = VoucherLineCalculator.Calculate(
@@ -156,7 +156,7 @@ public class VoucherLineCalculatorTests
 
         r.PayFactor.ShouldBe(45m);
         r.Amount.ShouldBe(100m);
-        r.Total.ShouldBe(100m);           // türetilen miktar ana bacağa da yansır
+        r.Total.ShouldBe(100m);           // türetilen miktar ana leg'e de yansır
         r.PayTotal.ShouldBe(4500m);
     }
 
@@ -399,7 +399,7 @@ public class VoucherLineCalculatorTests
     [InlineData(ProcessType.Metal)]
     public void Unit_priced_types_share_cash_parity_math(ProcessType processType)
     {
-        // Çevir/Vadeli/Hurda/Maden pay-bacağı Nakit ile aynı parite matematiğini kullanır.
+        // Çevir/Vadeli/Hurda/Maden pay leg'i Nakit ile aynı parite matematiğini kullanır.
         var r = VoucherLineCalculator.Calculate(
             Input(processType: processType, mainUnitId: UsdId, payUnitId: TryId, amount: 100m),
             BuyRate, ParityMain(UsdId));

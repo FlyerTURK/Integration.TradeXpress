@@ -69,7 +69,7 @@ public class DevExpressParameterExistenceTests
                 var type = dxAssembly.GetType("DevExpress.Blazor." + componentName);
                 if (type is null)
                 {
-                    continue;   // bizim sarmalımız ya da başka namespace — bu ağın konusu değil
+                    continue;   // bizim kendi bileşenimiz ya da başka namespace — bu ağın konusu değil
                 }
 
                 var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);

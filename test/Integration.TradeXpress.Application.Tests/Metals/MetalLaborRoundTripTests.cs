@@ -130,7 +130,7 @@ public abstract class MetalLaborRoundTripTests<TStartupModule> : TradeXpressAppl
     }
 
     /// <summary>Varyant picker'ı HER VARYANTIN KENDİ bayrağını döndürmeli — A4'ün (fiş VariantId=B kaydedip
-    /// A'nın işçiliğini tahsil etme) veri-kaynağı ayağı. Panel code-behind'i test edilemez; kaynak burada pinlenir.</summary>
+    /// A'nın işçiliğini tahsil etme) veri-kaynağı tarafı. Panel code-behind'i test edilemez; kaynak burada pinlenir.</summary>
     [Fact]
     public async Task Variant_picker_carries_flags_per_variant()
     {

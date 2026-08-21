@@ -12,13 +12,13 @@ using Xunit;
 namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
-/// ÇİFT-BACAK (karşı hesap) ağı — 2026-07-26'da karşı hesap virman DIŞINDAKİ tiplere de açıldı
+/// ÇİFT-LEG (karşı hesap) ağı — 2026-07-26'da karşı hesap virman DIŞINDAKİ tiplere de açıldı
 /// (kargo gideri: kanal fişinde hizmet çıkışı ↔ kargo firmasının fişinde giriş). Bu dosya iki şeyi korur:
 /// <list type="number">
 ///   <item><b>Virman REGRESYONU</b>: değişiklikten sonra da virman aynen çalışmalı — karşı hesaba yeni fiş
-///   açılır, ters yönlü ayna satır yazılır, iki bakiye simetrik doğar, açıklamada kaynak kodu geçer.</item>
-///   <item><b>Yeni davranış</b>: hizmet satırı karşı hesapla kaydedilince aynı ayna kurulur; karşı hesap
-///   BOŞ bırakılırsa ayna fiş AÇILMAZ (tek bacak).</item>
+///   açılır, ters yönlü twin satır yazılır, iki bakiye simetrik doğar, açıklamada kaynak kodu geçer.</item>
+///   <item><b>Yeni davranış</b>: hizmet satırı karşı hesapla kaydedilince aynı twin kurulur; karşı hesap
+///   BOŞ bırakılırsa twin fiş AÇILMAZ (tek leg).</item>
 /// </list>
 /// Mock yok — üretim yolu (<c>SaveLineAsync</c>) çalıştırılır.
 /// </summary>
@@ -58,7 +58,7 @@ public class VoucherCounterAccountTests : TradeXpressEntityFrameworkCoreTestBase
         snapshot.ShouldContain(v => v.SubAccountId == data.SubAccountId);
         snapshot.ShouldContain(v => v.SubAccountId == counterId);
 
-        // Ayna satır: yön TERS, karşı referans kaynağa döner, LinkId ortak.
+        // Twin satır: yön TERS, karşı referans kaynağa döner, LinkId ortak.
         var primaryLine = snapshot.Single(v => v.SubAccountId == data.SubAccountId).Lines.Single();
         var twinLine    = snapshot.Single(v => v.SubAccountId == counterId).Lines.Single();
 
@@ -75,7 +75,7 @@ public class VoucherCounterAccountTests : TradeXpressEntityFrameworkCoreTestBase
         ledger.Sum(e => e.Amount).ShouldBe(0m);
     }
 
-    /// <summary>YENİ: hizmet satırı karşı hesapla → aynı ayna kurulur (kargo gideri bu yolla işler).</summary>
+    /// <summary>YENİ: hizmet satırı karşı hesapla → aynı twin kurulur (kargo gideri bu yolla işler).</summary>
     [Fact]
     public async Task Service_line_with_counter_account_creates_mirrored_voucher()
     {
@@ -93,7 +93,7 @@ public class VoucherCounterAccountTests : TradeXpressEntityFrameworkCoreTestBase
 
         snapshot.Count.ShouldBe(2);
         var twin = snapshot.Single(v => v.SubAccountId == counterId).Lines.Single();
-        twin.Type.ShouldBe(ProcessType.Service);                    // ayna TİPİ korur
+        twin.Type.ShouldBe(ProcessType.Service);                    // twin TİPİ korur
         twin.Direction.ShouldBe(ProcessDirectionType.Inbound);      // yön ters
         twin.CounterAccountId.ShouldBe(data.SubAccountId);          // karşı referans kaynağa döner
 
@@ -106,7 +106,7 @@ public class VoucherCounterAccountTests : TradeXpressEntityFrameworkCoreTestBase
         ledger.Sum(e => e.Amount).ShouldBe(0m);
     }
 
-    /// <summary>Karşı hesap BOŞ hizmet satırı → ayna fiş AÇILMAZ (tek bacak; eski davranış korunur).</summary>
+    /// <summary>Karşı hesap BOŞ hizmet satırı → twin fiş AÇILMAZ (tek leg; eski davranış korunur).</summary>
     [Fact]
     public async Task Service_line_without_counter_account_stays_single_legged()
     {

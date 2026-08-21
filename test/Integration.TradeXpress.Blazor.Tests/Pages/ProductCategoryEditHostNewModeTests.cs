@@ -22,7 +22,7 @@ namespace Integration.TradeXpress.Blazor.Tests.Pages;
 /// <para><b>Neden var (2026-08-03):</b> framework konvansiyonu "yeni kayıt" için <c>Guid.Empty</c> kullanır
 /// (her edit host <c>CrudEditHost Id="@(Id ?? Guid.Empty)"</c> ile bağlanır). Bu host yalnız <c>null</c>
 /// kontrol ediyor, <c>Guid.Empty</c>'yi KAYITLI id sanıp sunucuya gönderiyordu; sonuç:
-/// <i>"There is no such an entity ... id: 00000000-0000-0000-0000-000000000000"</i> ve çekirdek ürün formunda
+/// <i>"There is no such an entity ... id: 00000000-0000-0000-0000-000000000000"</i> ve ürünün kendi formunda
 /// kategori seçicisi açılamıyordu. Hata DERLEME ile yakalanamaz — yalnız o yol koşunca patlar.</para>
 ///
 /// <para>Bu test iki hâli de kilitler: boş id ile sunucuya HİÇ gidilmemeli, dolu id ile GİDİLMELİ.</para>

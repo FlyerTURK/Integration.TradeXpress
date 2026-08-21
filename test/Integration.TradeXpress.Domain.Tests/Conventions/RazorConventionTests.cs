@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.Conventions;
 /// Razor yazım konvansiyonlarının MEKANİK güvenlik ağı (governance Katman 2). Bu test KIRMIZIYSA bir .razor
 /// dokümante UI kuralını çiğnemiştir — kural yalnız memory'de/insan dikkatinde kalmasın, <c>dotnet test</c>'te
 /// yakalansın. Kaynak kurallar: ui-blazor (code-behind · ikon-seti · _Imports toplama). EntityConventionTests
-/// ile aynı iskelet: <c>src/**/*.razor</c> tek geçiş taranır (obj/bin hariç), ihlal listesi tek mesajda verilir.
+/// ile aynı kurgu: <c>src/**/*.razor</c> tek geçiş taranır (obj/bin hariç), ihlal listesi tek mesajda verilir.
 /// <para>Allow-list'ler = MEVCUT durum (grep kanıtıyla dolduruldu → golden YEŞİL). Listede OLMAYAN yeni dosya
 /// ihlal ederse KIRMIZI. Allow-list'e ekleme = bilinçli istisna; yanına gerekçe yaz.</para>
 /// </summary>
@@ -263,7 +263,7 @@ public class RazorConventionTests
         // Kural (ui-blazor §DevExpress gotcha'ları): @* *@ bir bileşen etiketinin ATTRIBUTE'ları arasına konamaz.
         // Blazor yorumu parametre ADI sanır ve çalışma anında patlar: "does not have a property matching the
         // name '@* ... *@'" → sayfa "Beklenmeyen hata", circuit kopar. Derleme bunu YAKALAMAZ; bu yüzden
-        // mekanik ağ şart (2026-07-27: kural yazılıydı ama yine ihlal edildi). Yorum etiketin DIŞINA alınır.
+        // konvansiyon testi şart (2026-07-27: kural yazılıydı ama yine ihlal edildi). Yorum etiketin DIŞINA alınır.
         var violations = new List<string>();
 
         foreach (var file in ConventionSource.EnumerateSource("*.razor"))
@@ -349,6 +349,100 @@ public class RazorConventionTests
     /// çıkarır — liste kodda değişirse test sözleşmeyi otomatik takip eder.</summary>
     private static readonly Regex EditHostTypeofRegex = new(@"typeof\(\s*([A-Za-z0-9_.]*\.)?(\w+EditHost)\s*\)", RegexOptions.Compiled);
 
+    /// <summary>Reçete panelindeki katalog combo'sunun "+" düğmesinin üründen seed'leyen akışa bağlandığı desen.</summary>
+    private static Regex SeedFromProductWiringRegex(string family) =>
+        new(@"AddCommodityFromProductAsync\s*\(\s*ProcessType\." + Regex.Escape(family) + @"\s*\)", RegexOptions.Compiled);
+
+    [Fact]
+    public void Every_recipe_catalog_combo_seeds_its_new_commodity_from_the_product()
+    {
+        // BU TEST ŞU HATAYI SABİTLER (2026-08-20 haritasında yakalandı): reçete panelinde YEDİ ailenin de
+        // katalog combo'su var ama "+" düğmesi yalnız ÜÇÜNDE (Maden · Mücevher · Mamül) üründen seed'leyen
+        // akışa bağlıydı. Kalan dördünde düğme yine ÇİZİLİYOR (LookupComboBox, ILookupEditComponentRegistry'den
+        // düz "yeni kayıt" formunu çözüyor) ve form BOMBOŞ açılıyordu — kullanıcı ürüne bakıp aynı kodu/adı
+        // ikinci kez giriyordu. Hata sessiz: istisna yok, log yok, düğme "çalışıyor" görünüyor.
+        //
+        // Aile listesi ProductCommoditySeed.EditComponentOf'tan TÜRETİLİR: sekizinci aile eklendiğinde bu test
+        // onu kendiliğinden ister, ayrıca güncellenmesi gereken ikinci bir liste tutmayız.
+        //
+        // HİZMET BİLİNÇLE KAPSAM DIŞI ve bu, markup'tan DOĞAL olarak çıkar: reçetedeki hizmet satırı bir emtia
+        // değil ÜCRET kalemidir (RecipeComponentType.Service) ve combo'su ProcessType taşımaz. Ürünün kod/adıyla
+        // bir hizmet açmak, "İşçilik" yerine ürün adında bir hizmet kaydı üretirdi. Aşağıdaki filtre bu yüzden
+        // "markup'ta ProcessType.{Aile} geçiyor mu" diye sorar — istisna listesi tutmaya gerek yok.
+        var seedSource = ConventionSource.EnumerateSource("ProductCommoditySeed.cs").FirstOrDefault();
+        seedSource.ShouldNotBeNull("ProductCommoditySeed.cs bulunamadı — aile listesi taranamıyor.");
+
+        var families = EditHostTypeofRegex.Matches(File.ReadAllText(seedSource))
+            .Select(m => m.Groups[2].Value.Replace("EditHost", string.Empty, StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        families.ShouldNotBeEmpty("EditComponentOf switch'inden aile çıkarılamadı — regex bayat olabilir.");
+
+        var panel = ConventionSource.EnumerateSource("ProductRecipePanel.razor").FirstOrDefault();
+        panel.ShouldNotBeNull("ProductRecipePanel.razor bulunamadı.");
+        var markup = File.ReadAllText(panel!);
+
+        var violations = families
+            .Where(family => markup.Contains($"ProcessType.{family}", StringComparison.Ordinal))
+            .Where(family => !SeedFromProductWiringRegex(family).IsMatch(markup))
+            .Select(family => $"{family}: reçete panelindeki combo'nun \"+\" düğmesi üründen tohumlu akışa bağlı değil "
+                            + "(OnAddRequested → AddCommodityFromProductAsync); form boş açılır.")
+            .ToList();
+
+        violations.ShouldBeEmpty(
+            "Katalog combo'larının \"+\" düğmesi üründen tohumlanmıyor:"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    [Fact]
+    public void Edit_hosts_of_variantless_families_never_seed_a_variant()
+    {
+        // BU TEST ŞU HATAYI SABİTLER: StoneEditHost, Jewelry/Metal'den kopyalanmış bir "ana varyant seed'le"
+        // satırı taşıyordu — oysa Taş 2026-08-09'dan beri VARYANTSIZDIR (CLAUDE.md §6). Satır ÜÇ AÇIDAN ölüydü:
+        // layout'ta varyant sekmesi yok, app service varyant kolunu atlıyor, kullanıcı hiç görmüyor. Ölü kod
+        // zararsız değildir: sonraki denetimde "Taş'ta ana varyant eksik" diye canlandırılmaya adaydır.
+        //
+        // Aile kategorisi tek kaynaktan okunur: CommodityProjectionShapes'te CarriesVariantGraph=false olan aile.
+        var shapeSource = ConventionSource.EnumerateSource("CommodityProjectionShapes.cs").FirstOrDefault();
+        shapeSource.ShouldNotBeNull("CommodityProjectionShapes.cs bulunamadı — aile kategorisi taranamıyor.");
+        var shapeText = File.ReadAllText(shapeSource!);
+
+        var variantlessFamilies = Regex
+            .Matches(shapeText, @"(\w+)Shape\s*=\s*new\(\s*EntityName:[^)]*?CarriesVariantGraph:\s*false", RegexOptions.Singleline)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        variantlessFamilies.ShouldNotBeEmpty("Varyantsız aile bulunamadı — şekil tablosunun biçimi değişmiş olabilir.");
+
+        var hostFiles = ConventionSource.EnumerateSource("*.razor.cs")
+            .ToDictionary(f => Path.GetFileNameWithoutExtension(f.Replace(".razor.cs", ".razor")), StringComparer.Ordinal);
+
+        var violations = new List<string>();
+        foreach (var family in variantlessFamilies)
+        {
+            if (!hostFiles.TryGetValue($"{family}EditHost", out var file))
+            {
+                continue;   // Her ailenin EditHost'u olmak zorunda değil; varlığı ayrı testin konusu.
+            }
+
+            // YORUMLAR SOYULUR: bu onarımın kendisi "buraya varyant seed'i EKLEME" diye bir uyarı notu
+            // bıraktı ve ileride biri o notta çağrının adını anacaktır. Ham metinde arasaydık, kuralı
+            // AÇIKLAYAN yorum kuralı ÇİĞNİYOR sayılırdı — testi susturmak için notu silmek gerekirdi.
+            var code = LineCommentRegex.Replace(
+                BlockCommentRegex.Replace(File.ReadAllText(file), string.Empty), string.Empty);
+
+            if (code.Contains("Variants.Add(", StringComparison.Ordinal))
+            {
+                violations.Add($"{family}EditHost: VARYANTSIZ ailede varyant tohumluyor (Variants.Add) — "
+                             + "kayıt yolu onu zaten atar, satır ölüdür.");
+            }
+        }
+
+        violations.ShouldBeEmpty(
+            "Varyantsız ailelerin formları varyant tohumluyor:"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
     /// <summary><c>[Parameter] public string? X { get; set; }</c> deseni (aynı satırda) — salt X kullanımını değil TANIMINI arar.</summary>
     private static Regex ParameterDeclarationRegex(string name) =>
         new(@"\[Parameter\][^\n;]*\b" + Regex.Escape(name) + @"\b\s*\{\s*get;\s*set;\s*\}", RegexOptions.Compiled);
@@ -359,7 +453,7 @@ public class RazorConventionTests
         // Kural (2026-08-07 U1): sınıflandırma paneli ve reçete panelinin "Üründen" anahtarı emtia formunu
         // extraParams'la (SeedCode/SeedName) açıyor; bu [Parameter]'ları TANIMLAMAYAN host'ta DynamicComponent
         // çalışma anında InvalidOperationException fırlatıp CIRCUIT'İ DÜŞÜRÜR (Good dışı 6 ailede canlıda
-        // yaşandı). Eşleme 2026-08-14'te tek kaynağa indi: ProductCommoditySeed.EditComponentOf — iki yüzey de
+        // yaşandı). Eşleme 2026-08-14'te tek kaynağa indi: ProductCommoditySeed.EditComponentOf — iki panel de
         // oradan okur, test de oradan tarar; liste büyürse sözleşmeyi otomatik takip eder.
         var seedSource = ConventionSource.EnumerateSource("ProductCommoditySeed.cs").FirstOrDefault();
         seedSource.ShouldNotBeNull("ProductCommoditySeed.cs bulunamadı — EditComponentOf sözleşmesi taranamıyor.");
@@ -388,9 +482,15 @@ public class RazorConventionTests
             var text = File.ReadAllText(file);
             var hasSeedCode = ParameterDeclarationRegex("SeedCode").IsMatch(text);
             var hasSeedName = ParameterDeclarationRegex("SeedName").IsMatch(text);
-            if (!hasSeedCode || !hasSeedName)
+
+            // SeedModel de ZORUNLU (2026-08-20): zengin seed artık YEDİ ailede ve İKİ hâlde birden geçiliyor
+            // (kayıtlı ürün → sunucu projeksiyonu, kayıtsız ürün → taslak endpoint). Bu parametreyi
+            // tanımlamayan host'ta extraParams["SeedModel"] gelince DynamicComponent yine circuit'i düşürür —
+            // SeedCode'da yaşanan hatanın aynısı, yalnız daha zengin bir seed ile.
+            var hasSeedModel = ParameterDeclarationRegex("SeedModel").IsMatch(text);
+            if (!hasSeedCode || !hasSeedName || !hasSeedModel)
             {
-                var eksik = (!hasSeedCode ? "SeedCode " : "") + (!hasSeedName ? "SeedName" : "");
+                var eksik = (!hasSeedCode ? "SeedCode " : "") + (!hasSeedName ? "SeedName " : "") + (!hasSeedModel ? "SeedModel" : "");
                 violations.Add($"{host}: eksik [Parameter] → {eksik.Trim()} (panelden extraParams gelince circuit çöker; U1).");
             }
         }

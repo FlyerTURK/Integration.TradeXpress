@@ -126,7 +126,7 @@ public class EfCoreServiceAppServiceTests : TradeXpressEntityFrameworkCoreTestBa
     }
 
     /// <summary>Tenant, host kataloğu kaydını (TenantId=null) düzenleyemez/silemez — taban guard'ı
-    /// (error-code'lar AYNEN korunur). Host kaydı repository ile tohumlanır: per-company modelde
+    /// (error-code'lar AYNEN korunur). Host kaydı repository ile seed'lenir: per-company modelde
     /// AppService üzerinden host kaydı üretilemez (şirket bağlamı yok).</summary>
     [Fact]
     public async Task Tenant_cannot_update_or_delete_a_host_record()

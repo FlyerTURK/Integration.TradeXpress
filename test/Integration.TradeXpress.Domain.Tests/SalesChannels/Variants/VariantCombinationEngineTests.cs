@@ -7,8 +7,8 @@ using Xunit;
 namespace Integration.TradeXpress.SalesChannels.Variants;
 
 /// <summary>
-/// Saf çekirdek karakterizasyonu (S2, 2026-07-09) — <see cref="VariantCombinationEngine"/>'in semantik
-/// sözleşmesini kilitler (kombinatorik + sıra + BuildKey format snapshot). KIRMIZIYSA çekirdek davranışı
+/// Saf motor karakterizasyonu (S2, 2026-07-09) — <see cref="VariantCombinationEngine"/>'in semantik
+/// sözleşmesini kilitler (kombinatorik + sıra + BuildKey format snapshot). KIRMIZIYSA motor davranışı
 /// değişmiş demektir — ERP synchronizer VE kanal reconcile'ları aynı motora bağlı, testi gevşetme.
 /// </summary>
 public class VariantCombinationEngineTests

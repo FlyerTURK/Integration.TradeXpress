@@ -165,10 +165,20 @@ public sealed class FakeN11ProductQueryClient : IN11ProductQueryClient
         return Task.FromResult(Page);
     }
 
-    public Task<IReadOnlyList<N11RestProductSummary>> QueryAllAsync(
+    /// <summary>Sorgu ANINDA koşan opsiyonel kanca — TOCTOU testleri için: snapshot alındıktan SONRA,
+    /// kayıt işlenmeden ÖNCE durum değiştirmek ancak buradan mümkün (mutabakat resolver'ı sorguyu tam bu
+    /// pencerede çağırır).</summary>
+    public Func<Task>? OnQueryAll { get; set; }
+
+    public async Task<IReadOnlyList<N11RestProductSummary>> QueryAllAsync(
         N11ProductQueryFilter filter, string appKey, string appSecret, CancellationToken cancellationToken = default)
     {
         Queries.Add(filter);
-        return Task.FromResult(Page.Items);
+        if (OnQueryAll is not null)
+        {
+            await OnQueryAll();
+        }
+
+        return Page.Items;
     }
 }

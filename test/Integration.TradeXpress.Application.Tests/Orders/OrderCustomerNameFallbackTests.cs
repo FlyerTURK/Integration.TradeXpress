@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Orders;
 /// Sipariş listesindeki "Müşteri" kolonunun boş kalmama garantisi (2026-07-28 Hakan): kanal bu alanı boş
 /// gönderebiliyor (N11'de sık), o durumda sırayla ALICI ve TESLİMAT alıcısı adına düşülür.
 ///
-/// <para>Neden mekanik ağ: fallback tek bir private yardımcıda yaşıyor ve sessizce kaldırılırsa kolon yeniden
+/// <para>Neden konvansiyon testi: fallback tek bir private yardımcıda yaşıyor ve sessizce kaldırılırsa kolon yeniden
 /// boşalır — kimse fark etmez, çünkü dolu müşteri adı olan siparişlerde davranış aynı kalır.</para>
 /// </summary>
 public class OrderCustomerNameFallbackTests
@@ -107,7 +107,7 @@ public class OrderCustomerNameFallbackTests
     }
 
     /// <summary>Fallback AppService'in private yardımcısında yaşıyor; test onu yansımayla çağırır —
-    /// mantığı yalnız test görsün diye public'e açmak (yüzeyi genişletmek) yanlış olurdu.</summary>
+    /// mantığı yalnız test görsün diye public'e açmak (public API'yi genişletmek) yanlış olurdu.</summary>
     private static string? Resolve(Order order)
     {
         var method = typeof(OrderAppService).GetMethod(

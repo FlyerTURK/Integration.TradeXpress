@@ -20,7 +20,7 @@ namespace Integration.TradeXpress.Products;
 /// boş gittiği için ana varyant <c>ANAVARYANT</c> sentinel koduyla doğuyordu. O kod pazaryerine SKU olarak
 /// gidebildiğinden sessiz değil PAHALI bir hatadır.
 ///
-/// <para><b>Sentinel ayrıca çivileniyor:</b> "varyant sayısı doğru" assert'i tek başına geçerken kodların
+/// <para><b>Sentinel ayrıca sabitleniyor:</b> "varyant sayısı doğru" assert'i tek başına geçerken kodların
 /// yanlış olması mümkündü — iki ayrı iddia gerekiyor.</para>
 /// </summary>
 [Collection(TradeXpressTestConsts.CollectionDefinitionName)]
@@ -72,7 +72,7 @@ public class ProductGoodProjectionTests : TradeXpressEntityFrameworkCoreTestBase
     [Fact]
     public async Task A_variantless_product_projects_a_main_variant_coded_after_the_record_not_the_sentinel()
     {
-        // ÇİVİLENEN HATA: varyantsız üründe graf boş gidiyor ve ana varyant "ANAVARYANT" ile doğuyordu.
+        // SABİTLENEN HATA: varyantsız üründe graf boş gidiyor ve ana varyant "ANAVARYANT" ile doğuyordu.
         // Tek varyant bir AYRIM değildir; ayırt edici bir kod taşımasının anlamı yok, kaydın kodunu izler.
         var companyId = await NewCompanyAsync("P2G-BOS");
         var productId = await SeedProductAsync(companyId, "URN-P2G-BOS", variantCount: 0);

@@ -188,7 +188,7 @@ public class TrendyolProductPushValidatorTests
 
     /// <summary>
     /// TEK KALEMLİ İMPORT VAKASI (bağımsız denetim bulgusu, 2026-08-14): tek kalemli grupta eksen çıkarılamaz,
-    /// import "Renk=Kırmızı"yı ÜRÜN seviyesine yazar ve SKU fotoğrafı BOŞ kalır. İlk sürüm ürün-seviyesi
+    /// import "Renk=Kırmızı"yı ÜRÜN seviyesine yazar ve SKU'nun RemoteVariantAttributes'ı BOŞ kalır. İlk sürüm ürün-seviyesi
     /// varianter değeri yalnız ELİYORDU — kaleme taşımadan; sonuç: eksen push'tan tamamen düşüyor, zorunlu-
     /// varianter kategoride Trendyol kesin reddediyordu. Doğru davranış: ürün-seviyesi varianter değer HER
     /// kaleme DEVREDİLİR (aynı ürünün tek değeri — çelişki üretmez).
@@ -200,13 +200,13 @@ public class TrendyolProductPushValidatorTests
         var productAttributes = MaterialFilled();
         productAttributes.Add(new SalesChannelTrTrendyolProductCategoryAttribute(47, 686234, null));   // Renk=Kırmızı ürün seviyesinde
 
-        // Kalemin ne ERP çifti ne fotoğrafı var (tek kalemli import böyle gelir).
+        // Kalemin ne ERP çifti ne RemoteVariantAttributes'ı var (tek kalemli import böyle gelir).
         var result = _validator.Validate(ColorCategory, productAttributes, new[] { Erp(a, "A") });
 
         result.ProductAttributes.ShouldHaveSingleItem().AttributeId.ShouldBe(60);           // ürün seviyesinden yine elenir
         var axis = result.VariantAxes[a];
         axis.Attributes.ShouldHaveSingleItem().AttributeValueId.ShouldBe(686234);            // ama kaleme TAŞINDI
-        axis.Options.ShouldHaveSingleItem().ShouldBe(("Renk", "Kırmızı"));                    // defter okunur çifti
+        axis.Options.ShouldHaveSingleItem().ShouldBe(("Renk", "Kırmızı"));                    // PushHistory'nin okunur çifti
         axis.Signature.ShouldHaveSingleItem().AttributeValueId.ShouldBe(686234);             // yeniden-bağlama imzası da dolu
     }
 

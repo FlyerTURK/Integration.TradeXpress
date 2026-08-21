@@ -9,12 +9,12 @@ using Xunit;
 namespace Integration.TradeXpress.Conventions;
 
 /// <summary>
-/// ZAMAN DAMGASI HAM UTC GÖSTERİLEMEZ (governance Katman 2).
+/// TIMESTAMP HAM UTC GÖSTERİLEMEZ (governance Katman 2).
 ///
 /// <para><b>Kural (CLAUDE.md §6):</b> kayıt UTC, GÖRÜNTÜ kullanıcının yerel saati — dönüşüm MERKEZÎDİR
 /// (<c>UtcLocalText</c> / <c>IDisplayTimeConverter</c>), sayfa-başı elle çeviri yoktur.</para>
 ///
-/// <para><b>Neden mekanik ağ (2026-08-07):</b> kural yazılıydı ama merkezî bileşen yalnız 2 dosyada, 4 yerde
+/// <para><b>Neden konvansiyon testi (2026-08-07):</b> kural yazılıydı ama merkezî bileşen yalnız 2 dosyada, 4 yerde
 /// kullanılıyordu; sipariş listesi/formu ve medya kütüphanesi ham UTC basıyordu. Hata SESSİZ: ekranda hiçbir
 /// yerde "UTC" yazmaz, yalnız saat 3 saat geride görünür. Müşteri "23:40'ta sipariş verdim" derken panoda
 /// 20:40 yazar ve kimse bunu bir hata olarak okumaz. Kural insan dikkatine bırakıldığı sürece her yeni sayfa
@@ -73,7 +73,7 @@ public class DisplayTimeConventionTests
             + string.Join("\n", violations));
     }
 
-    /// <summary>Zaman damgası elle <c>ToString</c> ile basılamaz (ne .razor'da ne code-behind'da).</summary>
+    /// <summary>Timestamp elle <c>ToString</c> ile basılamaz (ne .razor'da ne code-behind'da).</summary>
     [Fact]
     public void Timestamps_must_not_be_formatted_by_hand()
     {

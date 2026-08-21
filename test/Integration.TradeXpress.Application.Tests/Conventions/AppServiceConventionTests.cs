@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.Conventions;
 
 /// <summary>
 /// AppService konvansiyonlarının MEKANİK güvenlik ağı (governance). KIRMIZIYSA bir AppService dokümante kuralı
-/// çiğnemiştir. Gövde-içi kurallar (ham exception vb.) Application analyzer'a bağlandı (ACIK-ISLER:38 — eski
+/// çiğnemiştir. Metot içi kurallar (ham exception vb.) Application analyzer'a bağlandı (ACIK-ISLER:38 — eski
 /// "faz 3 = Roslyn analyzer" notu bayattı, 2026-08-07'de düzeltildi).
 /// </summary>
 public class AppServiceConventionTests
@@ -24,11 +24,11 @@ public class AppServiceConventionTests
     // düzeltildi). Yeni giriş ancak dosya-içi dokümante gerekçeyle olabilir; testi gevşetmek YASAK.
     private static readonly HashSet<string> AnonymousServiceExceptions = new(StringComparer.Ordinal);
 
-    /// <summary>2026-08-07 güvenlik bulgusu (Ar-Ge taraması A-2): beş app service HTTP yüzeyinde ANONİM
+    /// <summary>2026-08-07 güvenlik bulgusu (Ar-Ge taraması A-2): beş app service HTTP API'sinde ANONİM
     /// erişilebilirdi — ikisi yıkıcı yazma ucu (stale-silmeli tam re-sync) taşıyordu ve içlerindeki
     /// "host-only" ters guard'ı (<c>CurrentTenant.Id is not null → throw</c>) anonim istekte tenant null
     /// olduğundan GEÇİYORDU. Kural: her concrete app service ya sınıf-düzeyi <c>[Authorize]</c> taşır
-    /// ya <c>[RemoteService(IsEnabled=false)]</c> ile HTTP yüzeyinden çekilir.</summary>
+    /// ya <c>[RemoteService(IsEnabled=false)]</c> ile HTTP API'sinden çekilir.</summary>
     [Fact]
     public void Every_concrete_app_service_must_be_authorize_gated_or_local()
     {
@@ -115,7 +115,7 @@ public class AppServiceConventionTests
     {
         // Kural (permission tutarlılığı, Metal deseni): HostCatalogCrudAppService türevi her servis
         // Create/Update/Delete policy'lerini ctor'da atamalı (okuma/liste serbest kalabilir — [Authorize] yeter)
-        // YA DA sınıf-seviyesi [Authorize("...")] policy'siyle komple kapılanmalı (Country/Cash/Parity deseni).
+        // YA DA sınıf-seviyesi [Authorize("...")] policy'siyle komple korunmalı (Country/Cash/Parity deseni).
         // Doğrulama: servis null bağımlılıklarla instantiate edilir (ctor'lar yalnız atama yapar) ve
         // ABP'nin protected CreatePolicyName/UpdatePolicyName/DeletePolicyName property'leri okunur.
         var violations = new List<string>();
@@ -130,7 +130,7 @@ public class AppServiceConventionTests
                 continue;
             }
 
-            // Sınıf-seviyesi policy'li [Authorize] tüm metotları zaten kapılar (Default izni CRUD'u kapsar).
+            // Sınıf-seviyesi policy'li [Authorize] tüm metotları zaten korur (Default izni CRUD'u kapsar).
             var classPolicy = type.GetCustomAttributes<AuthorizeAttribute>(inherit: true)
                 .Any(a => !string.IsNullOrEmpty(a.Policy));
             if (classPolicy)

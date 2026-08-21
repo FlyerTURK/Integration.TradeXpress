@@ -8,7 +8,7 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// <summary>
 /// PAZARYERİ ENGEL BEYANININ kanal kaydına taşınması ve tek cevaba indirgenmesi.
 ///
-/// <para><b>Çivilenen boşluk:</b> <c>blacklisted</c>/<c>locked</c>/<c>archived</c>/<c>rejected</c> alanları
+/// <para><b>Sabitlenen boşluk:</b> <c>blacklisted</c>/<c>locked</c>/<c>archived</c>/<c>rejected</c> alanları
 /// Trendyol yanıtında HEP vardı ve hiç okunmuyordu. Karalisteye alınmış bir kalem bizde "onaylı + satışta"
 /// görünüyor, gönderim karşı tarafta reddediliyor ve sebebi hiçbir ekranda yer almıyordu. Canlı ölçüm bunun
 /// teorik olmadığını gösterdi — tek bir grubun 19 kaleminin TAMAMI karalistedeydi, dördü ayrıca kilitli.</para>

@@ -9,15 +9,15 @@ using Xunit;
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// <b>REÇETE DOĞRULAMA DAMGASI</b> — varyant onayının hâlâ geçerli olup olmadığını belirleyen saf hesap.
+/// <b>REÇETE DOĞRULAMA STAMP'İ</b> — varyant onayının hâlâ geçerli olup olmadığını belirleyen saf hesap.
 ///
-/// <para>Damga yanlış çalışırsa iki yönde de pahalı: fazla hassas olursa onay durmadan düşer (kullanıcı
+/// <para>Stamp yanlış çalışırsa iki yönde de pahalı: fazla hassas olursa onay durmadan düşer (kullanıcı
 /// bıkar, sonunda doğrulamayı ciddiye almaz), az hassas olursa reçete değişimi kaçar ve ürün YANLIŞ
 /// FİYATLA satılır. Bu testler ikisini de kilitler.</para>
 /// </summary>
 public class RecipeVerificationStampTests
 {
-    /// <summary>ASIL KURAL 1 — içerik değişirse damga değişir. Kaçarsa reçete değişimi fark edilmez.</summary>
+    /// <summary>ASIL KURAL 1 — içerik değişirse stamp değişir. Kaçarsa reçete değişimi fark edilmez.</summary>
     [Fact]
     public void Changing_an_amount_changes_the_stamp()
     {
@@ -28,8 +28,8 @@ public class RecipeVerificationStampTests
     }
 
     /// <summary>ASIL KURAL 2 — satıra DOKUNULUP aynı bırakıldıysa onay AYAKTA kalır.
-    /// <para>Salt zaman damgası kullansaydık bu senaryo onayı boşuna düşürürdü: kullanıcı reçeteyi açıp
-    /// hiçbir şey değiştirmeden kaydetse bile ürün satıştan çıkardı. İki kademeli damganın var oluş sebebi
+    /// <para>Salt timestamp kullansaydık bu senaryo onayı boşuna düşürürdü: kullanıcı reçeteyi açıp
+    /// hiçbir şey değiştirmeden kaydetse bile ürün satıştan çıkardı. İki kademeli stamp'in var oluş sebebi
     /// tam olarak budur.</para></summary>
     [Fact]
     public void Touching_a_line_without_changing_content_keeps_the_verification_valid()
@@ -47,7 +47,7 @@ public class RecipeVerificationStampTests
         RecipeVerificationStamp.Matches(before, after).ShouldBeTrue();
     }
 
-    /// <summary>Satırların sırası değişse de damga aynı — salt yeniden sıralama onayı düşürmemeli.</summary>
+    /// <summary>Satırların sırası değişse de stamp aynı — salt yeniden sıralama onayı düşürmemeli.</summary>
     [Fact]
     public void Input_order_does_not_affect_the_stamp()
     {
@@ -58,7 +58,7 @@ public class RecipeVerificationStampTests
             .ShouldBe(RecipeVerificationStamp.Compute(new[] { b, a }));
     }
 
-    /// <summary>Aynı Guid FARKLI ailede geçiyorsa damga farklı olmalı — emtia ailesi kimliğin parçasıdır
+    /// <summary>Aynı Guid FARKLI ailede geçiyorsa stamp farklı olmalı — emtia ailesi kimliğin parçasıdır
     /// (CommodityId FK'sız snapshot, çakışma gerçek bir ihtimal).</summary>
     [Fact]
     public void Same_commodity_id_in_another_family_produces_a_different_stamp()
@@ -70,7 +70,7 @@ public class RecipeVerificationStampTests
     }
 
     /// <summary>
-    /// KÜLTÜR TUZAĞI: ondalık ayracı kültüre göre değişirse aynı reçete iki makinede iki damga üretir —
+    /// KÜLTÜR TUZAĞI: ondalık ayracı kültüre göre değişirse aynı reçete iki makinede iki stamp üretir —
     /// onay geliştirici makinesinde geçerli, sunucuda geçersiz olurdu. Sessiz ve teşhisi zor bir arıza.
     /// </summary>
     [Fact]
@@ -93,7 +93,7 @@ public class RecipeVerificationStampTests
         }
     }
 
-    /// <summary>Reçetesiz varyant da tutarlı kıyaslanabilmeli (boş liste sabit damga üretir).</summary>
+    /// <summary>Reçetesiz varyant da tutarlı kıyaslanabilmeli (boş liste sabit stamp üretir).</summary>
     [Fact]
     public void Empty_recipe_has_a_stable_stamp()
     {
@@ -101,7 +101,7 @@ public class RecipeVerificationStampTests
             .ShouldBe(RecipeVerificationStamp.EmptyRecipe);
     }
 
-    /// <summary>Damga yoksa (hiç doğrulanmamış) kıyas DAİMA false — "bilinmiyor" asla "geçerli" sayılmaz.</summary>
+    /// <summary>Stamp yoksa (hiç doğrulanmamış) kıyas DAİMA false — "bilinmiyor" asla "geçerli" sayılmaz.</summary>
     [Fact]
     public void Missing_stamp_never_matches()
     {

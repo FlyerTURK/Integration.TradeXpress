@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Products;
 /// <see cref="ProductRecipeCostCalculator"/> saf hesap testi (DB'siz). İki satır türü: fiziki katalog
 /// (Metal/Scrap/Future/Jewelry/Stone — kendi gerçek maliyeti) ve <b>Hizmet</b> (türevsel bedel: devralınan taban
 /// üstüne yüzde/brütleştir/… ; PİLOT). Satır Maliyeti = satırın KATKISI (fiziki: gerçek maliyet; Hizmet: uygulanan
-/// bedel/fee) → net = basit toplam. Değerleme SATIŞ bacağı (2026-07-05), ülke birimine rebase. Kur eksik = MissingRate.
+/// bedel/fee) → net = basit toplam. Değerleme SATIŞ yönünde (2026-07-05), ülke birimine rebase. Kur eksik = MissingRate.
 /// </summary>
 public class ProductRecipeCostCalculatorTests
 {
@@ -21,7 +21,7 @@ public class ProductRecipeCostCalculatorTests
 
     private readonly ProductRecipeCostCalculator _calculator = new();
 
-    // Doğal birim → "1 birim = X ülke parası" (SATIŞ bacağı). TRY ülke birimi (kendisi 1).
+    // Doğal birim → "1 birim = X ülke parası" (SATIŞ yönü). TRY ülke birimi (kendisi 1).
     private static Dictionary<Guid, decimal> Sell() => new() { [Has] = 6000m, [Usd] = 30m, [Try] = 1m };
 
     private static RecipeLineCostInput MetalLine(
@@ -107,7 +107,7 @@ public class ProductRecipeCostCalculatorTests
 
         result.Lines[0].Total.ShouldBe(10m);
         result.Lines[0].PayTotal.ShouldBe(50m);
-        result.Lines[0].Cost.ShouldBe(60050.00m);   // iki bacak toplamı
+        result.Lines[0].Cost.ShouldBe(60050.00m);   // Total + PayTotal toplamı
         result.Net.ShouldBe(60050.00m);
     }
 
@@ -131,7 +131,7 @@ public class ProductRecipeCostCalculatorTests
     [Fact]
     public void WithCurrency_payment_is_single_leg_total_times_payfactor()
     {
-        // BEDELLİ: 10 HAS × 5900 TRY/HAS = 59000 TRY — TEK bacak (metal bacağı AYRICA eklenmez; çift sayım yok).
+        // BEDELLİ: 10 HAS × 5900 TRY/HAS = 59000 TRY — TEK kalem (madenin kendi Total'i AYRICA eklenmez; çift sayım yok).
         var result = _calculator.Compute(
             new[]
             {
@@ -143,13 +143,13 @@ public class ProductRecipeCostCalculatorTests
 
         result.Lines[0].Total.ShouldBe(10m);        // görüntü değeri (HAS)
         result.Lines[0].PayTotal.ShouldBe(59000m);
-        result.Lines[0].Cost.ShouldBe(59000.00m);   // yalnız bedel bacağı (canlı 60000 DEĞİL)
+        result.Lines[0].Cost.ShouldBe(59000.00m);   // yalnız PayTotal (canlı 60000 DEĞİL)
     }
 
     [Fact]
     public void Normal_payment_with_labor_but_missing_pay_rate_marks_line_missing()
     {
-        // İşçilik bacağının birimi çözülemiyor → satır MissingRate, net'e katılmaz.
+        // İşçiliğin PayUnitId'si çözülemiyor → satır MissingRate, net'e katılmaz.
         var result = _calculator.Compute(
             new[] { MetalLine(amount: 10m, factor: 1m, payFactor: 5m, payUnitId: Unknown) }, Sell(), "TRY");
 
@@ -162,7 +162,7 @@ public class ProductRecipeCostCalculatorTests
     [Fact]
     public void Priced_leg_uses_entry_price_times_gram_when_not_price_by_quantity()
     {
-        // Taş/Mücevher parasal: 4g × EntryPrice 25 (USD) = 100 USD; × 30 = 3000.00. Pay bacağı yok.
+        // Taş/Mücevher parasal: 4g × EntryPrice 25 (USD) = 100 USD; × 30 = 3000.00. PayTotal yok.
         var line = new RecipeLineCostInput(
             RecipeComponentType.CatalogCommodity, ProcessType.Stone,
             Quantity: 0m, Amount: 4m, Factor: 0m,

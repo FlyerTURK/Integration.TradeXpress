@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.Attachments;
 /// <summary>
 /// İmzalı medya bağlantısının GÜVENLİK sözleşmesi.
 ///
-/// <para><b>Neden var:</b> bu bağlantı, oturum aramayan tek okuma yüzeyi — pazaryerleri görseli kendi
+/// <para><b>Neden var:</b> bu bağlantı, oturum aramayan tek okuma yolu — pazaryerleri görseli kendi
 /// sunucularından çektiği için açıldı. Güvenliği tamamen jetonun doğrulanmasına dayanıyor; buradaki her
 /// assert, o dar istisnanın sınırını koruyor. Kurcalanan imza, süresi dolmuş jeton ya da değiştirilmiş
 /// tenant kabul edilirse başka tenant'ın medyası okunabilir hale gelir.</para>

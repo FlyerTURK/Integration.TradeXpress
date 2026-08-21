@@ -8,8 +8,8 @@ namespace Integration.TradeXpress.N11Categories;
 /// <summary>
 /// "Mega mi?" yüklemi — sentetik üst katmanı N11'den gelen gerçek kategorilerden ayıran TEK kaynak.
 ///
-/// <para>Neden mekanik ağ: kategori sayımı (mega hariç) ve senkron damgası bu yükleme dayanıyor. Sessizce
-/// bozulursa sayım yanlış çıkar ve damga yanlış satırlara yazılır — ikisi de gözle fark edilmez.</para>
+/// <para>Neden konvansiyon testi: kategori sayımı (mega hariç) ve senkron timestamp'i (<c>LastSyncedAt</c>) bu yükleme dayanıyor. Sessizce
+/// bozulursa sayım yanlış çıkar ve timestamp yanlış satırlara yazılır — ikisi de gözle fark edilmez.</para>
 /// </summary>
 public class N11MegaCategoryTests
 {
@@ -82,7 +82,7 @@ public class N11MegaCategoryTests
     public void Sync_stamp_is_independent_of_the_n11_supplied_timestamp()
     {
         // LastSyncedAt = BİZİM mutabakat anımız; LastModifiedExternal = N11'in kendi tarihi. Karıştırılırsa
-        // bayatlık kapısı yanlış alandan okur ve (REST bu alanı hep null döndürdüğü için) hiç kapanmaz.
+        // bayatlık kontrolü yanlış alandan okur ve (REST bu alanı hep null döndürdüğü için) hiç kapanmaz.
         var external = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var category = new N11Category("MEGA-EV", null, "Ev & Yaşam", isLeaf: false, lastModifiedExternal: external);
 

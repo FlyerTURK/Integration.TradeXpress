@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products.Rest;
 using Integration.TradeXpress.SalesChannelProducts;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Security.Claims;
 using Xunit;
 
 namespace Integration.TradeXpress.N11Products;
@@ -24,11 +26,15 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
 {
     private readonly FakeN11TaskPoller _taskPoller;
     private readonly FakeN11ProductQueryClient _queryClient;
+    private readonly N11PendingPushResolver _pendingResolver;
+    private readonly ICurrentPrincipalAccessor _principalAccessor;
 
     protected SalesChannelTrN11ProductQueuedPushTests()
     {
         _taskPoller = GetRequiredService<FakeN11TaskPoller>();
         _queryClient = GetRequiredService<FakeN11ProductQueryClient>();
+        _pendingResolver = GetRequiredService<N11PendingPushResolver>();
+        _principalAccessor = GetRequiredService<ICurrentPrincipalAccessor>();
     }
 
     [Fact]
@@ -304,7 +310,7 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
     /// test karşılığı. İki şey birden gerekir: eksen nitelikleri temizlenir (yoksa reconcile N11-only
     /// kombinasyonu GERİ ÜRETİR) ve ERP varyantları pasifleşir (aday sorgusu <c>IsActive</c> filtreler).
     /// Dönüş: pasifleştirilen varyant kimlikleri — "stok geri geldi" senaryosu bunları geri açar.</summary>
-    // "Stok geri geldi" senaryosunda varyantlara yazilan fiyat — orijinal tohum fiyatiyla ayni olmak zorunda
+    // "Stok geri geldi" senaryosunda varyantlara yazilan fiyat — orijinal seed fiyatiyla ayni olmak zorunda
     // degil; test yalnizca "aday listesi yeniden doldu" sonucunu dogruluyor.
     private const decimal RestoredSalePrice = 150m;
 
@@ -338,7 +344,7 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
     /// <para><b>Neden IsActive DEĞİL (2026-08-08):</b> "ana varyant pasifleştirilemez" kuralı geldi
     /// (<c>EntityVariant.SetActive</c> fail-fast eder) ve bu helper ana varyantı da pasifleştiriyordu.
     /// Kural testi kırdığı için testi gevşetmek YASAK — bunun yerine AYNI sonucu üreten MEŞRU bir kaldıraca
-    /// geçildi: aday sorgusu fiyatsız varyantı zaten eliyor (<c>SalePrice is not null</c> süzgeci, kapıdan
+    /// geçildi: aday sorgusu fiyatsız varyantı zaten eliyor (<c>SalePrice is not null</c> süzgeci, guard'dan
     /// da ÖNCE). Testin iddiaları birebir aynı kaldı; yalnız senaryonun kurulma yolu değişti.</para>
     ///
     /// <para>Gerçek hayattaki karşılığı da meşru: fiyatı çözülemeyen varyant push adayı olamaz.</para></summary>
@@ -363,14 +369,14 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
     }
 
     /// <summary>
-    /// <b>PUSH KAPISI</b> (2026-08-05 Hakan kararı: *"kararsız reçeteli bir ürün kesinlikle satışa girmemeli
+    /// <b>PUSH GUARD'I</b> (2026-08-05 Hakan kararı: *"kararsız reçeteli bir ürün kesinlikle satışa girmemeli
     /// — düşünsene pırlantayı bedava sattığımız senaryoyu"*).
     ///
     /// <para>Varyantın onayı düştüğünde (reçete değişti / emtia gitti / hiç onaylanmadı) o varyant push aday
-    /// listesine GİRMEZ. Kapı fiyatlamadan ÖNCE olduğu için <b>elle girilen özel fiyat da kararsızlığı
+    /// listesine GİRMEZ. Guard fiyatlamadan ÖNCE olduğu için <b>elle girilen özel fiyat da kararsızlığı
     /// ÖRTEMEZ</b> — eski davranışta <c>OverridePrice ?? türetilmiş</c> zinciri yüzünden örtebiliyordu.</para>
     ///
-    /// <para>Bu test kapının KENDİSİNİ kilitler: kapı kalkarsa doğrulanmamış varyant sessizce push edilir ve
+    /// <para>Bu test guard'ın KENDİSİNİ kilitler: guard kalkarsa doğrulanmamış varyant sessizce push edilir ve
     /// arıza ancak pazaryerinde yanlış fiyat olarak görünür.</para>
     /// </summary>
     [Fact]
@@ -415,7 +421,7 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
             var all = await details.GetListAsync(d => variantIds.Contains(d.EntityVariantId));
             foreach (var detail in all)
             {
-                detail.Close();   // Ready DIŞINDA herhangi bir durum kapıyı kapatır
+                detail.Close();   // Ready DIŞINDA herhangi bir durum guard'ı kapatır
                 await details.UpdateAsync(detail, autoSave: true);
             }
         });
@@ -617,6 +623,149 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
 
             pushed.LastError.ShouldBeNull();
             pushed.PendingPushTaskId.ShouldBeNullOrEmpty();
+        }
+    }
+
+    // ── EnsureNoPendingPushAsync + KUYRUK ÇÖZÜCÜ İŞÇİSİ (2026-08-19 haritası, öncelik #2) ───────────
+
+    /// <summary>Bekleyen task hâlâ kuyruktayken yeni tam push REDDEDİLİR ve eski task kimliği ÜZERİNE YAZILMAZ.
+    /// Eski davranış: ikinci push yeni task id'sini eskisinin üstüne yazıyor, ilk task'ın akıbeti (red gerekçesi
+    /// dahil) bir daha sorgulanamıyordu; 15 dk'lık repricing turu da aynı yoldan geçiyordu.</summary>
+    [Fact]
+    public async Task Push_is_refused_while_the_previous_task_is_still_queued_and_the_task_id_is_kept()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAxisProductWithN11OnlyRowAsync(companyId, "QGATE1", greenPrice: 150m, greenStock: 5);
+            _taskPoller.Result = new N11TaskResult(N11TaskState.InQueue, Array.Empty<N11TaskItemResult>(), null);
+            var queued = await _appService.PushToN11Async(created.Id);
+            var createCalls = _restClient.CreatedBatches.Count;
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.PushToN11Async(created.Id));
+
+            ex.Code.ShouldBe("TradeXpress:N11:Rest:PushPending");
+            _restClient.CreatedBatches.Count.ShouldBe(createCalls);   // N11'e ikinci create GİTMEDİ
+            var after = await _appService.GetAsync(created.Id);
+            after.PendingPushTaskId.ShouldBe(queued.PendingPushTaskId);
+            after.LastError.ShouldBeNull();   // "hâlâ kuyrukta" bir senkron hatası değildir
+        }
+    }
+
+    /// <summary><c>EnsureNoPendingPushAsync</c> önce bekleyen task'ı BİR KEZ sorgular: bu arada işlendiyse yol açıktır — push devam eder,
+    /// kimlik temizlenir. Kullanıcı "bekleyen var" diye elle çözmek zorunda kalmaz.</summary>
+    [Fact]
+    public async Task Push_proceeds_when_the_queued_task_turns_out_to_be_processed()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAxisProductWithN11OnlyRowAsync(companyId, "QGATE2", greenPrice: 150m, greenStock: 5);
+            _taskPoller.Result = new N11TaskResult(N11TaskState.InQueue, Array.Empty<N11TaskItemResult>(), null);
+            await _appService.PushToN11Async(created.Id);
+            var createCalls = _restClient.CreatedBatches.Count;
+
+            _taskPoller.Result = new N11TaskResult(N11TaskState.Processed, Array.Empty<N11TaskItemResult>(), null);
+            var pushed = await _appService.PushToN11Async(created.Id);
+
+            pushed.PendingPushTaskId.ShouldBeNullOrEmpty();
+            pushed.LastError.ShouldBeNull();
+            _restClient.CreatedBatches.Count.ShouldBe(createCalls + 1);   // yeni push N11'e GİTTİ
+        }
+    }
+
+    /// <summary>Fiyat/stok senkronu da aynı guard'dan geçer (Trendyol "tip ayrımı yapılmaz" kuralının karşılığı):
+    /// çözülmemiş tam-push task'ı varken senkron gönderilmez.</summary>
+    [Fact]
+    public async Task Sync_is_refused_while_a_full_push_task_is_still_queued()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAxisProductWithN11OnlyRowAsync(companyId, "QGATE3", greenPrice: 150m, greenStock: 5);
+
+            // Önce BAŞARILI bir push (SKU'lar donar — senkronun ön koşulu), sonra kuyrukta kalan ikinci push.
+            _taskPoller.Result = new N11TaskResult(N11TaskState.Processed, Array.Empty<N11TaskItemResult>(), null);
+            await _appService.PushToN11Async(created.Id);
+            _taskPoller.Result = new N11TaskResult(N11TaskState.InQueue, Array.Empty<N11TaskItemResult>(), null);
+            await _appService.PushToN11Async(created.Id);
+            var syncCalls = _restClient.PriceStockBatches.Count;
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.SyncStockAndPriceAsync(created.Id));
+
+            ex.Code.ShouldBe("TradeXpress:N11:Rest:PushPending");
+            _restClient.PriceStockBatches.Count.ShouldBe(syncCalls);
+        }
+    }
+
+    /// <summary>İŞÇİ ŞARTI: ambient şirket YOK, ambient kullanıcı YOK. Çözücü kaydın KENDİ şirketini ve tenant
+    /// admin'ini kurup kuyruktaki task'ı kapatmalı. (Trendyol batch işçisinin canlıda sessizce hiç çalışmadığı
+    /// şart tam buydu; N11 karşılığı baştan bu şartla pinlenir.)</summary>
+    [Fact]
+    public async Task Worker_resolver_closes_a_processed_task_without_ambient_company_or_user()
+    {
+        var companyId = Guid.NewGuid();
+        SalesChannelTrN11ProductDto queued;
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAxisProductWithN11OnlyRowAsync(companyId, "QWRK1", greenPrice: 150m, greenStock: 5);
+            _taskPoller.Result = new N11TaskResult(N11TaskState.InQueue, Array.Empty<N11TaskItemResult>(), null);
+            queued = await _appService.PushToN11Async(created.Id);
+            queued.PendingPushTaskId.ShouldNotBeNullOrEmpty();
+        }
+
+        _taskPoller.Result = new N11TaskResult(N11TaskState.Processed, Array.Empty<N11TaskItemResult>(), null);
+
+        N11PendingPushResolveReport report;
+        using (_currentCompany.Change(null))
+        using (_principalAccessor.Change(new ClaimsPrincipal(new ClaimsIdentity())))
+        {
+            report = await _pendingResolver.ResolvePendingAsync();
+        }
+
+        report.SkippedNoAdmin.ShouldBeFalse("tenant admin bulunmalı — bulunamadıysa işçi sessiz kalır");
+        report.Resolved.ShouldBeGreaterThanOrEqualTo(1);
+        report.Failed.ShouldBe(0);
+
+        using (_currentCompany.Change(companyId))
+        {
+            var after = await _appService.GetAsync(queued.Id);
+            after.PendingPushTaskId.ShouldBeNullOrEmpty();
+            after.LastError.ShouldBeNull();
+        }
+    }
+
+    /// <summary>Reddedilen task işçide HATA değil SONUÇtur: kayıt işaretlenir (kimlik temizlenir, LastError dolar),
+    /// tur "reddedilen" sayar ve devam eder.</summary>
+    [Fact]
+    public async Task Worker_resolver_records_a_rejected_task_and_continues()
+    {
+        var companyId = Guid.NewGuid();
+        SalesChannelTrN11ProductDto queued;
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAxisProductWithN11OnlyRowAsync(companyId, "QWRK2", greenPrice: 150m, greenStock: 5);
+            _taskPoller.Result = new N11TaskResult(N11TaskState.InQueue, Array.Empty<N11TaskItemResult>(), null);
+            queued = await _appService.PushToN11Async(created.Id);
+        }
+
+        _taskPoller.Result = new N11TaskResult(N11TaskState.Rejected, Array.Empty<N11TaskItemResult>(), "Veri seti yüklenmedi");
+
+        N11PendingPushResolveReport report;
+        using (_currentCompany.Change(null))
+        using (_principalAccessor.Change(new ClaimsPrincipal(new ClaimsIdentity())))
+        {
+            report = await _pendingResolver.ResolvePendingAsync();
+        }
+
+        report.Rejected.ShouldBeGreaterThanOrEqualTo(1);
+        report.Failed.ShouldBe(0);
+
+        using (_currentCompany.Change(companyId))
+        {
+            var after = await _appService.GetAsync(queued.Id);
+            after.PendingPushTaskId.ShouldBeNullOrEmpty();
+            after.LastError.ShouldNotBeNullOrEmpty();
         }
     }
 

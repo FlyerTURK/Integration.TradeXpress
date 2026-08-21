@@ -127,7 +127,7 @@ public abstract class OrderLineProductSnapshotBuilderTests<TStartupModule> : Tra
                 autoSave: true));
     }
 
-    /// <summary>Verilen bağlama (entityName + entityId) tek aktif KAPAK medyası kurar; medya Id'sini döner.
+    /// <summary>Verilen bağlama (entityName + entityId) tek aktif COVER medyası kurar; medya Id'sini döner.
     /// <paramref name="hasPoster"/> false ise poster blob'u ayarlanmaz → PosterUrl null → ContentUrl beklenir.</summary>
     private async Task<Guid> SeedMediaAsync(Guid companyId, string entityName, Guid entityId, bool hasPoster)
     {

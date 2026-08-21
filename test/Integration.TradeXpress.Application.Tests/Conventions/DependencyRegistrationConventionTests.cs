@@ -20,7 +20,7 @@ namespace Integration.TradeXpress.Conventions;
 ///
 /// <para><b>Neden hiçbir mevcut ağ yakalamadı:</b> hata derleme zamanında değil, konteyner kurulumunda doğar.
 /// Derleme temiz, testler yeşil, hiçbir kural kırmızı — yalnız arka plan işi sessizce ölü. Bu, projenin en
-/// pahalı hata sınıfının (sessiz-yanlış) DI ayağıdır.</para>
+/// pahalı hata sınıfının (sessiz-yanlış) DI tarafındaki görünümüdür.</para>
 ///
 /// <para><b>Kural:</b> yapılandırma-adı arayüzünü (<c>I{X}</c>) uygulayan ve ABP yaşam-döngüsü işaretçisi taşıyan
 /// bir sınıf, ya adlandırma konvansiyonuna UYAR ya da <c>[ExposeServices]</c> ile arayüzü AÇIKÇA açar.
@@ -41,7 +41,7 @@ public class DependencyRegistrationConventionTests
         yield return typeof(Integration.TradeXpress.Orchestration.ICommodityStockReader).Assembly;
     }
 
-    /// <summary>ABP'nin <c>ExposedServiceExplorer</c> kuralının birebir aynası: <c>I</c> ön eki atılır ve
+    /// <summary>ABP'nin <c>ExposedServiceExplorer</c> kuralının birebir kopyası: <c>I</c> ön eki atılır ve
     /// sınıf adının o adla BİTİP bitmediğine bakılır.</summary>
     private static bool AbpWouldExpose(Type implementation, Type serviceInterface)
     {

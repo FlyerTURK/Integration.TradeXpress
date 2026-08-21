@@ -70,7 +70,7 @@ public class OrderReservationCancellationBridgeTests : TradeXpressEntityFramewor
     }
 
     /// <summary>③ Zaten BEKLİYORSA ilk talep anı korunur.
-    /// <para>Damga her turda tazelenseydi "ne zamandır karar bekliyor?" sorusunun cevabı DAİMA "2 dakikadır"
+    /// <para>Timestamp her turda tazelenseydi "ne zamandır karar bekliyor?" sorusunun cevabı DAİMA "2 dakikadır"
     /// olurdu — bekleyen işi önceliklendirmek imkânsızlaşırdı.</para></summary>
     [Fact]
     public async Task Second_signal_keeps_the_original_request_timestamp()
@@ -104,8 +104,8 @@ public class OrderReservationCancellationBridgeTests : TradeXpressEntityFramewor
         updated.Status.ShouldBe(OrderReservationStatus.Released);
     }
 
-    /// <summary>⑤ İADE/DEĞİŞİM talebi (kod 52/53) köprüyü TETİKLEMEZ — onlar iptal değil, iade sürecidir.
-    /// <para>Aynı köprüye bağlansaydı teslim edilmiş bir siparişin iade talebi "iptal kararı bekliyor" diye
+    /// <summary>⑤ İADE/DEĞİŞİM talebi (kod 52/53) <c>NotifyCancellationRequestedAsync</c>'i TETİKLEMEZ — onlar iptal değil, iade sürecidir.
+    /// <para>Aynı yola bağlansaydı teslim edilmiş bir siparişin iade talebi "iptal kararı bekliyor" diye
     /// görünürdü; operatör onaylarsa stok geri verilir ama mal hâlâ müşteridedir.</para></summary>
     [Theory]
     [InlineData("51", true)]    // İptal Talep Edildi
@@ -121,7 +121,7 @@ public class OrderReservationCancellationBridgeTests : TradeXpressEntityFramewor
 
     // ── fixture ──────────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Sipariş grafı KURULMADAN doğrudan rezervasyon kaydı — sınanan şey köprünün karar mantığı,
+    /// <summary>Sipariş grafı KURULMADAN doğrudan rezervasyon kaydı — sınanan şey <c>NotifyCancellationRequestedAsync</c>'in karar mantığı,
     /// rezervasyon kurulumu değil (onun kendi testleri var).</summary>
     private Task<Guid> SeedReservationAsync(Action<OrderReservation> arrange)
     {

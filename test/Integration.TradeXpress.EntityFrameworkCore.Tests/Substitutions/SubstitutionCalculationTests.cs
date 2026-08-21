@@ -331,7 +331,7 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
     /// <summary>Adet-hesaplı + standart gramajlı maden kataloğu kaydı (HAS takipli, milyem 1) + ana varyantı.
     /// İşçilik artık madende DEĞİL, ana varyantın <see cref="MetalVariantDetail"/> uzantısındadır (solver bunu
     /// EntityVariant→MetalVariantDetail join'iyle okur). Opsiyonel ADET-BAŞI işçilik (LaborType=Quantity)
-    /// maliyet sıralamasını ayrıştırmak için ana varyanta yazılır (0 işçilik = labor bacağı yok).</summary>
+    /// maliyet sıralamasını ayrıştırmak için ana varyanta yazılır (0 işçilik = labor leg'i yok).</summary>
     private Task<Metal> SeedMetalAsync(
         VoucherTestData data,
         string code,

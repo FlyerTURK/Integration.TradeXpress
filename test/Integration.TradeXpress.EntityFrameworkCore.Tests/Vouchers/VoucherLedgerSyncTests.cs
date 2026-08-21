@@ -57,20 +57,20 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
         cashEntry.AccountId.ShouldBe(data.AccountId);
         cashEntry.SubAccountId.ShouldBe(data.SubAccountId);
 
-        // Maden ÇIKIŞ (10 HAS + 150 TRY işçilik) aynı fişe → İKİ bacak, ikisi de eksi (BORÇ).
+        // Maden ÇIKIŞ (10 HAS + 150 TRY işçilik) aynı fişe → İKİ leg, ikisi de eksi (BORÇ).
         var metalDto = VoucherTestLines.MetalLine(data, ProcessDirectionType.Outbound, 10m, 150m);
         metalDto.VoucherId = voucherId;
         var metal = await _voucherAppService.SaveLineAsync(metalDto);
 
         var afterMetal = await GetLedgerAsync(voucherId);
-        afterMetal.Count.ShouldBe(3);   // nakit 1 + maden 2 bacak
+        afterMetal.Count.ShouldBe(3);   // nakit 1 + maden 2 leg
 
         var metalEntries = afterMetal.Where(e => e.VoucherLineId == metal.Id).ToList();
         metalEntries.Count.ShouldBe(2);
         metalEntries.Single(e => e.UnitId == data.HasUnitId).Amount.ShouldBe(-10m);
         metalEntries.Single(e => e.UnitId == data.TryUnitId).Amount.ShouldBe(-150m);
 
-        // Nakit bacağı dokunulmadan durur (senkron fiş-bazlı yeniden yazsa da net etki aynı).
+        // Nakit leg'i dokunulmadan durur (senkron fiş-bazlı yeniden yazsa da net etki aynı).
         afterMetal.Single(e => e.VoucherLineId == cash.Id).Amount.ShouldBe(1000m);
     }
 
@@ -92,7 +92,7 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
         var data = await ArrangeCompanyAsync();
 
         // Rezervasyon (taahhüt sayacı) bakiyeye YANSIMAZ → ana Has + işçilik dolu olsa bile
-        // poster boş döner, hiçbir ledger bacağı yazılmaz.
+        // poster boş döner, hiçbir ledger leg'i yazılmaz.
         var dto = VoucherTestLines.MetalLine(data, ProcessDirectionType.Outbound, 10m, 150m);
         dto.PaymentType = ProcessPaymentType.Reservation;
         var line = await _voucherAppService.SaveLineAsync(dto);
@@ -144,7 +144,7 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
 
         (await GetLedgerAsync(voucherId)).Count.ShouldBe(3);
 
-        // Nakit satırını sil → yalnız maden bacakları kalır; silinen satırın ledger izi düşer.
+        // Nakit satırını sil → yalnız maden leg'leri kalır; silinen satırın ledger izi düşer.
         await _voucherAppService.DeleteLineAsync(voucherId, cash.Id, "test silme");
 
         var remaining = await GetLedgerAsync(voucherId);
@@ -179,7 +179,7 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
     {
         var data = await ArrangeCompanyAsync();
 
-        // Çeşni ÇIKIŞ: 10 gr × AU 0.916 / AG 0.05 → HAS −9.16, GUM −0.50; para bacağı YOK.
+        // Çeşni ÇIKIŞ: 10 gr × AU 0.916 / AG 0.05 → HAS −9.16, GUM −0.50; para leg'i YOK.
         var assay = await _voucherAppService.SaveLineAsync(
             VoucherTestLines.AssayLine(data, 10m, 0.916m, 0.05m));
 
@@ -283,7 +283,7 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
         twin.PayTotal.ShouldBe(500m);
         twin.PayUnitId.ShouldBe(data.TryUnitId);
         twin.CounterAccountId.ShouldBe(data.SubAccountId);
-        twin.VoucherId.ShouldNotBe(saved.VoucherId!.Value);   // karşı bacak KENDİ fişinde (fiş = tek cari)
+        twin.VoucherId.ShouldNotBe(saved.VoucherId!.Value);   // karşı leg KENDİ fişinde (fiş = tek cari)
 
         // Karşı fiş ledger'ı: tek satır, +500 TRY, karşı alt hesap kapsamı.
         var twinEntries = await GetLedgerAsync(twin.VoucherId);
@@ -331,7 +331,7 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
         var twinBefore = await GetTwinLineAsync(saved.LinkId!.Value, saved.Id);
         twinBefore.ShouldNotBeNull();
 
-        // Kaynak satırı sil → ikiz de düşer; İKİ fişin ledger'ı da temizlenir (tek bacak kalamaz).
+        // Kaynak satırı sil → ikiz de düşer; İKİ fişin ledger'ı da temizlenir (tek leg kalamaz).
         await _voucherAppService.DeleteLineAsync(saved.VoucherId!.Value, saved.Id, "virman test silme");
 
         (await GetLedgerAsync(saved.VoucherId!.Value)).ShouldBeEmpty();

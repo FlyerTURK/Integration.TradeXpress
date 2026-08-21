@@ -112,7 +112,7 @@ public class VariantSetReconcilerTests
         removed.ShouldBeEmpty();
     }
 
-    // ── Yardımcı — callback'leri listelere toplayan kısa sarmalayıcı ────────────────────────────────
+    // ── Yardımcı — callback'leri listelere toplayan kısa metot ──────────────────────────────────────
 
     private static async Task ReconcileAsync(
         IReadOnlyList<string> targetKeys,

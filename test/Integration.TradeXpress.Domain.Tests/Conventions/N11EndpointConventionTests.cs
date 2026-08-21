@@ -8,7 +8,7 @@ using Xunit;
 namespace Integration.TradeXpress.Conventions;
 
 /// <summary>
-/// N11 uç adresinin kaynağa GERİ SIZMASINI engelleyen mekanik ağ.
+/// N11 endpoint adresinin kaynağa GERİ SIZMASINI engelleyen konvansiyon testi.
 ///
 /// <para><b>Neden var:</b> <c>https://api.n11.com</c> dokuz ayrı istemcide sabit gömülüydü ve tek bir
 /// yapılandırılabilir tabana çekildi (<c>N11EndpointOptions</c>). Sebep estetik değil işlevsel: N11 hesap

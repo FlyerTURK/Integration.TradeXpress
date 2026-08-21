@@ -243,7 +243,7 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
         return new FilterTestData(tenantId, companyA, companyB, stoneA, stoneB);
     }
 
-    /// <summary>Bu testin tohumladığı taşlardan aktif filtrelerle görünenlerin id listesi.</summary>
+    /// <summary>Bu testin seedladığı taşlardan aktif filtrelerle görünenlerin id listesi.</summary>
     private Task<List<Guid>> QueryIdsAsync(FilterTestData data)
     {
         return WithUnitOfWorkAsync(async () =>

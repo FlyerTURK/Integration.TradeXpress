@@ -7,7 +7,7 @@ namespace Integration.TradeXpress.Vouchers;
 /// <summary>
 /// <see cref="BullionLegCalculator"/> saf motor testleri — ERPPRO <c>Cari.AcceptTransaction</c> TAKOZ bloğu davranışı.
 /// Beklenen değerler koddan değil ELLE (bağımsız) hesaplanmıştır. İşaret konvansiyonu: + = alacak, − = borç;
-/// sonuç bacakları yön işaretlidir, poster ek işaret uygulamaz.
+/// sonuç leg'leri yön işaretlidir, poster ek işaret uygulamaz.
 /// </summary>
 public class BullionLegCalculatorTests
 {
@@ -48,12 +48,12 @@ public class BullionLegCalculatorTests
             goldLaborUnitRate, silverLaborUnitRate, platinumLaborUnitRate, palladiumLaborUnitRate);
     }
 
-    // ── RAPORSUZ (ham TAKOZ pseudo-bacağı) ────────────────────────────────────
+    // ── RAPORSUZ (ham TAKOZ pseudo-leg'i) ─────────────────────────────────────
 
     [Fact]
     public void Unreported_inbound_produces_raw_gram_pseudo_leg_only()
     {
-        // 1000g raporsuz giriş → UnreportedTotal = +1000 HAM gram. Metal/işçilik bacakları 0.
+        // 1000g raporsuz giriş → UnreportedTotal = +1000 HAM gram. Metal/işçilik leg'leri 0.
         var r = BullionLegCalculator.ComputeBullion(Input(
             isReport: false, amount: 1000m,
             goldFactor: 0.916m, silverFactor: 0.10m));   // milyemler girilmiş olsa bile YOK sayılır
@@ -108,12 +108,12 @@ public class BullionLegCalculatorTests
         r.UnreportedTotal.ShouldBe(expected);
     }
 
-    // ── RAPORLU: altın bacağı ─────────────────────────────────────────────────
+    // ── RAPORLU: altın leg'i ──────────────────────────────────────────────────
 
     [Fact]
     public void Reported_inbound_gold_leg_is_quantity_times_millesimal()
     {
-        // 1000g × 0.916 milyem → +916 HAS. Raporsuz bacak 0.
+        // 1000g × 0.916 milyem → +916 HAS. Raporsuz leg 0.
         var r = BullionLegCalculator.ComputeBullion(Input(
             amount: 1000m, goldFactor: 0.916m));
 
@@ -174,7 +174,7 @@ public class BullionLegCalculatorTests
     public void Silver_deduct_from_labor_reduces_net_labor()
     {
         // İşçilikten Düş: brüt işçilik = 20/1000 × 900 = 18; düşülen = 100g × 0.1 = 10; net = 8.
-        // Girişte işçilik cariyi BORÇLANDIRIR → LaborTotal = −8. Gümüş bacağı oluşmaz.
+        // Girişte işçilik cariyi BORÇLANDIRIR → LaborTotal = −8. Gümüş leg'i oluşmaz.
         var r = BullionLegCalculator.ComputeBullion(Input(
             amount: 1000m, goldFactor: 0.9m, silverFactor: 0.10m,
             silverMode: MetalDisposition.DeductFromLabor,
@@ -237,7 +237,7 @@ public class BullionLegCalculatorTests
 
         r.GrossLabor.ShouldBe(10m);
         r.LaborTotal.ShouldBe(-10m);
-        // Deliver (varsayılan) → Pt/Pd kendi bacaklarında.
+        // Deliver (varsayılan) → Pt/Pd kendi leg'lerinde.
         r.PlatinumTotal.ShouldBe(30m);
         r.PalladiumTotal.ShouldBe(20m);
     }
@@ -262,13 +262,13 @@ public class BullionLegCalculatorTests
             isReport: false, amount: 1000m,
             platinumFactor: 0.03m, palladiumFactor: 0.02m);
 
-        // Raporsuz: Pt/Pd milyemleri yok sayılır, her şey pseudo TAKOZ bacağında.
+        // Raporsuz: Pt/Pd milyemleri yok sayılır, her şey pseudo TAKOZ leg'inde.
         var unreported = BullionLegCalculator.ComputeBullion(input);
         unreported.PlatinumTotal.ShouldBe(0m);
         unreported.PalladiumTotal.ShouldBe(0m);
         unreported.UnreportedTotal.ShouldBe(1000m);
 
-        // Raporlu: kendi bacaklarına düşer.
+        // Raporlu: kendi leg'lerine düşer.
         var reported = BullionLegCalculator.ComputeBullion(input with { IsReport = true });
         reported.PlatinumTotal.ShouldBe(30m);
         reported.PalladiumTotal.ShouldBe(20m);
@@ -278,7 +278,7 @@ public class BullionLegCalculatorTests
     [Fact]
     public void Platinum_convert_to_gold_uses_platinum_rate()
     {
-        // Pt Altına Çevir: 30g × 2000 ÷ 4000 = 15 HAS altına eklenir; Pt bacağı 0.
+        // Pt Altına Çevir: 30g × 2000 ÷ 4000 = 15 HAS altına eklenir; Pt leg'i 0.
         var r = BullionLegCalculator.ComputeBullion(Input(
             amount: 1000m, goldFactor: 0.9m, platinumFactor: 0.03m,
             platinumMode: MetalDisposition.ConvertToGold,
@@ -293,7 +293,7 @@ public class BullionLegCalculatorTests
     [Fact]
     public void Reported_outbound_inverts_metal_and_labor_signs()
     {
-        // Çıkışta metal bacakları (−), işçilik cariyi ALACAKLANDIRIR (+18).
+        // Çıkışta metal leg'leri (−), işçilik cariyi ALACAKLANDIRIR (+18).
         var r = BullionLegCalculator.ComputeBullion(Input(
             direction: ProcessDirectionType.Outbound,
             amount: 1000m, goldFactor: 0.9m, silverFactor: 0.10m,
@@ -308,7 +308,7 @@ public class BullionLegCalculatorTests
     [Fact]
     public void Same_input_inbound_vs_outbound_legs_are_exact_mirrors()
     {
-        // Yön-işaret simetrisi (çeşni 0 iken): tüm bacaklar birebir ters işaretli.
+        // Yön-işaret simetrisi (çeşni 0 iken): tüm leg'ler birebir ters işaretli.
         var inbound = Input(
             amount: 500m, assayAmount: 0m,
             goldFactor: 0.916m, silverFactor: 0.06m, platinumFactor: 0.02m, palladiumFactor: 0.01m,

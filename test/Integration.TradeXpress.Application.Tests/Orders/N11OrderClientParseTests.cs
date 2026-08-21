@@ -173,7 +173,7 @@ public class N11OrderClientParseTests
         period.Elements().Any(e => e.Name.LocalName == "endDate").ShouldBeTrue();
     }
 
-    /// <summary>İstek gövdesini yansımayla üretir — <c>BuildListRequest</c> private'tır ve öyle KALMALI
+    /// <summary>İstek body'sini yansımayla üretir — <c>BuildListRequest</c> private'tır ve öyle KALMALI
     /// (dışarıya açmak, iki stratejinin çağrı yerinde karışmasına davet olurdu).</summary>
     private static XElement BuildRequestBody(DateTime? sinceUtc)
     {

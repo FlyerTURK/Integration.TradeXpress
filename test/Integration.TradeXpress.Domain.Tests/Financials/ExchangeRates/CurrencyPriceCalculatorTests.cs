@@ -286,7 +286,7 @@ public class CurrencyPriceCalculatorTests
     [Fact]
     public void Cross_legs_invert_for_real_pair_spread()
     {
-        // EUR(39/43) / USD(36/40): bid=39/40, ask=43/36 (bacaklar çaprazda ters).
+        // EUR(39/43) / USD(36/40): bid=39/40, ask=43/36 (leg'ler çaprazda ters).
         var eur = new CurrencyPrice(39m, 43m, false);
         var usd = new CurrencyPrice(36m, 40m, false);
         var p = CurrencyPriceCalculator.Cross(eur, usd);

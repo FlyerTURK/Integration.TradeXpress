@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.EntityFrameworkCore;
+using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
@@ -152,7 +153,7 @@ public class ProductCommodityProvisionerTests : TradeXpressEntityFrameworkCoreTe
         product.StockPolicy.ShouldBe(ProductStockPolicy.Fixed);
     }
 
-    /// <summary>MİLYEM UYDURULMAZ (2026-08-06): metal-bacaklı ailede yeni emtia açarken katsayı beyan
+    /// <summary>MİLYEM UYDURULMAZ (2026-08-06): metal leg'li ailede yeni emtia açarken katsayı beyan
     /// edilmemişse kayıt AÇILMAZ.
     /// <para>Beyan yoksa entity varsayılanı devreye girerdi — Maden 0.995, Hurda 0.570. Bunlar MAKUL GÖRÜNEN
     /// tahminlerdir: 22 ayar bilezik 0.916'dır ve yanlış milyem sessizce her değerlemeye, her reçete
@@ -182,6 +183,51 @@ public class ProductCommodityProvisionerTests : TradeXpressEntityFrameworkCoreTe
         result.ProvisionedProducts.ShouldBe(0);
         result.CreatedCommodities.ShouldBe(0);
         result.Issues.ShouldNotBeEmpty();
+    }
+
+    /// <summary>SIFIR ADET + SIFIR MİKTAR (2026-08-19 Hakan kuralı): karar satırı 0/0 ise ne emtia kaydı açılır
+    /// ne reçete satırı yazılır — gerekçe rapora düşer.
+    /// <para><b>Neden katalog kaydı da sayılıyor:</b> guard yalnız reçete yazıcısında olsaydı emtia önce
+    /// autoSave'le açılır, yazıcı sonra reddederdi; satır-başı catch hatayı yuttuğu için UoW geri almaz ve
+    /// YETİM bir katalog kaydı kalırdı. Bu test o yetimi ölçerek kilitler (yalnız sayaç değil, tablo).</para></summary>
+    [Fact]
+    public async Task Zero_quantity_and_amount_creates_no_commodity_and_no_recipe_line()
+    {
+        var companyId = await NewCompanyAsync("PRZ");
+        var productId = await SeedProductAsync(companyId, "URN-PRZ-1", variantCount: 1);
+        var goods = GetRequiredService<IRepository<Good, Guid>>();
+        var goodsBefore = await WithUnitOfWorkAsync(() => goods.CountAsync(g => g.CompanyId == companyId));
+
+        var result = await WithUnitOfWorkAsync(() => _provisioner.ProvisionAsync(new ProductCommodityProvisionInputDto
+        {
+            Items = new List<ProductCommodityProvisionItemDto>
+            {
+                new()
+                {
+                    ProductId = productId,
+                    Family    = ProcessType.Good,
+                    Mode      = ProductCommodityProvisionMode.CreateNew,
+                    Quantity  = 0m,
+                    Amount    = 0m,
+                },
+            },
+        }));
+
+        result.ProvisionedProducts.ShouldBe(0);
+        result.CreatedCommodities.ShouldBe(0);
+        result.CreatedRecipeLines.ShouldBe(0);
+        result.Issues.ShouldHaveSingleItem().ShouldContain("URN-PRZ-1");
+
+        // YETİM YOK: sayaç değil tablo — katalog kaydı gerçekten açılmamış olmalı.
+        var goodsAfter = await WithUnitOfWorkAsync(() => goods.CountAsync(g => g.CompanyId == companyId));
+        goodsAfter.ShouldBe(goodsBefore);
+
+        var lines = await WithUnitOfWorkAsync(() => LoadLinesAsync(productId));
+        lines.ShouldBeEmpty();
+
+        // Politika DEĞİŞMEZ: reddedilen sınıflandırma ürünü Calculated'a çeviremez.
+        var product = await WithUnitOfWorkAsync(() => _products.GetAsync(productId));
+        product.StockPolicy.ShouldBe(ProductStockPolicy.Fixed);
     }
 
     /// <summary>Reçetesi OLAN ürüne dokunulmaz — kullanıcının emeği toplu işlemle ezilemez.</summary>
@@ -258,8 +304,8 @@ public class ProductCommodityProvisionerTests : TradeXpressEntityFrameworkCoreTe
     /// "Kur yok" ve <b>0,00 TRY</b>. Fiyat biliniyordu, birim eksikti. 1.300 TL'lik mamülle kurulan ürün
     /// sıfır maliyetli görünüyordu.</para>
     ///
-    /// <para><b>2. <c>Factor</c> sabit <c>1</c> yazılıyordu.</b> Bu alan MİLYEM snapshot'ıdır ve metal-bacaklı
-    /// satırda maliyet <c>gram × Factor</c>'dur. 22 ayar (0.916) yerine 1 kullanmak maden bacağını ~%9
+    /// <para><b>2. <c>Factor</c> sabit <c>1</c> yazılıyordu.</b> Bu alan MİLYEM snapshot'ıdır ve metal leg'li
+    /// satırda maliyet <c>gram × Factor</c>'dur. 22 ayar (0.916) yerine 1 kullanmak maden leg'ini ~%9
     /// şişirir — hatasız, uyarısız. Kullanıcının beyan ettiği katsayı DTO'ya alınmış ama satıra hiç
     /// geçirilmemişti.</para>
     ///

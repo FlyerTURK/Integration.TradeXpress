@@ -1,6 +1,8 @@
+using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.Orders;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.TrendyolProducts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -48,8 +50,20 @@ public class TradeXpressApplicationTestModule : AbpModule
         context.Services.AddSingleton<FakeTrendyolOrderClient>();
         context.Services.Replace(ServiceDescriptor.Singleton<ITrendyolOrderClient>(sp => sp.GetRequiredService<FakeTrendyolOrderClient>()));
 
+        // Etsy listeleme istemcisi de testte SAHTE — içe aktarım testleri sahte mağazayı okur (READ-ONLY ilke);
+        // varyasyon fotoğrafı ucu dahil ağın tamamı kesilir, davranış (eşleştirme/indirme) gerçek koddan geçer.
+        context.Services.AddSingleton<FakeEtsyProductClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<IEtsyProductClient>(sp => sp.GetRequiredService<FakeEtsyProductClient>()));
+
+        // Pazaryeri GÖRSEL indiricisi de sahte — yalnız indirme adımı (bkz. FakeMarketplaceImageDownloader);
+        // bağlama akışının tamamı gerçek koddan geçer. Sahte olmadan her URL testte sessizce başarısız oluyor ve
+        // içe aktarımın görsel dalı (varyant bağlamı dahil) HİÇ koşmuyordu.
+        context.Services.AddTransient<FakeMarketplaceImageDownloader>();
+        context.Services.Replace(ServiceDescriptor.Transient<MarketplaceImageDownloader>(
+            sp => sp.GetRequiredService<FakeMarketplaceImageDownloader>()));
+
         // N11 SİPARİŞ SOAP istemcisi de sahte — senkron ZİNCİRİ (çekim → eşleştirme → rezervasyon → iptal
-        // köprüsü) testte gerçek ağ olmadan uçtan uca koşsun. Sahte, hangi PENCEREYLE çağrıldığını kaydeder:
+        // bildirimi) testte gerçek ağ olmadan uçtan uca koşsun. Sahte, hangi PENCEREYLE çağrıldığını kaydeder:
         // seed ile delta kolunun karışması ancak böyle görülebilir (ikisi de aynı siparişleri döndürür).
         context.Services.AddSingleton<FakeN11OrderClient>();
         context.Services.Replace(ServiceDescriptor.Singleton<IN11OrderClient>(sp => sp.GetRequiredService<FakeN11OrderClient>()));

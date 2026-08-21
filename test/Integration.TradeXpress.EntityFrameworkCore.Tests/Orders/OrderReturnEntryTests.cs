@@ -24,7 +24,7 @@ namespace Integration.TradeXpress.Orders;
 /// sayılır". Kanaldaki "iade talep edildi" / "kargoda iade" statüleri stoğa dokunmaz — mal elimize geçmeden
 /// satılabilir göstermek, müşterinin onu ikinci kez satın alabilmesi demektir.</para>
 ///
-/// <para><b>Çift sayım kapısı:</b> iade rezervasyonu DİRİLTMEZ. Diriltseydi stok iki kez artardı — bir kez
+/// <para><b>Çift sayım guard'ı:</b> iade rezervasyonu DİRİLTMEZ. Diriltseydi stok iki kez artardı — bir kez
 /// giriş fişiyle, bir kez de rezervasyonun serbest kalmasıyla.</para>
 /// </summary>
 [Collection(TradeXpressTestConsts.CollectionDefinitionName)]

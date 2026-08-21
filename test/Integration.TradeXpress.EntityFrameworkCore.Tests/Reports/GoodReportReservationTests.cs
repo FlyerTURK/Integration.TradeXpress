@@ -10,10 +10,10 @@ using Xunit;
 namespace Integration.TradeXpress.Reports;
 
 /// <summary>
-/// <b>GOOD RAPORUNDA REZERVASYON</b> — <c>MetalReportStockTests</c>'in aynası (2026-08-05).
+/// <b>GOOD RAPORUNDA REZERVASYON</b> — <c>MetalReportStockTests</c>'in kardeşi (2026-08-05).
 ///
 /// <para><b>Neden eklendi:</b> Good raporu "Rezervasyon YOK" varsayımıyla yazılmıştı — hem
-/// <c>GetStockAsync</c>'te sayaçlar yoktu hem <c>GetMovementsAsync</c> tüm bacakları kümülatife katıyordu.
+/// <c>GetStockAsync</c>'te sayaçlar yoktu hem <c>GetMovementsAsync</c> tüm leg'leri kümülatife katıyordu.
 /// Sipariş rezervasyonu Good ürünlerini de kapsayacağı için bu varsayım, elimizde olmayan malı VARMIŞ
 /// gösteren sessiz bir hataya dönüşecekti.</para>
 ///
@@ -70,7 +70,7 @@ public class GoodReportReservationTests : TradeXpressEntityFrameworkCoreTestBase
     }
 
     /// <summary>Rezervasyon satırı listede GÖRÜNÜR ama yürüyen bakiyeyi HAREKET ETTİRMEZ.
-    /// <para>Eski kod tüm bacakları topluyordu — rezervasyon bakiyeyi şişirir ve rapor yalan söylerdi.</para></summary>
+    /// <para>Eski kod tüm leg'leri topluyordu — rezervasyon bakiyeyi şişirir ve rapor yalan söylerdi.</para></summary>
     [Fact]
     public async Task GetMovements_shows_reservation_row_but_keeps_physical_running_balance()
     {
